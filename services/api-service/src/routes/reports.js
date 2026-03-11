@@ -9,8 +9,7 @@ const router = express.Router();
 // Get all PR analysis reports
 router.get('/pr-analyses', authenticateToken, async (req, res) => {
   try {
-    const { repository_id, status, limit = 50, offset = 0, scope = 'user' } = req.query;
-    const includeAll = scope === 'all';
+    const { repository_id, status, limit = 50, offset = 0 } = req.query;
 
     // Validate repository_id is a valid UUID format if provided
     if (repository_id) {
@@ -23,14 +22,12 @@ router.get('/pr-analyses', authenticateToken, async (req, res) => {
       }
     }
 
-    // Build dynamic query
+    // Build dynamic query — always scoped to authenticated user
     const conditions = [];
     const queryParams = [];
 
-    if (!includeAll) {
-      conditions.push(`r.user_id = $${queryParams.length + 1}`);
-      queryParams.push(req.user.user_id);
-    }
+    conditions.push(`r.user_id = $${queryParams.length + 1}`);
+    queryParams.push(req.user.user_id);
 
     if (repository_id) {
       conditions.push(`r.id = $${queryParams.length + 1}`);
@@ -76,10 +73,8 @@ router.get('/pr-analyses', authenticateToken, async (req, res) => {
     const countParams = [];
     const countConditions = [];
 
-    if (!includeAll) {
-      countConditions.push(`r.user_id = $${countParams.length + 1}`);
-      countParams.push(req.user.user_id);
-    }
+    countConditions.push(`r.user_id = $${countParams.length + 1}`);
+    countParams.push(req.user.user_id);
 
     if (repository_id) {
       countConditions.push(`r.id = $${countParams.length + 1}`);
@@ -91,9 +86,7 @@ router.get('/pr-analyses', authenticateToken, async (req, res) => {
       countParams.push(status);
     }
 
-    if (countConditions.length > 0) {
-      countQuery += ` WHERE ${countConditions.join(' AND ')}`;
-    }
+    countQuery += ` WHERE ${countConditions.join(' AND ')}`;
 
     const countResult = await pool.query(countQuery, countParams);
 
@@ -117,16 +110,9 @@ router.get('/pr-analyses', authenticateToken, async (req, res) => {
 router.get('/pr-analyses/:analysisId', authenticateToken, async (req, res) => {
   try {
     const { analysisId } = req.params;
-    const { scope = 'user' } = req.query;
-    const includeAll = scope === 'all';
 
-    const conditions = ['a.id = $1'];
-    const params = [analysisId];
-
-    if (!includeAll) {
-      conditions.push(`r.user_id = $${params.length + 1}`);
-      params.push(req.user.user_id);
-    }
+    const conditions = ['a.id = $1', 'r.user_id = $2'];
+    const params = [analysisId, req.user.user_id];
 
     // Get analysis record from PostgreSQL
     const analysisResult = await pool.query(
@@ -203,19 +189,10 @@ router.get('/pr-analyses/:analysisId', authenticateToken, async (req, res) => {
 // Get summary statistics for reports dashboard
 router.get('/summary', authenticateToken, async (req, res) => {
   try {
-    // Get all summary statistics in a single query using conditional aggregation
-    const { scope = 'user' } = req.query;
-    const includeAll = scope === 'all';
+    // Get summary statistics scoped to the authenticated user only
+    const params = [req.user.user_id];
 
-    const conditions = [];
-    const params = [];
-
-    if (!includeAll) {
-      conditions.push(`r.user_id = $${params.length + 1}`);
-      params.push(req.user.user_id);
-    }
-
-    let summaryQuery = `
+    const summaryQuery = `
       SELECT
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE a.status = 'completed') as completed,
@@ -223,11 +200,8 @@ router.get('/summary', authenticateToken, async (req, res) => {
         COUNT(*) FILTER (WHERE a.started_at >= NOW() - INTERVAL '7 days') as recent
        FROM analysis a
        JOIN repositories r ON a.repository_id = r.id
+       WHERE r.user_id = $1
     `;
-
-    if (conditions.length > 0) {
-      summaryQuery += ` WHERE ${conditions.join(' AND ')}`;
-    }
 
     const result = await pool.query(summaryQuery, params);
 

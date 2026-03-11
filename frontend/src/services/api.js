@@ -1,150 +1,106 @@
-import axios from 'axios';
+import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-const ANALYSIS_SERVICE_URL = import.meta.env.VITE_ANALYSIS_SERVICE_URL || 'http://localhost:8001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
-// Create axios instance with base config
 const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    'Content-Type': 'application/json'
   }
-  return config;
-});
+})
 
-// Handle response errors globally
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Handle 401 Unauthorized errors
-    if (error.response && error.response.status === 401) {
-      // Clear invalid token
-      localStorage.removeItem('auth_token');
-      // Redirect to home page if not already there
-      if (window.location.pathname !== '/') {
-        window.location.href = '/';
-      }
+    if (error?.response?.status === 401 && window.location.pathname.startsWith('/app')) {
+      window.location.href = '/'
     }
-    return Promise.reject(error);
+    return Promise.reject(error)
   }
-);
+)
 
-// Auth API calls
 export const authAPI = {
-  // Redirect to GitHub OAuth
   loginWithGitHub: () => {
-    window.location.href = `${API_BASE_URL}/auth/github`;
+    window.location.href = `${API_BASE_URL}/auth/github`
   },
-
-  // Get current user info
   getMe: async () => {
-    const response = await api.get('/auth/me');
-    return response.data;
+    const { data } = await api.get('/auth/me')
+    return data
   },
+  logout: async () => {
+    await api.post('/auth/logout')
+  }
+}
 
-  // Logout
-  logout: () => {
-    localStorage.removeItem('auth_token');
+export const installationAPI = {
+  list: async () => {
+    const { data } = await api.get('/api/installations')
+    return data
   },
-};
+  sync: async () => {
+    const { data } = await api.post('/api/installations/sync')
+    return data
+  }
+}
 
-// Repository API calls
 export const repositoryAPI = {
-  // Get all repositories
-  getRepositories: async () => {
-    const response = await api.get('/api/repositories');
-    return response.data;
+  list: async () => {
+    const { data } = await api.get('/api/repositories')
+    return data
   },
-
-  // Sync repositories from GitHub
-  syncRepositories: async () => {
-    const response = await api.post('/api/repositories/sync');
-    return response.data;
+  get: async (repositoryId) => {
+    const { data } = await api.get(`/api/repositories/${repositoryId}`)
+    return data
   },
-
-  // Connect a repository
-  connectRepository: async (repoData) => {
-    const response = await api.post('/api/repositories/connect', repoData);
-    return response.data;
+  listPRs: async (repositoryId) => {
+    const { data } = await api.get(`/api/repositories/${repositoryId}/pull-requests`)
+    return data
   },
+  setBaseline: async (repositoryId, enabled) => {
+    const { data } = await api.patch(`/api/repositories/${repositoryId}/baseline`, { enabled })
+    return data
+  }
+}
 
-  // Get count of connected repositories
-  getConnectedCount: async () => {
-    const response = await api.get('/api/repositories/count');
-    return response.data;
+export const findingAPI = {
+  listByPR: async (pullRequestId, params = {}) => {
+    const q = new URLSearchParams(params).toString()
+    const { data } = await api.get(`/api/pull-requests/${pullRequestId}/findings${q ? `?${q}` : ''}`)
+    return data
   },
-
-  // Get summary statistics
-  getSummary: async () => {
-    const response = await api.get('/api/reports/summary');
-    return response.data;
+  list: async (params = {}) => {
+    const q = new URLSearchParams(params).toString()
+    const { data } = await api.get(`/api/findings${q ? `?${q}` : ''}`)
+    return data
   },
-};
-
-// Webhook API calls
-export const webhookAPI = {
-  // Get recent webhook events
-  getEvents: async (limit = 20, offset = 0) => {
-    const response = await api.get(`/api/webhooks/events?limit=${limit}&offset=${offset}`);
-    return response.data;
+  get: async (findingId) => {
+    const { data } = await api.get(`/api/findings/${findingId}`)
+    return data
   },
-};
+  updateStatus: async (findingId, status, dismissalReason = null) => {
+    const { data } = await api.patch(`/api/findings/${findingId}/status`, {
+      status,
+      dismissal_reason: dismissalReason
+    })
+    return data
+  }
+}
 
-// Reports API calls
-export const reportsAPI = {
-  // Get all PR analyses
-  getPRAnalyses: async (filters = {}) => {
-    const params = new URLSearchParams();
-    if (filters.repository_id) params.append('repository_id', filters.repository_id);
-    if (filters.status) params.append('status', filters.status);
-    if (filters.limit) params.append('limit', filters.limit);
-    if (filters.offset) params.append('offset', filters.offset);
-
-    const response = await api.get(`/api/reports/pr-analyses?${params.toString()}`);
-    return response.data;
+export const suppressionAPI = {
+  list: async (repositoryId) => {
+    const q = repositoryId ? `?repository_id=${repositoryId}` : ''
+    const { data } = await api.get(`/api/suppressions${q}`)
+    return data
   },
-
-  // Get detailed analysis for a specific PR
-  getPRAnalysisDetails: async (analysisId) => {
-    const response = await api.get(`/api/reports/pr-analyses/${analysisId}`);
-    return response.data;
+  create: async (payload) => {
+    const { data } = await api.post('/api/suppressions', payload)
+    return data
   },
+  remove: async (suppressionId) => {
+    const { data } = await api.delete(`/api/suppressions/${suppressionId}`)
+    return data
+  }
+}
 
-  // Get summary statistics
-  getSummary: async () => {
-    const response = await api.get('/api/reports/summary');
-    return response.data;
-  },
-};
-
-export default api;
-
-// Analysis API calls (SCRUM-87, 97, 99)
-export const analysisAPI = {
-  // Analyze code for vulnerabilities
-  analyzeCode: async (codeData) => {
-    const response = await axios.post(`${ANALYSIS_SERVICE_URL}/api/analysis/analyze`, codeData);
-    return response.data;
-  },
-
-  // Get analysis history
-  getHistory: async (limit = 10) => {
-    const response = await axios.get(`${ANALYSIS_SERVICE_URL}/api/analysis/history?limit=${limit}`);
-    return response.data;
-  },
-
-  // Health check
-  healthCheck: async () => {
-    const response = await axios.get(`${ANALYSIS_SERVICE_URL}/health`);
-    return response.data;
-  },
-};
-
+export default api

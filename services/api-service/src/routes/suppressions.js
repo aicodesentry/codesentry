@@ -1,0 +1,113 @@
+const express = require('express');
+const { pool } = require('../config/database');
+const { authenticateToken } = require('../middleware/auth');
+
+const router = express.Router();
+
+router.get('/suppressions', authenticateToken, async (req, res) => {
+  const { repository_id } = req.query;
+  const params = [req.user.user_id];
+  const clauses = ['r.owner_id = $1'];
+
+  if (repository_id) {
+    params.push(repository_id);
+    clauses.push(`s.repository_id = $${params.length}`);
+  }
+
+  const result = await pool.query(
+    `SELECT s.*, f.title, f.category, f.severity
+     FROM suppressions s
+     JOIN repositories r ON r.id = s.repository_id
+     LEFT JOIN findings f ON f.id = s.finding_id
+     WHERE ${clauses.join(' AND ')}
+     ORDER BY s.created_at DESC`,
+    params
+  );
+
+  res.json({ suppressions: result.rows });
+});
+
+router.post('/suppressions', authenticateToken, async (req, res) => {
+  const { finding_id, repository_id, fingerprint, reason, notes, expires_at } = req.body;
+  if ((!finding_id && !fingerprint) || !repository_id || !reason) {
+    return res.status(400).json({ error: 'finding_id or fingerprint, repository_id, and reason are required' });
+  }
+
+  const repo = await pool.query('SELECT id FROM repositories WHERE id = $1 AND owner_id = $2', [
+    repository_id,
+    req.user.user_id,
+  ]);
+
+  if (repo.rowCount === 0) {
+    return res.status(404).json({ error: 'Repository not found' });
+  }
+
+  let resolvedFindingId = finding_id || null;
+  let resolvedFingerprint = fingerprint || null;
+
+  if (!resolvedFingerprint && resolvedFindingId) {
+    const finding = await pool.query('SELECT fingerprint FROM findings WHERE id = $1', [resolvedFindingId]);
+    resolvedFingerprint = finding.rows[0]?.fingerprint;
+  }
+
+  if (!resolvedFingerprint) {
+    return res.status(400).json({ error: 'Fingerprint could not be resolved' });
+  }
+
+  const suppression = await pool.query(
+    `INSERT INTO suppressions (finding_id, repository_id, fingerprint, reason, notes, suppressed_by, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING *`,
+    [
+      resolvedFindingId,
+      repository_id,
+      resolvedFingerprint,
+      reason,
+      notes || null,
+      req.user.user_id,
+      expires_at || null,
+    ]
+  );
+
+  await pool.query(
+    `INSERT INTO audit_logs (user_id, repository_id, action, resource_type, resource_id, details)
+     VALUES ($1, $2, 'suppression.created', 'suppression', $3, $4)`,
+    [
+      req.user.user_id,
+      repository_id,
+      suppression.rows[0].id,
+      JSON.stringify({ reason, fingerprint: resolvedFingerprint, notes: notes || null }),
+    ]
+  );
+
+  res.status(201).json({ suppression: suppression.rows[0] });
+});
+
+router.delete('/suppressions/:id', authenticateToken, async (req, res) => {
+  const suppression = await pool.query(
+    `DELETE FROM suppressions s
+     USING repositories r
+     WHERE s.id = $1 AND s.repository_id = r.id AND r.owner_id = $2
+     RETURNING s.*`,
+    [req.params.id, req.user.user_id]
+  );
+
+  if (suppression.rowCount === 0) {
+    return res.status(404).json({ error: 'Suppression not found' });
+  }
+
+  await pool.query(
+    `INSERT INTO audit_logs (user_id, repository_id, action, resource_type, resource_id, details)
+     VALUES ($1, $2, 'suppression.deleted', 'suppression', $3, $4)`,
+    [
+      req.user.user_id,
+      suppression.rows[0].repository_id,
+      suppression.rows[0].id,
+      JSON.stringify({ fingerprint: suppression.rows[0].fingerprint }),
+    ]
+  );
+
+  res.json({ success: true });
+});
+
+module.exports = router;

@@ -85,12 +85,7 @@ async function healthCheck() {
     return { ok: false, error: 'Missing GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID, or GITHUB_APP_PRIVATE_KEY' };
   }
 
-  try {
-    const token = await getInstallationToken();
-    return { ok: true, tokenPreview: `${token.slice(0, 6)}...${token.slice(-4)}` };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
+  return { ok: true };
 }
 
 module.exports = {

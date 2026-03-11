@@ -13,14 +13,27 @@ const pool = new Pool({
 });
 
 // Verify GitHub webhook signature
-function verifySignature(payload, signature) {
+function verifySignature(payloadBuffer, signatureHeader) {
   if (!process.env.WEBHOOK_SECRET) {
     console.warn('WEBHOOK_SECRET not set - skipping signature verification');
     return true; // Allow in development if secret not set
   }
+  if (!signatureHeader) {
+    return false;
+  }
+
   const hmac = crypto.createHmac('sha256', process.env.WEBHOOK_SECRET);
-  const digest = 'sha256=' + hmac.update(payload).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
+  const digest = 'sha256=' + hmac.update(payloadBuffer).digest('hex');
+
+  const signatureBuffer = Buffer.from(signatureHeader);
+  const digestBuffer = Buffer.from(digest);
+
+  // timingSafeEqual throws if buffer lengths differ, so guard lengths first
+  if (signatureBuffer.length !== digestBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(signatureBuffer, digestBuffer);
 }
 
 // Register webhook for a repository
@@ -147,9 +160,8 @@ router.post('/register', async (req, res) => {
     });
   } catch (error) {
     const status = error.response?.status;
-    const tokenInvalid = status === 401 || status === 403;
-    console.error('Webhook registration error:', error.response?.data || error.message);
-    console.error('Full error:', JSON.stringify(error.response?.data, null, 2));
+    const tokenInvalid = status === 401 || status === 403 || status === 404;
+    console.error('Webhook registration error:', error.response?.data?.message || error.message);
     res.status(status || 500).json({
       error: 'Failed to register webhook',
       details: error.response?.data?.message || error.message,
@@ -168,9 +180,9 @@ router.post('/github', express.raw({ type: 'application/json' }), async (req, re
   console.log(`Event: ${event}`);
   console.log(`Signature: ${signature ? 'Present' : 'Missing'}`);
 
-  // Verify signature
-  if (signature && !verifySignature(req.body, signature)) {
-    console.error('[ERROR] Invalid webhook signature');
+  // Verify signature (reject when secret is set but signature is missing or invalid)
+  if (!verifySignature(req.body, signature)) {
+    console.error('[ERROR] Invalid or missing webhook signature');
     return res.status(401).json({ error: 'Invalid signature' });
   }
 
@@ -206,22 +218,37 @@ router.post('/github', express.raw({ type: 'application/json' }), async (req, re
 
     const repositoryId = repoResult.rows[0].id;
 
-    // Log webhook event
-    await pool.query(
-      `INSERT INTO webhook_events (repository_id, event_type, action, pr_number, pr_title, pr_url, branch_name, sender_username, payload)
+  // Build a privacy-safe payload snapshot for audit/debug (strip large fields/PII)
+  const sanitizedPayload = {
+    action,
+    repository: {
+      id: repository.id,
+      full_name: repository.full_name,
+    },
+    pull_request: {
+      number: pr.number,
+      head_ref: pr.head?.ref,
+      base_ref: pr.base?.ref,
+    },
+    sender: payload.sender ? { login: payload.sender.login, id: payload.sender.id } : null,
+  };
+
+  // Log webhook event (store sanitized payload, not full GitHub payload)
+  await pool.query(
+    `INSERT INTO webhook_events (repository_id, event_type, action, pr_number, pr_title, pr_url, branch_name, sender_username, payload)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [
-        repositoryId,
-        event,
-        action,
-        pr.number,
-        pr.title,
-        pr.html_url,
-        pr.head.ref,
-        payload.sender.login,
-        JSON.stringify(payload)
-      ]
-    );
+    [
+      repositoryId,
+      event,
+      action,
+      pr.number,
+      pr.title,
+      pr.html_url,
+      pr.head.ref,
+      payload.sender.login,
+      JSON.stringify(sanitizedPayload)
+    ]
+  );
     console.log(`[LOG] Webhook event logged: ${action} on PR #${pr.number}`);
 
     // SCRUM-88: Analyze Python files and post comments

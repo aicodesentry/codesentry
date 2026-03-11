@@ -22,6 +22,7 @@ pip-delete-this-directory.txt
 **/.env.production
 **/.env.*.local
 .env
+.env.*
 .env.local
 .env.production
 .env.development.local
@@ -35,6 +36,10 @@ services/**/.env.*
 !**/.env.example
 !.env.example
 !services/**/.env.example
+
+# Ignore all Markdown files
+*.md
+**/*.md
 
 # Credentials - NEVER COMMIT THESE
 credentials/
@@ -107,3 +112,5 @@ show-railway-vars.sh
 test_grpc_client.py
 railway-env-variables.txt
 .deployment-credentials.example
+.deploy-credentials
+frontend/.env.production

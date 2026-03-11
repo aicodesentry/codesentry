@@ -1,10 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from models.analysis_models import AnalysisRequest, AnalysisResult, Vulnerability, StyleIssue, StyleIssueType
 from services.vertex_ai_service import vertex_ai_service
+from services.analysis_cache import analysis_cache
 from services.vulnerability_detector import vulnerability_detector
 from services.style_analyzer import style_analyzer
 from config.database import get_database
 from datetime import datetime
+import os
 import uuid
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
@@ -21,7 +23,7 @@ async def analyze_code(request: AnalysisRequest):
     3. Classifies vulnerabilities (SCRUM-97)
     4. Scores severity (SCRUM-99)
     5. Analyzes code style (Sprint 3)
-    6. Stores results in MongoDB
+    6. Stores results in Redis (ephemeral) and optionally MongoDB
     7. Returns combined analysis results
     """
     
@@ -92,27 +94,55 @@ async def analyze_code(request: AnalysisRequest):
             language=request.language
         )
         
-        # Step 4: Store in MongoDB (skip for playground to speed up)
+        # Step 4: Store in Redis (ephemeral) and optionally MongoDB (skip for playground)
         if request.repository != 'playground':
-            db = get_database()
-            await db.analyses.insert_one({
+            analysis_record = {
                 "analysis_id": analysis_id,
-                "timestamp": datetime.utcnow(),
+                "timestamp": result.timestamp.isoformat(),
                 "repository": request.repository,
                 "pr_number": request.pr_number,
                 "file_path": request.file_path,
                 "language": request.language,
-
+                "status": result.status,
                 # Security data
                 "vulnerabilities": [v.model_dump() for v in classified_vulns],
                 "severity_counts": severity_counts,
                 "total_vulnerabilities": len(classified_vulns),
-
                 # Style data
                 "style_issues": [s.model_dump() for s in style_issues_list],
                 "style_categories": style_categories,
                 "total_style_issues": total_style_issues,
-            })
+            }
+
+            if analysis_cache.enabled:
+                analysis_cache.store_analysis(analysis_record)
+
+            store_in_mongo = os.getenv("ANALYSIS_STORE_IN_MONGO", "true").lower() == "true"
+            if store_in_mongo:
+                try:
+                    db = get_database()
+                except Exception:
+                    db = None
+
+                if db:
+                    await db.analyses.insert_one({
+                        "analysis_id": analysis_id,
+                        "timestamp": datetime.utcnow(),
+                        "repository": request.repository,
+                        "pr_number": request.pr_number,
+                        "file_path": request.file_path,
+                        "language": request.language,
+
+                        # Security data
+                        "vulnerabilities": [v.model_dump() for v in classified_vulns],
+                        "severity_counts": severity_counts,
+                        "total_vulnerabilities": len(classified_vulns),
+
+                        # Style data
+                        "style_issues": [s.model_dump() for s in style_issues_list],
+                        "style_categories": style_categories,
+                        "total_style_issues": total_style_issues,
+                    })
 
         return result
 
@@ -128,14 +158,25 @@ async def get_analysis_history(limit: int = 10):
     """
     SCRUM-89: Get analysis history
     """
-    db = get_database()
-    
+    if analysis_cache.enabled:
+        cached = analysis_cache.get_history(limit=limit)
+        if cached:
+            return {"analyses": cached, "total": len(cached)}
+
+    try:
+        db = get_database()
+    except Exception:
+        db = None
+
+    if not db:
+        return {"analyses": [], "total": 0}
+
     cursor = db.analyses.find().sort("timestamp", -1).limit(limit)
     analyses = await cursor.to_list(length=limit)
-    
+
     for analysis in analyses:
         analysis["_id"] = str(analysis["_id"])
-    
+
     return {"analyses": analyses, "total": len(analyses)}
 
 @router.get("/pr/{pr_number}")
@@ -149,15 +190,22 @@ async def get_pr_analysis(pr_number: int, repository: str):
     - pr_number: PR number
     """
     try:
-        db = get_database()
+        analyses = []
+        if analysis_cache.enabled:
+            analyses = analysis_cache.get_pr_analyses(repository, pr_number)
 
-        # Find all analyses for this PR
-        cursor = db.analyses.find({
-            "repository": repository,
-            "pr_number": pr_number
-        }).sort("timestamp", -1)
+        if not analyses:
+            try:
+                db = get_database()
+            except Exception:
+                db = None
 
-        analyses = await cursor.to_list(length=100)
+            if db:
+                cursor = db.analyses.find({
+                    "repository": repository,
+                    "pr_number": pr_number
+                }).sort("timestamp", -1)
+                analyses = await cursor.to_list(length=100)
 
         if not analyses:
             raise HTTPException(status_code=404, detail="No analysis found for this PR")

@@ -1,113 +1,204 @@
+import hashlib
 import os
-import threading
 import time
-from contextlib import asynccontextmanager
+from typing import Any, Dict, List
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
-from prometheus_client import Histogram, CONTENT_TYPE_LATEST, generate_latest
-from config.database import connect_to_mongo, close_mongo_connection, get_database
-from routes.analysis_routes import router as analysis_router
-from grpc_server.analysis_server import serve as serve_grpc
+from pydantic import BaseModel, Field
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from starlette.responses import Response
 
-# Prometheus HTTP duration histogram for RED metrics
-http_request_duration_seconds = Histogram(
-    "http_request_duration_seconds",
-    "HTTP request duration in seconds",
-    ["method", "path", "status_code"],
-    buckets=[0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5],
+from security_rules import DEPENDENCY_RISK_PATTERNS, SECURITY_RULES, likely_llm_repo
+
+
+class ChangedFile(BaseModel):
+    path: str
+    patch: str = ""
+    additions: int = 0
+    deletions: int = 0
+    status: str = "modified"
+
+
+class AnalyzePRRequest(BaseModel):
+    repository_full_name: str
+    pull_request_number: int
+    commit_sha: str
+    files: List[ChangedFile] = Field(default_factory=list)
+
+
+REQUEST_COUNT = Counter("codesentry_analysis_requests_total", "Total analysis requests")
+FINDING_COUNT = Counter(
+    "codesentry_analysis_findings_total",
+    "Findings by category and severity",
+    ["category", "severity"],
+)
+ANALYSIS_DURATION = Histogram(
+    "codesentry_analysis_duration_seconds",
+    "Analysis runtime",
+    buckets=[0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20],
 )
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
-    print("🚀 Starting Analysis Service...")
-
-    # Start gRPC server in a background thread
-    grpc_thread = threading.Thread(target=serve_grpc, daemon=True)
-    grpc_thread.start()
-    print("✅ gRPC server started in background thread.")
-
-    await connect_to_mongo()
-    print("✅ Analysis Service Ready!")
-    yield
-    # Shutdown
-    print("🛑 Shutting down Analysis Service...")
-    await close_mongo_connection()
-
-app = FastAPI(
-    title="Analysis Service", 
-    version="1.0.0",
-    description="SCRUM-87: Security Vulnerability Detection | SCRUM-97: Classification | SCRUM-99: Severity Scoring",
-    lifespan=lifespan
-)
-
+app = FastAPI(title="CodeSentry Analysis Service", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:5173"), "http://localhost:5173", "http://localhost:3001"],
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 
-# Record HTTP durations for RED metrics
+
+def code_snippet_from_patch(patch: str, max_lines: int = 12) -> str:
+    if not patch:
+        return ""
+    lines = [line for line in patch.split("\n") if line.startswith("+") and not line.startswith("+++")]
+    if not lines:
+        lines = patch.split("\n")[:max_lines]
+    return "\n".join(lines[:max_lines])
+
+
+def make_fingerprint(rule_id: str, path: str, line_start: int, snippet: str) -> str:
+    raw = f"{rule_id}|{path}|{line_start}|{snippet.strip()}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def detect_line_number(patch: str, pattern) -> int:
+    if not patch:
+        return 1
+
+    lines = patch.split("\n")
+    for idx, line in enumerate(lines, start=1):
+        if pattern.search(line):
+            return idx
+    return 1
+
+
+def generate_finding(rule, file_path: str, patch: str) -> Dict[str, Any]:
+    snippet = code_snippet_from_patch(patch)
+    line_start = detect_line_number(patch, rule.pattern)
+
+    return {
+        "rule_id": rule.rule_id,
+        "title": rule.title,
+        "description": rule.description,
+        "category": rule.category,
+        "cwe_id": rule.cwe_id,
+        "owasp_category": rule.owasp_category,
+        "severity": rule.severity,
+        "confidence": round(rule.confidence, 2),
+        "exploitability": rule.exploitability,
+        "file_path": file_path,
+        "line_start": line_start,
+        "line_end": line_start,
+        "code_snippet": snippet,
+        "evidence": f"Matched deterministic rule `{rule.rule_id}` in changed content.",
+        "exploit_scenario": "If attacker-controlled input reaches this code path, they may execute the vulnerable behavior.",
+        "remediation": rule.remediation,
+        "remediation_patch_optional": "",
+        "fingerprint": make_fingerprint(rule.rule_id, file_path, line_start, snippet),
+    }
+
+
+def dependency_findings(path: str, patch: str) -> List[Dict[str, Any]]:
+    findings = []
+    if not any(name in path.lower() for name in ["package.json", "requirements", "poetry.lock", "pom.xml", "go.mod"]):
+        return findings
+
+    for pattern, message, severity in DEPENDENCY_RISK_PATTERNS:
+        if pattern.search(patch):
+            line_start = detect_line_number(patch, pattern)
+            snippet = code_snippet_from_patch(patch)
+            findings.append(
+                {
+                    "rule_id": "dependency.risk.version",
+                    "title": "Potential vulnerable dependency version",
+                    "description": message,
+                    "category": "dependency/package risk",
+                    "cwe_id": "CWE-1104",
+                    "owasp_category": "A06:2021",
+                    "severity": severity,
+                    "confidence": 0.74,
+                    "exploitability": "medium",
+                    "file_path": path,
+                    "line_start": line_start,
+                    "line_end": line_start,
+                    "code_snippet": snippet,
+                    "evidence": "Dependency declaration matches known risky version pattern.",
+                    "exploit_scenario": "Exploitation depends on vulnerable code path usage and package exposure.",
+                    "remediation": "Upgrade to a patched package version and verify lockfile resolution.",
+                    "remediation_patch_optional": "",
+                    "fingerprint": make_fingerprint("dependency.risk.version", path, line_start, snippet),
+                }
+            )
+
+    return findings
+
+
 @app.middleware("http")
-async def metrics_middleware(request: Request, call_next):
+async def track_latency(request: Request, call_next):
+    REQUEST_COUNT.inc()
     start = time.perf_counter()
     response = await call_next(request)
-    duration = time.perf_counter() - start
-    route = request.scope.get("route")
-    path = getattr(route, "path", request.url.path)
-    http_request_duration_seconds.labels(request.method, path, response.status_code).observe(duration)
+    ANALYSIS_DURATION.observe(time.perf_counter() - start)
     return response
 
-# Include analysis routes
-app.include_router(analysis_router)
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "analysis-service"}
 
 
 @app.get("/metrics")
 async def metrics():
-    return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-@app.get("/health")
-async def health_check():
-    try:
-        db = get_database()
-        await db.command("ping")
-        
-        return {
-            "status": "ok",
-            "service": "analysis-service",
-            "database": "connected",
-            "scrum_tasks": ["SCRUM-87", "SCRUM-97", "SCRUM-99"]
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "service": "analysis-service",
-            "database": "disconnected",
-            "error": str(e)
-        }
+
+@app.post("/analyze/pr")
+async def analyze_pr(payload: AnalyzePRRequest):
+    if len(payload.files) > 300:
+        raise HTTPException(status_code=413, detail="Too many files in PR payload")
+
+    findings: List[Dict[str, Any]] = []
+
+    repo_has_llm_flow = any(likely_llm_repo(f.path, f.patch) for f in payload.files)
+
+    for changed_file in payload.files:
+        path = changed_file.path
+        patch = changed_file.patch or ""
+
+        if len(patch) > 200_000:
+            continue
+
+        for rule in SECURITY_RULES:
+            if rule.category == "unsafe LLM/prompt injection patterns" and not repo_has_llm_flow:
+                continue
+            if rule.pattern.search(patch):
+                findings.append(generate_finding(rule, path, patch))
+
+        findings.extend(dependency_findings(path, patch))
+
+    # Deduplicate by fingerprint.
+    unique = {}
+    for finding in findings:
+        unique[finding["fingerprint"]] = finding
+
+    normalized = list(unique.values())
+    for finding in normalized:
+        FINDING_COUNT.labels(finding["category"], finding["severity"]).inc()
+
+    severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    normalized.sort(key=lambda f: (severity_order.get(f["severity"], 99), -f["confidence"]))
+
+    return {
+        "repository_full_name": payload.repository_full_name,
+        "pull_request_number": payload.pull_request_number,
+        "commit_sha": payload.commit_sha,
+        "files_analyzed": len(payload.files),
+        "findings": normalized,
+    }
+
 
 @app.get("/")
 async def root():
-    return {
-        "message": "CodeSentry Analysis Service",
-        "version": "1.0.0",
-        "endpoints": {
-            "POST /api/analysis/analyze": "Analyze code for vulnerabilities",
-            "GET /api/analysis/history": "Get analysis history",
-            "GET /health": "Health check"
-        },
-        "features": {
-            "SCRUM-87": "Security Vulnerability Detection with Vertex AI",
-            "SCRUM-97": "Vulnerability Classification System",
-            "SCRUM-99": "Severity Scoring System"
-        }
-    }
-
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.getenv("PORT", 8001))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    return {"service": "analysis-service", "version": "1.0.0", "status": "ok"}

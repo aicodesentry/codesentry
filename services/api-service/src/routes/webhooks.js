@@ -1,54 +1,241 @@
 const express = require('express');
-const { pool } = require('../config/database');
-const { authenticateToken } = require('../middleware/auth');
+const { pool, transaction } = require('../config/database');
+const { verifyWebhookSignature } = require('../services/githubApp');
+const { getAnalysisQueue } = require('../config/queue');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
-// Get recent webhook events for user's repositories
-router.get('/events', authenticateToken, async (req, res) => {
+function getBodyBuffer(req) {
+  if (Buffer.isBuffer(req.body)) return req.body;
+  return Buffer.from(JSON.stringify(req.body || {}));
+}
+
+router.post('/github', async (req, res) => {
+  const signature = req.headers['x-hub-signature-256'];
+  const event = req.headers['x-github-event'];
+  const deliveryId = req.headers['x-github-delivery'];
+  const correlationId = req.correlationId;
+
+  if (!event || !deliveryId) {
+    return res.status(400).json({ error: 'Missing webhook headers' });
+  }
+
+  const rawBody = getBodyBuffer(req);
+  if (!verifyWebhookSignature(rawBody, signature)) {
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+
+  const payload = JSON.parse(rawBody.toString('utf8'));
+
   try {
-    const userId = req.user.user_id;
-    const limit = parseInt(req.query.limit) || 20;
-    const offset = parseInt(req.query.offset) || 0;
-
-    // Get total count
-    const countResult = await pool.query(
-      `SELECT COUNT(*) as total
-      FROM webhook_events we
-      JOIN repositories r ON we.repository_id = r.id
-      WHERE r.user_id = $1`,
-      [userId]
+    const existing = await pool.query(
+      'SELECT id, processing_status FROM webhook_deliveries WHERE delivery_id = $1',
+      [deliveryId]
     );
 
-    // Get paginated events
-    const result = await pool.query(
-      `SELECT
-        we.id,
-        we.event_type,
-        we.action,
-        we.pr_number,
-        we.pr_title,
-        we.pr_url,
-        we.sender_username,
-        we.received_at,
-        r.full_name as repository_name
-      FROM webhook_events we
-      JOIN repositories r ON we.repository_id = r.id
-      WHERE r.user_id = $1
-      ORDER BY we.received_at DESC
-      LIMIT $2 OFFSET $3`,
-      [userId, limit, offset]
+    if (existing.rowCount > 0) {
+      return res.status(200).json({ success: true, deduplicated: true });
+    }
+
+    await pool.query(
+      `INSERT INTO webhook_deliveries (delivery_id, event_type, action, processing_status, received_at)
+       VALUES ($1, $2, $3, 'received', NOW())`,
+      [deliveryId, event, payload.action || null]
     );
 
-    res.json({
-      events: result.rows,
-      total: parseInt(countResult.rows[0].total),
-      limit,
-      offset
-    });
+    if (event === 'installation' && payload.installation) {
+      await pool.query(
+        `INSERT INTO installations (id, account_login, account_type, target_type, html_url, permissions, events, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (id)
+         DO UPDATE SET
+           account_login = EXCLUDED.account_login,
+           account_type = EXCLUDED.account_type,
+           target_type = EXCLUDED.target_type,
+           html_url = EXCLUDED.html_url,
+           permissions = EXCLUDED.permissions,
+           events = EXCLUDED.events,
+           status = EXCLUDED.status,
+           updated_at = NOW()`,
+        [
+          payload.installation.id,
+          payload.installation.account?.login,
+          payload.installation.account?.type,
+          payload.installation.target_type,
+          payload.installation.html_url,
+          JSON.stringify(payload.installation.permissions || {}),
+          payload.installation.events || [],
+          payload.action === 'deleted' ? 'deleted' : 'active',
+        ]
+      );
+    }
+
+    if (event === 'installation_repositories' && payload.installation?.id && payload.repositories_added) {
+      const ownerLogin = payload.installation.account?.login;
+
+      for (const repo of payload.repositories_added) {
+        await pool.query(
+          `INSERT INTO repositories
+            (github_id, installation_id, name, full_name, private, default_branch, language, html_url, clone_url, is_active, owner_id)
+           SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, true,
+                  (SELECT id FROM users WHERE github_username = $10 LIMIT 1)
+           ON CONFLICT (github_id)
+           DO UPDATE SET
+             installation_id = EXCLUDED.installation_id,
+             name = EXCLUDED.name,
+             full_name = EXCLUDED.full_name,
+             private = EXCLUDED.private,
+             default_branch = EXCLUDED.default_branch,
+             language = EXCLUDED.language,
+             html_url = EXCLUDED.html_url,
+             clone_url = EXCLUDED.clone_url,
+             is_active = true,
+             updated_at = NOW()`,
+          [
+            repo.id,
+            payload.installation.id,
+            repo.name,
+            repo.full_name,
+            repo.private,
+            repo.default_branch || 'main',
+            repo.language,
+            repo.html_url,
+            repo.clone_url,
+            ownerLogin,
+          ]
+        );
+      }
+    }
+
+    if (event === 'pull_request' && ['opened', 'synchronize', 'reopened'].includes(payload.action)) {
+      const repository = payload.repository;
+      const pr = payload.pull_request;
+      const installationId = payload.installation?.id;
+
+      if (!installationId) {
+        throw new Error('Pull request webhook missing installation id');
+      }
+
+      await transaction(async (client) => {
+        await client.query(
+          `INSERT INTO repositories
+            (github_id, installation_id, name, full_name, private, default_branch, language, html_url, clone_url, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
+           ON CONFLICT (github_id)
+           DO UPDATE SET
+             installation_id = EXCLUDED.installation_id,
+             name = EXCLUDED.name,
+             full_name = EXCLUDED.full_name,
+             private = EXCLUDED.private,
+             default_branch = EXCLUDED.default_branch,
+             language = EXCLUDED.language,
+             html_url = EXCLUDED.html_url,
+             clone_url = EXCLUDED.clone_url,
+             is_active = true,
+             updated_at = NOW()`,
+          [
+            repository.id,
+            installationId,
+            repository.name,
+            repository.full_name,
+            repository.private,
+            repository.default_branch || 'main',
+            repository.language,
+            repository.html_url,
+            repository.clone_url,
+          ]
+        );
+
+        const repoResult = await client.query('SELECT id, baseline_set FROM repositories WHERE github_id = $1', [
+          repository.id,
+        ]);
+        const repoId = repoResult.rows[0].id;
+
+        const prResult = await client.query(
+          `INSERT INTO pull_requests
+            (repository_id, github_pr_id, pr_number, title, body, state, head_sha, base_sha, head_branch, base_branch, author, html_url, draft)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+           ON CONFLICT (repository_id, pr_number)
+           DO UPDATE SET
+             title = EXCLUDED.title,
+             body = EXCLUDED.body,
+             state = EXCLUDED.state,
+             head_sha = EXCLUDED.head_sha,
+             base_sha = EXCLUDED.base_sha,
+             head_branch = EXCLUDED.head_branch,
+             base_branch = EXCLUDED.base_branch,
+             author = EXCLUDED.author,
+             html_url = EXCLUDED.html_url,
+             draft = EXCLUDED.draft,
+             updated_at = NOW()
+           RETURNING id`,
+          [
+            repoId,
+            pr.id,
+            pr.number,
+            pr.title,
+            pr.body,
+            pr.state,
+            pr.head.sha,
+            pr.base.sha,
+            pr.head.ref,
+            pr.base.ref,
+            pr.user?.login,
+            pr.html_url,
+            Boolean(pr.draft),
+          ]
+        );
+
+        const run = await client.query(
+          `INSERT INTO analysis_runs
+            (repository_id, pull_request_id, pr_number, commit_sha, status, triggered_by, started_at)
+           VALUES ($1, $2, $3, $4, 'pending', 'webhook', NOW())
+           RETURNING id`,
+          [repoId, prResult.rows[0].id, pr.number, pr.head.sha]
+        );
+
+        const queue = getAnalysisQueue();
+        await queue.add('analyze-pr', {
+          correlation_id: correlationId,
+          delivery_id: deliveryId,
+          analysis_run_id: run.rows[0].id,
+          repository_id: repoId,
+          repository_github_id: repository.id,
+          repository_full_name: repository.full_name,
+          installation_id: installationId,
+          pull_request_id: prResult.rows[0].id,
+          pull_request_number: pr.number,
+          commit_sha: pr.head.sha,
+          base_sha: pr.base.sha,
+          baseline_set: repoResult.rows[0].baseline_set,
+        });
+      });
+    }
+
+    await pool.query(
+      `UPDATE webhook_deliveries
+       SET processing_status = 'processed', processed_at = NOW()
+       WHERE delivery_id = $1`,
+      [deliveryId]
+    );
+
+    res.status(200).json({ success: true });
   } catch (error) {
-    console.error('Error fetching webhook events:', error);
-    res.status(500).json({ error: 'Failed to fetch webhook events' });
+    logger.error('Webhook processing failed', {
+      deliveryId,
+      event,
+      error: error.message,
+    });
+
+    await pool.query(
+      `UPDATE webhook_deliveries
+       SET processing_status = 'failed', error_message = $2, processed_at = NOW()
+       WHERE delivery_id = $1`,
+      [deliveryId, error.message]
+    );
+
+    res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
 

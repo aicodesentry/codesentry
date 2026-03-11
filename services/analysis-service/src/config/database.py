@@ -4,12 +4,13 @@ import ssl
 import certifi
 
 MONGODB_URL = os.getenv("MONGODB_URL")
-if not MONGODB_URL:
-    raise ValueError("MONGODB_URL environment variable is required")
+MONGO_ENABLED = bool(MONGODB_URL)
+if not MONGO_ENABLED:
+    print("⚠️  MONGODB_URL not set. MongoDB storage disabled.")
 
 # Ensure MongoDB Atlas connection string has proper format
 # Expected format: mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
-if MONGODB_URL and "mongodb+srv://" in MONGODB_URL:
+if MONGO_ENABLED and "mongodb+srv://" in MONGODB_URL:
     # Add missing parameters if not present
     if "retryWrites" not in MONGODB_URL:
         separator = "&" if "?" in MONGODB_URL else "?"
@@ -25,16 +26,26 @@ db = Database()
 
 async def connect_to_mongo():
     """Connect to MongoDB and verify connection"""
+    if not MONGO_ENABLED:
+        return
     try:
-        # Explicit TLS/SSL configuration for MongoDB Atlas
-        # Use certifi's CA bundle for proper SSL certificate validation
+        is_srv_url = "mongodb+srv://" in MONGODB_URL
+
+        client_options = {
+            "serverSelectionTimeoutMS": 5000,
+            "connectTimeoutMS": 10000,
+            "socketTimeoutMS": 10000,
+        }
+
+        if is_srv_url:
+            client_options.update({
+                "tls": True,
+                "tlsCAFile": certifi.where(),
+            })
+
         db.client = AsyncIOMotorClient(
             MONGODB_URL,
-            serverSelectionTimeoutMS=5000,
-            connectTimeoutMS=10000,
-            socketTimeoutMS=10000,
-            tls=True,
-            tlsCAFile=certifi.where(),  # Use certifi's CA bundle
+            **client_options
         )
 
         # Actually test the connection by pinging
@@ -62,6 +73,8 @@ async def connect_to_mongo():
 
 async def initialize_database():
     """Initialize database collections and indexes"""
+    if not MONGO_ENABLED or not db.client:
+        return
     try:
         database = db.client[DATABASE_NAME]
 

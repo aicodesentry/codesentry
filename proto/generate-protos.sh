@@ -16,7 +16,7 @@ npx grpc_tools_node_protoc \
   --grpc_out=grpc_js:./generated/js \
   --plugin=protoc-gen-grpc=./node_modules/.bin/grpc_tools_node_protoc_plugin \
   -I . \
-  analysis.proto github.proto
+  analysis.proto github.proto mcp.proto
 
 # Generate Python stubs (for Python analysis service)
 echo "🐍 Generating Python stubs..."
@@ -24,7 +24,7 @@ python -m grpc_tools.protoc \
   -I. \
   --python_out=./generated/python \
   --grpc_python_out=./generated/python \
-  analysis.proto github.proto
+  analysis.proto github.proto mcp.proto
 
 # Copy generated files to service directories
 echo "📋 Copying generated files to services..."
@@ -41,6 +41,10 @@ cp generated/js/* ../services/github-service/src/grpc/
 mkdir -p ../services/analysis-service/src/grpc_generated
 cp generated/python/* ../services/analysis-service/src/grpc_generated/
 
+# Copy to mcp-service
+mkdir -p ../services/mcp-service/src/grpc_generated
+cp generated/python/* ../services/mcp-service/src/grpc_generated/
+
 echo "✅ gRPC stubs generated successfully!"
 echo ""
 echo "Generated files:"
@@ -51,3 +55,4 @@ echo "Files copied to services:"
 echo "  - api-service/src/grpc/"
 echo "  - github-service/src/grpc/"
 echo "  - analysis-service/src/grpc_generated/"
+echo "  - mcp-service/src/grpc_generated/"

@@ -1,12 +1,11 @@
 version: '3.8'
 
 services:
-  # PostgreSQL - For users, repos, config
   postgres:
     image: postgres:15-alpine
-    container_name: code-review-postgres
+    container_name: codesentry-postgres
     environment:
-      POSTGRES_DB: code_review
+      POSTGRES_DB: codesentry
       POSTGRES_USER: dev
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpass123}
     ports:
@@ -14,107 +13,127 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - code-review-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dev -d code_review"]
+      test: ["CMD-SHELL", "pg_isready -U dev -d codesentry"]
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # MongoDB - For analysis results
-  mongodb:
-    image: mongo:6
-    container_name: code-review-mongo
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: dev
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-devpass123}
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
     networks:
-      - code-review-net
+      - codesentry-net
 
-  # Redis - For caching and sessions
   redis:
     image: redis:7-alpine
-    container_name: code-review-redis
+    container_name: codesentry-redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
-      - code-review-net
+      - codesentry-net
 
-# API Services
   api-service:
     build:
       context: ./services/api-service
       dockerfile: Dockerfile
-    container_name: code-review-api
+    container_name: codesentry-api
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=development
-      - PORT=3000
-      - DATABASE_URL=postgresql://dev:${POSTGRES_PASSWORD:-devpass123}@postgres:5432/code_review
-      - REDIS_URL=redis://redis:6379
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://dev:${POSTGRES_PASSWORD:-devpass123}@postgres:5432/codesentry
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-in-prod}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      GITHUB_CALLBACK_URL: ${GITHUB_CALLBACK_URL:-http://localhost:3000/auth/github/callback}
+      GITHUB_APP_ID: ${GITHUB_APP_ID}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev-webhook-secret}
+      GITHUB_APP_SLUG: ${GITHUB_APP_SLUG:-aicodesentry}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      WORKER_CALLBACK_SECRET: ${WORKER_CALLBACK_SECRET:-dev-worker-secret}
     depends_on:
-      - postgres
-      - redis
-    networks:
-      - code-review-net
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./services/api-service:/app
       - /app/node_modules
+    networks:
+      - codesentry-net
 
-  # Analysis Service
+  worker-service:
+    build:
+      context: ./services/worker-service
+      dockerfile: Dockerfile
+    container_name: codesentry-worker
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://dev:${POSTGRES_PASSWORD:-devpass123}@postgres:5432/codesentry
+      REDIS_URL: redis://redis:6379
+      ANALYSIS_SERVICE_URL: http://analysis-service:8001
+      API_CALLBACK_URL: http://api-service:3000
+      WORKER_CALLBACK_SECRET: ${WORKER_CALLBACK_SECRET:-dev-worker-secret}
+      GITHUB_APP_ID: ${GITHUB_APP_ID}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api-service:
+        condition: service_started
+      analysis-service:
+        condition: service_started
+    volumes:
+      - ./services/worker-service:/app
+      - /app/node_modules
+    networks:
+      - codesentry-net
+
   analysis-service:
     build:
       context: ./services/analysis-service
       dockerfile: Dockerfile
-    container_name: code-review-analysis
+    container_name: codesentry-analysis
     ports:
       - "8001:8001"
     environment:
-      - PORT=8001
-      - MONGODB_URL=mongodb://dev:${MONGO_PASSWORD:-devpass123}@mongodb:27017/
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - mongodb
-      - redis
-    networks:
-      - code-review-net
+      PORT: 8001
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload
     volumes:
       - ./services/analysis-service:/app
-
-# Github Service
-  github-service:
-    build:
-      context: ./services/github-service
-      dockerfile: Dockerfile
-    container_name: code-review-github
-    ports:
-      - "3002:3002"
-    environment:
-      - NODE_ENV=development
-      - PORT=3002
-      - DATABASE_URL=postgresql://dev:${POSTGRES_PASSWORD:-devpass123}@postgres:5432/code_review
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - postgres
-      - redis
     networks:
-      - code-review-net
-    volumes:
-      - ./services/github-service:/app
-      - /app/node_modules
+      - codesentry-net
 
-  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: codesentry-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+    depends_on:
+      api-service:
+        condition: service_started
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - codesentry-net
 
 networks:
-  code-review-net:
+  codesentry-net:
     driver: bridge
 
 volumes:
   postgres_data:
-  mongo_data:

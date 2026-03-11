@@ -2,107 +2,79 @@ const express = require('express');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/database');
-const repositoriesRouter = require('./repositories');
-const retryWebhooksForUser = repositoriesRouter.retryWebhooksForUser;
 
 const router = express.Router();
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3001';
-const GITHUB_SERVICE_URL = process.env.GITHUB_SERVICE_URL || 'http://localhost:3002';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-// This is replaced by retryWebhooksForUser in repositories routes to avoid duplication.
-
-// Step 1: Redirect user to GitHub OAuth
 router.get('/github', (req, res) => {
-  const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${process.env.GITHUB_CLIENT_ID}&scope=user:email,read:user,repo,admin:repo_hook`;
-  res.redirect(githubAuthUrl);
+  if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+    return res.status(500).json({ error: 'GitHub OAuth is not configured' });
+  }
+
+  const callbackUrl =
+    process.env.GITHUB_CALLBACK_URL || `${req.protocol}://${req.get('host')}/auth/github/callback`;
+
+  const authUrl =
+    `https://github.com/login/oauth/authorize?client_id=${process.env.GITHUB_CLIENT_ID}` +
+    `&scope=read:user,user:email,read:org` +
+    `&redirect_uri=${encodeURIComponent(callbackUrl)}`;
+
+  res.redirect(authUrl);
 });
 
-// Step 2: GitHub redirects back with code
 router.get('/github/callback', async (req, res) => {
   const { code } = req.query;
-
   if (!code) {
-    return res.redirect(`${FRONTEND_URL}/?error=no_code`);
+    return res.redirect(`${FRONTEND_URL}/?error=no_oauth_code`);
   }
 
   try {
-    // Exchange code for access token
-    const tokenResponse = await axios.post(
+    const tokenResp = await axios.post(
       'https://github.com/login/oauth/access_token',
       {
         client_id: process.env.GITHUB_CLIENT_ID,
         client_secret: process.env.GITHUB_CLIENT_SECRET,
-        code: code,
+        code,
       },
-      {
-        headers: { Accept: 'application/json' },
-      }
+      { headers: { Accept: 'application/json' }, timeout: 20000 }
     );
 
-    const accessToken = tokenResponse.data.access_token;
-
-    if (!accessToken) {
-      return res.redirect(`${FRONTEND_URL}/?error=auth_failed`);
+    const githubToken = tokenResp.data.access_token;
+    if (!githubToken) {
+      return res.redirect(`${FRONTEND_URL}/?error=oauth_exchange_failed`);
     }
 
-    // Get user info from GitHub
-    const userResponse = await axios.get('https://api.github.com/user', {
-      headers: { Authorization: `Bearer ${accessToken}` },
+    const ghUser = await axios.get('https://api.github.com/user', {
+      headers: { Authorization: `Bearer ${githubToken}` },
+      timeout: 20000,
     });
 
-    const githubUser = userResponse.data;
-
-    // Get user's primary email (even if private)
-    let userEmail = githubUser.email; // Try public email first
-    if (!userEmail) {
-      try {
-        const emailsResponse = await axios.get('https://api.github.com/user/emails', {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        // Find primary email
-        const primaryEmail = emailsResponse.data.find(e => e.primary);
-        userEmail = primaryEmail ? primaryEmail.email : emailsResponse.data[0]?.email;
-      } catch (error) {
-        console.warn('Could not fetch user emails:', error.message);
-      }
+    let email = ghUser.data.email || null;
+    if (!email) {
+      const emailsResp = await axios.get('https://api.github.com/user/emails', {
+        headers: { Authorization: `Bearer ${githubToken}` },
+        timeout: 20000,
+      });
+      email = emailsResp.data.find((entry) => entry.primary)?.email || emailsResp.data[0]?.email || null;
     }
 
-    // Store or update user in database
-    const result = await pool.query(
-      `INSERT INTO users (github_id, github_username, email, avatar_url, github_token)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (github_id) 
-       DO UPDATE SET 
+    const upsert = await pool.query(
+      `INSERT INTO users (github_id, github_username, github_email, avatar_url, name, github_token)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (github_id)
+       DO UPDATE SET
          github_username = EXCLUDED.github_username,
-         email = EXCLUDED.email,
+         github_email = EXCLUDED.github_email,
          avatar_url = EXCLUDED.avatar_url,
+         name = EXCLUDED.name,
          github_token = EXCLUDED.github_token,
          updated_at = NOW()
-       RETURNING id, github_id, github_username, email, avatar_url`,
-      [
-        githubUser.id,
-        githubUser.login,
-        userEmail,
-        githubUser.avatar_url,
-        accessToken,
-      ]
+       RETURNING id, github_id, github_username, github_email, avatar_url, name`,
+      [ghUser.data.id, ghUser.data.login, email, ghUser.data.avatar_url, ghUser.data.name, githubToken]
     );
 
-    const user = result.rows[0];
-
-    // Background retry for missing webhooks with fresh token
-    retryWebhooksForUser(user.id)
-      .then(result => {
-        if (result.failures.length) {
-          console.warn('[webhook retry] failures:', result.failures);
-        }
-      })
-      .catch(err => {
-        console.error('[webhook retry] background error:', err.message);
-      });
-
-    // Generate JWT token
+    const user = upsert.rows[0];
     const token = jwt.sign(
       {
         user_id: user.id,
@@ -113,39 +85,59 @@ router.get('/github/callback', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // Redirect to dashboard with token
-    res.redirect(`${FRONTEND_URL}/dashboard?token=${token}`);
-    
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.redirect(`${FRONTEND_URL}/app/repositories`);
   } catch (error) {
-    console.error('GitHub OAuth error:', error.response?.data || error.message);
-    res.redirect(`${FRONTEND_URL}/?error=auth_failed`);
+    console.error('OAuth callback failed', error.response?.data || error.message);
+    res.redirect(`${FRONTEND_URL}/?error=oauth_callback_failed`);
   }
 });
 
-// Get current user info
 router.get('/me', async (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-
+  const token = req.cookies?.auth_token || req.headers.authorization?.replace('Bearer ', '');
   if (!token) {
-    return res.status(401).json({ error: 'No token provided' });
+    return res.status(401).json({ error: 'No token' });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    const result = await pool.query(
-      'SELECT id, github_id, github_username, email, avatar_url, created_at FROM users WHERE id = $1',
+    const userResult = await pool.query(
+      `SELECT id, github_id, github_username, github_email, avatar_url, name, created_at
+       FROM users
+       WHERE id = $1`,
       [decoded.user_id]
     );
 
-    if (result.rows.length === 0) {
+    if (userResult.rowCount === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ user: result.rows[0] });
-  } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
+    const user = userResult.rows[0];
+    const installUrl = process.env.GITHUB_APP_SLUG
+      ? `https://github.com/apps/${process.env.GITHUB_APP_SLUG}/installations/new`
+      : null;
+
+    return res.json({ user, github_app_install_url: installUrl });
+  } catch (_err) {
+    return res.status(401).json({ error: 'Invalid token' });
   }
+});
+
+router.post('/logout', (_req, res) => {
+  res.clearCookie('auth_token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+  });
+  res.json({ success: true });
 });
 
 module.exports = router;

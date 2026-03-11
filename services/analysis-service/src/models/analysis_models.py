@@ -7,6 +7,7 @@ class VulnerabilityType(str, Enum):
     """SCRUM-97: Vulnerability Classification"""
     SQL_INJECTION = "sql_injection"
     XSS = "cross_site_scripting"
+    COMMAND_INJECTION = "command_injection"
     AUTH_BYPASS = "authentication_bypass"
     INSECURE_DESERIALIZATION = "insecure_deserialization"
     SENSITIVE_DATA_EXPOSURE = "sensitive_data_exposure"
@@ -15,6 +16,11 @@ class VulnerabilityType(str, Enum):
     SECURITY_MISCONFIGURATION = "security_misconfiguration"
     INJECTION = "injection"
     INSECURE_DEPENDENCIES = "insecure_dependencies"
+    PATH_TRAVERSAL = "path_traversal"
+    INSECURE_CRYPTOGRAPHY = "insecure_cryptography"
+    RACE_CONDITION = "race_condition"
+    MEMORY_SAFETY = "memory_safety"
+    SECURITY_ISSUE = "security_issue"
     UNKNOWN = "unknown"
 
 class SeverityLevel(str, Enum):

@@ -1,98 +1,56 @@
-import { createContext, useContext, useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { createContext, useContext, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { authAPI } from '../services/api'
 
-const AuthContext = createContext()
+const AuthContext = createContext(null)
 
 export const useAuth = () => {
   const context = useContext(AuthContext)
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error('useAuth must be used inside AuthProvider')
   }
   return context
 }
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
+  const [githubAppInstallUrl, setGithubAppInstallUrl] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const navigate = useNavigate()
-  const location = useLocation()
 
-  // Check for token in URL (from OAuth callback)
   useEffect(() => {
-    const params = new URLSearchParams(location.search)
-    const token = params.get('token')
-
-    if (token) {
-      localStorage.setItem('auth_token', token)
-      // Clean up URL
-      window.history.replaceState({}, document.title, location.pathname)
-      // Fetch user data
-      fetchUserData()
-    } else {
-      // Check for existing token
-      const savedToken = localStorage.getItem('auth_token')
-      if (savedToken) {
-        fetchUserData()
-      } else {
+    const init = async () => {
+      try {
+        const data = await authAPI.getMe()
+        setUser(data.user)
+        setGithubAppInstallUrl(data.github_app_install_url)
+      } catch (_error) {
+        setUser(null)
+        setGithubAppInstallUrl(null)
+      } finally {
         setIsLoading(false)
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search])
 
-  const fetchUserData = async () => {
-    try {
-      const data = await authAPI.getMe()
-      setUser(data.user)
-      setIsLoading(false)
-    } catch (error) {
-      console.error('Failed to fetch user:', error)
-      localStorage.removeItem('auth_token')
-      setUser(null)
-      setIsLoading(false)
-    }
-  }
+    init()
+  }, [])
 
-  const loginWithGitHub = () => {
-    authAPI.loginWithGitHub()
-  }
-
-  // Mock login function for LoginPage compatibility
-  const login = async (email, password) => {
-    // This is a mock implementation - returns error since only GitHub OAuth is supported
-    return {
-      success: false,
-      error: 'Please use GitHub OAuth to sign in'
-    }
-  }
-
-  // Mock signup function for SignupPage compatibility
-  const signup = async (formData) => {
-    // This is a mock implementation - returns error since only GitHub OAuth is supported
-    return {
-      success: false,
-      error: 'Please use GitHub OAuth to sign up'
-    }
-  }
-
-  const logout = () => {
-    authAPI.logout()
+  const logout = async () => {
+    await authAPI.logout()
     setUser(null)
     navigate('/')
   }
 
-  const value = {
-    user,
-    loginWithGitHub,
-    login,
-    signup,
-    logout,
-    isLoading
-  }
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        loginWithGitHub: authAPI.loginWithGitHub,
+        logout,
+        githubAppInstallUrl
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

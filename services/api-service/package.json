@@ -1,28 +1,28 @@
 {
-  "name": "api-service",
+  "name": "codesentry-api",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "CodeSentry API service - security review control plane",
+  "main": "src/index.js",
   "scripts": {
-    "test": "jest --detectOpenHandles",
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "test": "jest --detectOpenHandles"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "axios": "^1.7.0",
-    "bcrypt": "^5.1.1",
+    "axios": "^1.6.2",
+    "bullmq": "^5.1.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "express-validator": "^7.0.1",
+    "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
+    "ioredis": "^5.3.2",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.11.3",
-    "prom-client": "^15.1.2"
+    "prom-client": "^15.1.2",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "jest": "^29.7.0",

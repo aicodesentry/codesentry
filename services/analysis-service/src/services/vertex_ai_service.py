@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from typing import Dict
 
 # Try to import Gemini API (faster than Vertex AI)
@@ -47,6 +48,38 @@ class VertexAIService:
                 print("⚠️  GEMINI_API_KEY not set. Using mock responses.")
                 print("⚠️  Get your free API key at: https://aistudio.google.com/app/apikey")
                 self.use_mock = True
+
+    def _strip_comments_and_blank_lines(self, code: str, language: str) -> str:
+        """
+        Remove obvious comments and blank lines to keep more real code within the length limit.
+        """
+        # Remove common block comment styles first
+        cleaned = re.sub(r"/\\*.*?\\*/", "", code, flags=re.S)
+        cleaned = re.sub(r'"""[\\s\\S]*?"""', "", cleaned)
+        cleaned = re.sub(r"'''[\\s\\S]*?'''", "", cleaned)
+
+        cleaned_lines = []
+        for line in cleaned.splitlines():
+            stripped_line = line.strip()
+
+            # Skip empty lines early
+            if not stripped_line:
+                continue
+
+            # Skip whole-line comments for common languages (Python, JS/TS, SQL)
+            if stripped_line.startswith(("#", "//", "--")):
+                continue
+
+            # Remove trailing inline comments when they follow whitespace
+            line_no_inline = re.sub(r"\\s+//.*$", "", line)
+            line_no_inline = re.sub(r"\\s+#.*$", "", line_no_inline)
+            line_no_inline = re.sub(r"\\s+--.*$", "", line_no_inline)
+
+            final_line = line_no_inline.strip()
+            if final_line:
+                cleaned_lines.append(final_line)
+
+        return "\\n".join(cleaned_lines)
     
     async def analyze_code_for_vulnerabilities(self, code: str, language: str = "javascript", filename: str = "unknown") -> Dict:
         """
@@ -73,12 +106,18 @@ class VertexAIService:
         if self.use_mock:
             return self._mock_analysis(code, language)
 
+        # Remove non-essential content before enforcing the hard limit
+        cleaned_code = self._strip_comments_and_blank_lines(code, language)
+        if len(cleaned_code) < len(code):
+            removed_chars = len(code) - len(cleaned_code)
+            print(f"ℹ️  Reduced code size by {removed_chars} characters by removing comments/blank lines")
+
         # Limit code size to prevent memory issues (max 100,000 characters)
-        # For larger files, analyze only the first 100k characters
+        # For larger files, analyze only the first 100k characters after cleanup
         MAX_CODE_LENGTH = 100000
-        if len(code) > MAX_CODE_LENGTH:
-            print(f"⚠️  Code too long ({len(code)} chars), analyzing first {MAX_CODE_LENGTH} characters")
-            code = code[:MAX_CODE_LENGTH]
+        if len(cleaned_code) > MAX_CODE_LENGTH:
+            print(f"⚠️  Code too long after cleanup ({len(cleaned_code)} chars), analyzing first {MAX_CODE_LENGTH} characters")
+            cleaned_code = cleaned_code[:MAX_CODE_LENGTH]
         
         prompt = f"""You are a security expert code reviewer. Analyze the following {language} code for security vulnerabilities.
 File context: {filename}
@@ -102,7 +141,7 @@ Focus on detecting:
 
 Code to analyze:
 ```{language}
-{code}
+{cleaned_code}
 ```
 
 Return ONLY a JSON array of vulnerabilities found. Each vulnerability MUST have ALL these fields:

@@ -1,37 +1,52 @@
 const { Pool } = require('pg');
 
+const isProduction = process.env.NODE_ENV === 'production';
+const isLocalDocker = process.env.DATABASE_URL?.includes('postgres:5432');
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // Neon provides valid SSL certificates - verify them for security
-  // But if we are running in docker-compose production (local container), SSL is not supported
-  ssl: (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL.includes('postgres:5432')) ? true : false,
+  ssl: isProduction && !isLocalDocker ? { rejectUnauthorized: true } : false,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000, // Increased to 10 seconds for Render
+  connectionTimeoutMillis: 10000,
   keepAlive: true,
-  keepAliveInitialDelayMillis: 10000,
-});
-
-// Test connection
-pool.on('connect', () => {
-  console.log('✓ Database connected');
 });
 
 pool.on('error', (err) => {
-  console.error('❌ Database connection error:', err.message);
-  // Don't crash the process - let the pool handle reconnection
+  console.error(JSON.stringify({ level: 'error', msg: 'DB pool error', error: err.message }));
 });
 
-// Test database connection on startup
-(async () => {
-  try {
-    const client = await pool.connect();
-    console.log('✓ Database pool initialized');
-    client.release();
-  } catch (err) {
-    console.error('❌ Failed to connect to database:', err.message);
-    // Don't exit - let the service start and retry connections as needed
-  }
-})();
+// Test connection on startup
+pool.connect()
+  .then(client => { client.release(); console.log(JSON.stringify({ level: 'info', msg: 'Database connected' })); })
+  .catch(err => console.error(JSON.stringify({ level: 'error', msg: 'DB connect failed', error: err.message })));
 
-module.exports = { pool };
+/**
+ * Execute a parameterized query.
+ * @param {string} text - SQL query
+ * @param {Array} params - Query parameters
+ */
+async function query(text, params) {
+  return pool.query(text, params);
+}
+
+/**
+ * Execute multiple queries in a transaction.
+ * @param {Function} fn - async function(client) that executes queries
+ */
+async function transaction(fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { pool, query, transaction };

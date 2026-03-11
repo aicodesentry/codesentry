@@ -1,79 +1,59 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { ThemeProvider } from './contexts/ThemeContext'
-import ErrorBoundary from './components/ErrorBoundary'
-import HomePage from './components/HomePage'
-import DashboardLayout from './components/DashboardLayout'
-import DashboardPage from './pages/DashboardPage'
+import LandingPage from './pages/LandingPage'
+import AppLayout from './components/AppLayout'
 import RepositoriesPage from './pages/RepositoriesPage'
-import ReportsPage from './pages/ReportsPage'
-import SubscriptionPage from './pages/SubscriptionPage'
-import SupportPage from './pages/SupportPage'
-import ProfilePage from './pages/ProfilePage'
-import CodeAnalysisTest from './pages/CodeAnalysisTest'
+import RepositoryDetailsPage from './pages/RepositoryDetailsPage'
+import PullRequestFindingsPage from './pages/PullRequestFindingsPage'
+import FindingDetailPage from './pages/FindingDetailPage'
+import SuppressionsPage from './pages/SuppressionsPage'
+import SettingsPage from './pages/SettingsPage'
+import OnboardingPage from './pages/OnboardingPage'
 
-
-// Protected Route wrapper
-const ProtectedRoute = ({ children }) => {
+const Protected = ({ children }) => {
   const { user, isLoading } = useAuth()
-  
+
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    )
+    return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading...</div>
   }
-  
-  return user ? children : <Navigate to="/" replace />
+
+  if (!user) {
+    return <Navigate to="/" replace />
+  }
+
+  return children
 }
 
-// 404 Not Found Page
-const NotFoundPage = () => {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <div className="text-center">
-        <h1 className="text-6xl font-bold text-gray-900 dark:text-white mb-4">404</h1>
-        <p className="text-xl text-gray-600 dark:text-gray-400 mb-8">Page not found</p>
-        <a href="/" className="text-blue-600 dark:text-blue-400 hover:underline">Go back home</a>
-      </div>
-    </div>
-  )
-}
-
-// App Routes component (inside providers)
-const AppRoutes = () => {
+function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/dashboard" element={
-        <ProtectedRoute>
-          <DashboardLayout />
-        </ProtectedRoute>
-      }>
-        <Route index element={<DashboardPage />} />
+      <Route path="/" element={<LandingPage />} />
+      <Route
+        path="/app"
+        element={
+          <Protected>
+            <AppLayout />
+          </Protected>
+        }
+      >
+        <Route index element={<Navigate to="repositories" replace />} />
+        <Route path="onboarding" element={<OnboardingPage />} />
         <Route path="repositories" element={<RepositoriesPage />} />
-        <Route path="reports" element={<ReportsPage />} />
-        <Route path="subscription" element={<SubscriptionPage />} />
-        <Route path="support" element={<SupportPage />} />
-        <Route path="profile" element={<ProfilePage />} />
-        <Route path="analysis" element={<CodeAnalysisTest />} />
+        <Route path="repositories/:repositoryId" element={<RepositoryDetailsPage />} />
+        <Route path="pull-requests/:pullRequestId/findings" element={<PullRequestFindingsPage />} />
+        <Route path="findings/:findingId" element={<FindingDetailPage />} />
+        <Route path="suppressions" element={<SuppressionsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
-      <Route path="*" element={<NotFoundPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
 
-function App() {
+export default function App() {
   return (
-    <ErrorBoundary>
-      <ThemeProvider>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   )
 }
-
-export default App
