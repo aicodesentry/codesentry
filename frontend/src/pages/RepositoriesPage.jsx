@@ -4,6 +4,8 @@ import { installationAPI, repositoryAPI } from '../services/api'
 
 export default function RepositoriesPage() {
   const [repositories, setRepositories] = useState([])
+  const [installationCount, setInstallationCount] = useState(0)
+  const [syncSummary, setSyncSummary] = useState({ synced_installations: 0, synced_repositories: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -11,7 +13,13 @@ export default function RepositoriesPage() {
     setLoading(true)
     setError(null)
     try {
-      await installationAPI.sync().catch(() => null)
+      const syncData = await installationAPI.sync().catch(() => ({ synced_installations: 0, synced_repositories: 0 }))
+      setSyncSummary({
+        synced_installations: Number(syncData?.synced_installations || 0),
+        synced_repositories: Number(syncData?.synced_repositories || 0)
+      })
+      const { installations } = await installationAPI.list().catch(() => ({ installations: [] }))
+      setInstallationCount((installations || []).length)
       const { repositories: repos } = await repositoryAPI.list()
       setRepositories(repos || [])
     } catch (err) {
@@ -39,6 +47,35 @@ export default function RepositoriesPage() {
 
       {loading && <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading repositories...</div>}
       {error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>}
+      {!loading && !error && repositories.length === 0 && installationCount > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-900">
+            App installed, but no repositories are accessible yet.
+          </p>
+          <p className="mt-1 text-sm text-amber-800">
+            Grant repository access for CodeSentry in GitHub, then re-sync.
+          </p>
+          <p className="mt-1 text-xs text-amber-800">
+            Last sync: {syncSummary.synced_installations} installations, {syncSummary.synced_repositories} repositories
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a
+              href="https://github.com/settings/installations"
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg bg-amber-900 px-3 py-2 text-xs font-semibold text-white"
+            >
+              Fix GitHub App Access
+            </a>
+            <button
+              onClick={load}
+              className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-900"
+            >
+              Re-sync
+            </button>
+          </div>
+        </div>
+      )}
 
       {!loading && !error && (
         <div className="grid gap-4">
