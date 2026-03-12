@@ -65,7 +65,12 @@ export const authAPI = {
     window.location.href = `${API_BASE_URL}/auth/github`
   },
   getMe: async () => {
-    const { data } = await api.get('/auth/me')
+    const { data } = await api.get('/auth/me', {
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache'
+      }
+    })
     return data
   },
   logout: async () => {
