@@ -3,6 +3,7 @@ require('dotenv').config();
 const { pool } = require('./config/database');
 const logger = require('./utils/logger');
 const { createApp } = require('./app');
+const { ensureDatabaseSchema } = require('./services/schemaBootstrap');
 
 if (process.env.NODE_ENV !== 'production') {
   process.env.GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET || 'dev-webhook-secret';
@@ -23,6 +24,7 @@ if (missing.length > 0) {
 const PORT = Number(process.env.PORT || 3000);
 
 async function start() {
+  await ensureDatabaseSchema();
   const app = createApp();
   const server = app.listen(PORT, () => {
     logger.info('API service started', { port: PORT });
