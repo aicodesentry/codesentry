@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { reportsAPI, repositoryAPI } from '../services/api';
+import { installationAPI, reportsAPI, repositoryAPI } from '../services/api';
 
 // Lazy load modal for better performance
 const PRAnalysisModal = lazy(() => import('../components/PRAnalysisModal'));
@@ -42,6 +42,8 @@ const ReportsPage = () => {
     const cacheKey = getCacheKey(currentPage, selectedRepo, selectedStatus);
 
     try {
+      await installationAPI.sync().catch(() => null);
+
       // Fetch analyses with filters and pagination
       const filters = {
         limit: itemsPerPage,
@@ -257,7 +259,7 @@ const ReportsPage = () => {
               className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition-colors"
             >
               <option value="">All Repositories</option>
-              {repositories.filter(r => r.is_connected).map(repo => (
+              {repositories.filter((r) => r.is_active !== false).map(repo => (
                 <option key={repo.github_id} value={repo.id}>
                   {repo.full_name}
                 </option>

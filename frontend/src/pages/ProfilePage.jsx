@@ -34,7 +34,7 @@ const ProfilePage = () => {
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
               {user?.github_username || 'User'}
             </h2>
-            <p className="text-gray-600 dark:text-gray-400">{user?.email || 'No email'}</p>
+            <p className="text-gray-600 dark:text-gray-400">{user?.github_email || user?.email || 'No email'}</p>
             <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
               GitHub ID: {user?.github_id}
             </p>
@@ -57,7 +57,7 @@ const ProfilePage = () => {
               <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
                 Email
               </label>
-              <p className="text-gray-900 dark:text-white">{user?.email || 'N/A'}</p>
+              <p className="text-gray-900 dark:text-white">{user?.github_email || user?.email || 'N/A'}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -181,4 +181,3 @@ const ProfilePage = () => {
 }
 
 export default ProfilePage
-
