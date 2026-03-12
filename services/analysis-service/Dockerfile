@@ -9,8 +9,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY . .
 
-# Expose port
+# Expose default local port
 EXPOSE 8001
 
-# Run service
-CMD ["python", "src/main.py"]
+# Cloud Run injects PORT (usually 8080); local can still use 8001.
+CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8001}"]

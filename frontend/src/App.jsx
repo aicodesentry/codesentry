@@ -45,6 +45,14 @@ function AppRoutes() {
         <Route path="suppressions" element={<SuppressionsPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
+      <Route
+        path="/dashboard/*"
+        element={
+          <Protected>
+            <Navigate to="/app/repositories" replace />
+          </Protected>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
