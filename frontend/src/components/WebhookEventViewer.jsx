@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { webhookAPI } from '../services/api';
 import axios from 'axios';
 
@@ -12,21 +12,7 @@ const WebhookEventViewer = () => {
   const [totalCount, setTotalCount] = useState(0);
   const itemsPerPage = 10;
 
-  useEffect(() => {
-    fetchPRData();
-  }, [currentPage]);
-
-  // Auto-refresh every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      localStorage.removeItem('pr_analysis_cache');
-      fetchPRData();
-    }, 30000); // 30 seconds
-
-    return () => clearInterval(interval);
-  }, [currentPage]);
-
-  const fetchPRData = async () => {
+  const fetchPRData = useCallback(async () => {
     try {
       setIsLoading(true);
 
@@ -137,16 +123,21 @@ const WebhookEventViewer = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentPage]);
 
-  const getEventIcon = (eventType, action) => {
-    if (eventType === 'pull_request') {
-      if (action === 'opened') return '🔵';
-      if (action === 'closed') return '✅';
-      if (action === 'synchronize') return '🔄';
-    }
-    return '📝';
-  };
+  useEffect(() => {
+    fetchPRData();
+  }, [fetchPRData]);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      localStorage.removeItem('pr_analysis_cache');
+      fetchPRData();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [fetchPRData]);
 
   const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp);

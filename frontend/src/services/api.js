@@ -1,6 +1,7 @@
 import axios from 'axios'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const ANALYSIS_BASE_URL = import.meta.env.VITE_ANALYSIS_SERVICE_URL || API_BASE_URL
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -60,6 +61,18 @@ export const repositoryAPI = {
   setBaseline: async (repositoryId, enabled) => {
     const { data } = await api.patch(`/api/repositories/${repositoryId}/baseline`, { enabled })
     return data
+  },
+  getRepositories: async () => {
+    const { data } = await api.get('/api/repositories')
+    return data
+  },
+  getConnectedCount: async () => {
+    const { data } = await api.get('/api/repositories')
+    return { count: data.repositories?.length || 0 }
+  },
+  getSummary: async () => {
+    const { data } = await api.get('/api/reports/summary')
+    return data
   }
 }
 
@@ -100,6 +113,73 @@ export const suppressionAPI = {
   remove: async (suppressionId) => {
     const { data } = await api.delete(`/api/suppressions/${suppressionId}`)
     return data
+  }
+}
+
+export const reportsAPI = {
+  getPRAnalyses: async (params = {}) => {
+    const q = new URLSearchParams(params).toString()
+    const { data } = await api.get(`/api/reports/pr-analyses${q ? `?${q}` : ''}`)
+    return data
+  },
+  getPRAnalysisDetails: async (analysisId) => {
+    const { data } = await api.get(`/api/reports/pr-analyses/${analysisId}`)
+    return data
+  },
+  getSummary: async () => {
+    const { data } = await api.get('/api/reports/summary')
+    return data
+  }
+}
+
+export const analysisAPI = {
+  healthCheck: async () => {
+    const { data } = await axios.get(`${ANALYSIS_BASE_URL}/health`)
+    return data
+  },
+  getHistory: async (limit = 10) => {
+    try {
+      const { data } = await axios.get(`${ANALYSIS_BASE_URL}/api/analysis/history?limit=${limit}`)
+      return data
+    } catch (_error) {
+      return { analyses: [], total: 0 }
+    }
+  },
+  analyzeCode: async (payload) => {
+    try {
+      const { data } = await axios.post(`${ANALYSIS_BASE_URL}/api/analysis/analyze`, payload)
+      return data
+    } catch (error) {
+      if (error?.response?.status !== 404) throw error
+      const mappedPayload = {
+        repository_full_name: payload.repository || 'playground',
+        pull_request_number: Number(payload.pr_number || 0),
+        commit_sha: 'playground',
+        files: [
+          {
+            path: payload.file_path || 'playground.py',
+            patch: payload.code || '',
+            additions: 0,
+            deletions: 0,
+            status: 'modified'
+          }
+        ]
+      }
+      const fallback = await axios.post(`${ANALYSIS_BASE_URL}/analyze/pr`, mappedPayload)
+      return fallback.data
+    }
+  }
+}
+
+export const webhookAPI = {
+  getEvents: async (limit = 50, offset = 0) => {
+    try {
+      const q = new URLSearchParams({ limit: String(limit), offset: String(offset) }).toString()
+      const { data } = await api.get(`/api/webhooks/events?${q}`)
+      return data
+    } catch (_error) {
+      return { events: [] }
+    }
   }
 }
 

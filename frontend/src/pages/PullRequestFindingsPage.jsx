@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { findingAPI, suppressionAPI } from '../services/api'
 
@@ -8,14 +8,14 @@ export default function PullRequestFindingsPage() {
   const { pullRequestId } = useParams()
   const [findings, setFindings] = useState([])
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const data = await findingAPI.listByPR(pullRequestId, { status: 'all', min_confidence: 0 })
     setFindings(data.findings || [])
-  }
+  }, [pullRequestId])
 
   useEffect(() => {
     load().catch((err) => console.error(err))
-  }, [pullRequestId])
+  }, [load])
 
   const ordered = useMemo(() => {
     return [...findings].sort((a, b) => {
