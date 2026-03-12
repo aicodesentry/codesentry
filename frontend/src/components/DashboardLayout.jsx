@@ -100,7 +100,7 @@ const DashboardLayout = () => {
                   />
                 </div>
                 <span className="hidden text-xs text-slate-500 dark:text-slate-400 md:inline">
-                  {user?.email}
+                  {user?.github_email || user?.email || ''}
                 </span>
               </div>
             </div>
