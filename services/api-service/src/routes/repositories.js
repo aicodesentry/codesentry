@@ -26,6 +26,7 @@ router.get('/', authenticateToken, async (req, res) => {
      LEFT JOIN pull_requests pr ON pr.repository_id = r.id
      LEFT JOIN findings f ON f.repository_id = r.id
      WHERE r.owner_id = $1
+       AND r.is_active = true
      GROUP BY r.id
      ORDER BY r.updated_at DESC`,
     [req.user.user_id]

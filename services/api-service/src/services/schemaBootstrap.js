@@ -27,6 +27,13 @@ const CREATE_TABLE_STATEMENTS = [
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   );`,
+  `CREATE TABLE IF NOT EXISTS user_installations (
+    user_id UUID NOT NULL,
+    installation_id BIGINT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, installation_id)
+  );`,
   `CREATE TABLE IF NOT EXISTS repositories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     github_id BIGINT UNIQUE NOT NULL,
@@ -170,6 +177,8 @@ const CREATE_TABLE_STATEMENTS = [
 const ALTER_STATEMENTS = [
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS github_email VARCHAR(255);`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS github_token TEXT;`,
+  `ALTER TABLE user_installations ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();`,
+  `ALTER TABLE user_installations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();`,
   `ALTER TABLE repositories ADD COLUMN IF NOT EXISTS owner_id UUID;`,
   `ALTER TABLE repositories ADD COLUMN IF NOT EXISTS installation_id BIGINT;`,
   `ALTER TABLE repositories ADD COLUMN IF NOT EXISTS name VARCHAR(255);`,
