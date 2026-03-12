@@ -2,7 +2,6 @@ const express = require('express');
 const axios = require('axios');
 const { pool } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
-const { createAppJwt } = require('../services/githubApp');
 
 const router = express.Router();
 
@@ -20,15 +19,20 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 router.post('/sync', authenticateToken, async (req, res) => {
-  if (!process.env.GITHUB_APP_ID || !process.env.GITHUB_APP_PRIVATE_KEY) {
-    return res.status(400).json({ error: 'GitHub App credentials are not configured' });
-  }
-
   try {
-    const jwt = createAppJwt();
-    const response = await axios.get('https://api.github.com/app/installations', {
+    const userResult = await pool.query(
+      'SELECT github_token FROM users WHERE id = $1',
+      [req.user.user_id]
+    );
+
+    const githubToken = userResult.rows[0]?.github_token;
+    if (!githubToken) {
+      return res.status(400).json({ error: 'GitHub account is not connected. Please sign in again.' });
+    }
+
+    const response = await axios.get('https://api.github.com/user/installations', {
       headers: {
-        Authorization: `Bearer ${jwt}`,
+        Authorization: `Bearer ${githubToken}`,
         Accept: 'application/vnd.github+json',
       },
       timeout: 20000,
@@ -36,7 +40,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
 
     let synced = 0;
     let syncedRepos = 0;
-    for (const installation of response.data) {
+    for (const installation of response.data.installations || []) {
       await pool.query(
         `INSERT INTO installations (id, account_login, account_type, target_type, html_url, permissions, events, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')
@@ -66,10 +70,10 @@ router.post('/sync', authenticateToken, async (req, res) => {
       let hasMore = true;
       while (hasMore) {
         const reposResp = await axios.get(
-          `https://api.github.com/app/installations/${installation.id}/repositories`,
+          `https://api.github.com/user/installations/${installation.id}/repositories`,
           {
             headers: {
-              Authorization: `Bearer ${jwt}`,
+              Authorization: `Bearer ${githubToken}`,
               Accept: 'application/vnd.github+json',
             },
             params: { per_page: 100, page },

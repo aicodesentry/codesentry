@@ -181,14 +181,9 @@ export const analysisAPI = {
 }
 
 export const webhookAPI = {
-  getEvents: async (limit = 50, offset = 0) => {
-    try {
-      const q = new URLSearchParams({ limit: String(limit), offset: String(offset) }).toString()
-      const { data } = await api.get(`/api/webhooks/events?${q}`)
-      return data
-    } catch (_error) {
-      return { events: [] }
-    }
+  getEvents: async () => {
+    // Deprecated in the current dashboard flow.
+    return { events: [] }
   }
 }
 

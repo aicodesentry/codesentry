@@ -266,24 +266,46 @@ router.get('/pr-analyses/:analysisId', authenticateToken, async (req, res) => {
       analysis = runResult.rows[0];
     } catch (error) {
       if (!isSchemaMismatch(error)) throw error;
-      const legacyResult = await pool.query(
-        `SELECT
-           a.id,
-           a.pr_number,
-           a.pr_url,
-           a.status,
-           a.started_at,
-           a.completed_at,
-           EXTRACT(EPOCH FROM (a.completed_at - a.started_at)) AS processing_time_seconds,
-           r.id AS repository_id,
-           r.full_name AS repository_name,
-           r.github_id AS repository_github_id
-         FROM analysis a
-         JOIN repositories r ON a.repository_id = r.id
-         WHERE a.id = $1 AND (r.owner_id = $2 OR r.user_id = $2)`,
-        [analysisId, req.user.user_id]
-      );
-      analysis = legacyResult.rows[0];
+      try {
+        const legacyOwnerResult = await pool.query(
+          `SELECT
+             a.id,
+             a.pr_number,
+             a.pr_url,
+             a.status,
+             a.started_at,
+             a.completed_at,
+             EXTRACT(EPOCH FROM (a.completed_at - a.started_at)) AS processing_time_seconds,
+             r.id AS repository_id,
+             r.full_name AS repository_name,
+             r.github_id AS repository_github_id
+           FROM analysis a
+           JOIN repositories r ON a.repository_id = r.id
+           WHERE a.id = $1 AND r.owner_id = $2`,
+          [analysisId, req.user.user_id]
+        );
+        analysis = legacyOwnerResult.rows[0];
+      } catch (legacyOwnerError) {
+        if (!isSchemaMismatch(legacyOwnerError)) throw legacyOwnerError;
+        const legacyUserResult = await pool.query(
+          `SELECT
+             a.id,
+             a.pr_number,
+             a.pr_url,
+             a.status,
+             a.started_at,
+             a.completed_at,
+             EXTRACT(EPOCH FROM (a.completed_at - a.started_at)) AS processing_time_seconds,
+             r.id AS repository_id,
+             r.full_name AS repository_name,
+             r.github_id AS repository_github_id
+           FROM analysis a
+           JOIN repositories r ON a.repository_id = r.id
+           WHERE a.id = $1 AND r.user_id = $2`,
+          [analysisId, req.user.user_id]
+        );
+        analysis = legacyUserResult.rows[0];
+      }
     }
 
     if (!analysis) {

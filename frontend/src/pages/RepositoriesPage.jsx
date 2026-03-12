@@ -11,7 +11,8 @@ export default function RepositoriesPage() {
     setLoading(true)
     setError(null)
     try {
-      const [{ repositories: repos }] = await Promise.all([repositoryAPI.list(), installationAPI.sync().catch(() => null)])
+      await installationAPI.sync().catch(() => null)
+      const { repositories: repos } = await repositoryAPI.list()
       setRepositories(repos || [])
     } catch (err) {
       setError(err.response?.data?.error || err.message)
