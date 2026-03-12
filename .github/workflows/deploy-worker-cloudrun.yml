@@ -1,0 +1,44 @@
+name: Deploy Worker (Cloud Run)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/worker-service/**'
+      - '.github/workflows/deploy-worker-cloudrun.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: '${{ vars.GCP_PROJECT_ID }}'
+
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build Worker image
+        run: |
+          TAG="worker-${GITHUB_SHA::12}"
+          IMAGE="us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/worker:${TAG}"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          gcloud builds submit ./services/worker-service --tag "$IMAGE" --project '${{ vars.GCP_PROJECT_ID }}'
+
+      - name: Deploy Worker
+        run: |
+          gcloud run deploy codesentry-worker \
+            --image "$IMAGE" \
+            --region '${{ vars.GCP_REGION }}' \
+            --project '${{ vars.GCP_PROJECT_ID }}' \
+            --platform managed \
+            --allow-unauthenticated

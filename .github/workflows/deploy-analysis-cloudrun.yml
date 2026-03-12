@@ -1,0 +1,44 @@
+name: Deploy Analysis (Cloud Run)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/analysis-service/**'
+      - '.github/workflows/deploy-analysis-cloudrun.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: '${{ vars.GCP_PROJECT_ID }}'
+
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build Analysis image
+        run: |
+          TAG="analysis-${GITHUB_SHA::12}"
+          IMAGE="us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/analysis:${TAG}"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          gcloud builds submit ./services/analysis-service --tag "$IMAGE" --project '${{ vars.GCP_PROJECT_ID }}'
+
+      - name: Deploy Analysis
+        run: |
+          gcloud run deploy codesentry-analysis \
+            --image "$IMAGE" \
+            --region '${{ vars.GCP_REGION }}' \
+            --project '${{ vars.GCP_PROJECT_ID }}' \
+            --platform managed \
+            --allow-unauthenticated
