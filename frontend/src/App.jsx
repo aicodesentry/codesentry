@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import LandingPage from './pages/LandingPage'
+import HomePage from './components/HomePage'
 import AppLayout from './components/AppLayout'
 import RepositoriesPage from './pages/RepositoriesPage'
 import RepositoryDetailsPage from './pages/RepositoryDetailsPage'
@@ -27,7 +27,7 @@ const Protected = ({ children }) => {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={<HomePage />} />
       <Route
         path="/app"
         element={
