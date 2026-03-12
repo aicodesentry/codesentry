@@ -1,14 +1,11 @@
 import { useAuth } from '../contexts/AuthContext'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import axios from 'axios'
-import { repositoryAPI } from '../services/api'
+import { repositoryAPI, reportsAPI } from '../services/api'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Activity, ArrowUpRight, CheckCircle2, Clock, FileCode, FolderGit2, GitPullRequest, Sparkles, TriangleAlert } from 'lucide-react'
-
-const API_URL = import.meta.env.VITE_API_SERVICE_URL
 
 const DashboardPage = () => {
   const { user } = useAuth()
@@ -41,21 +38,26 @@ const DashboardPage = () => {
     const fetchPRInsights = async () => {
       try {
         setInsightsLoading(true)
-        const response = await axios.get(`${API_URL}/api/analysis/history?limit=40`, {
-          withCredentials: true
-        })
-        const analyses = response.data.analyses || []
+        const reportList = await reportsAPI.getPRAnalyses({ limit: 20, offset: 0 })
+        const analyses = reportList.analyses || []
+        const detailResults = await Promise.allSettled(
+          analyses.slice(0, 12).map((analysis) => reportsAPI.getPRAnalysisDetails(analysis.id))
+        )
         const prMap = new Map()
 
-        analyses.forEach((analysis) => {
-          if (analysis.repository === 'playground') return
-          const prKey = `${analysis.repository}#${analysis.pr_number}`
+        detailResults.forEach((result, index) => {
+          if (result.status !== 'fulfilled') return
+          const analysis = result.value.analysis
+          const fallback = analyses[index]
+          const repositoryName = analysis.repository_name || fallback?.repository_name
+          if (!repositoryName || repositoryName === 'playground') return
+          const prKey = `${repositoryName}#${analysis.pr_number}`
 
           if (!prMap.has(prKey)) {
             prMap.set(prKey, {
-              repository: analysis.repository,
+              repository: repositoryName,
               pr_number: analysis.pr_number,
-              timestamp: analysis.timestamp,
+              timestamp: analysis.started_at || fallback?.started_at,
               files_count: 0,
               total_vulnerabilities: 0,
               severity_counts: { critical: 0, high: 0, medium: 0, low: 0 }
@@ -63,7 +65,7 @@ const DashboardPage = () => {
           }
 
           const pr = prMap.get(prKey)
-          pr.files_count += 1
+          pr.files_count += Number(analysis.files_analyzed || 1)
           pr.total_vulnerabilities += (analysis.total_vulnerabilities || 0)
 
           const counts = analysis.severity_counts || {}
@@ -72,8 +74,9 @@ const DashboardPage = () => {
           pr.severity_counts.medium += (counts.medium || 0)
           pr.severity_counts.low += (counts.low || 0)
 
-          if (new Date(analysis.timestamp) > new Date(pr.timestamp)) {
-            pr.timestamp = analysis.timestamp
+          const latestTimestamp = analysis.started_at || fallback?.started_at
+          if (latestTimestamp && new Date(latestTimestamp) > new Date(pr.timestamp)) {
+            pr.timestamp = latestTimestamp
           }
         })
 

@@ -43,7 +43,7 @@ export default function RepositoryDetailsPage() {
         {pullRequests.map((pr) => (
           <Link
             key={pr.id}
-            to={`/app/pull-requests/${pr.id}/findings`}
+            to={`/dashboard/pull-requests/${pr.id}/findings`}
             className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300"
           >
             <div>

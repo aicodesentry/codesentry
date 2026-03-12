@@ -56,7 +56,7 @@ export default function PullRequestFindingsPage() {
             </div>
             <div className="flex items-center gap-2">
               <Link
-                to={`/app/findings/${finding.id}`}
+                to={`/dashboard/findings/${finding.id}`}
                 className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
               >
                 Details

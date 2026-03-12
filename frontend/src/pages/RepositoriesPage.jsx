@@ -31,7 +31,7 @@ export default function RepositoriesPage() {
           <h1 className="text-2xl font-semibold text-slate-900">Repositories</h1>
           <p className="text-sm text-slate-500">Connected GitHub repositories with PR security activity.</p>
         </div>
-        <Link to="/app/onboarding" className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
+        <Link to="/dashboard/onboarding" className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
           Install Flow
         </Link>
       </div>
@@ -47,7 +47,7 @@ export default function RepositoriesPage() {
           {repositories.map((repo) => (
             <Link
               key={repo.id}
-              to={`/app/repositories/${repo.id}`}
+              to={`/dashboard/repositories/${repo.id}`}
               className="rounded-xl border border-slate-200 bg-white p-5 transition hover:border-slate-300"
             >
               <div className="flex items-center justify-between gap-4">
