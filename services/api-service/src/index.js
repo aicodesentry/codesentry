@@ -15,19 +15,21 @@ if (missing.length > 0) {
 const PORT = Number(process.env.PORT || 3000);
 
 async function start() {
-  try {
-    await initQueue();
-    const redis = redisConnection();
-    await redis.ping();
-    logger.info('Redis queue initialized');
-  } catch (err) {
-    logger.error('Redis unavailable, continuing in degraded mode', { error: err.message });
-  }
-
   const app = createApp();
   const server = app.listen(PORT, () => {
     logger.info('API service started', { port: PORT });
   });
+
+  (async () => {
+    try {
+      await initQueue();
+      const redis = redisConnection();
+      await redis.ping();
+      logger.info('Redis queue initialized');
+    } catch (err) {
+      logger.error('Redis unavailable, continuing in degraded mode', { error: err.message });
+    }
+  })();
 
   const shutdown = async () => {
     logger.info('API service shutting down');
