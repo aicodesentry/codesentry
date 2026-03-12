@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# Continuous monitoring script for Railway services
+# Continuous monitoring script for service health checks
 # Checks health every 30 seconds and alerts on failures
 
 set -e
 
-# Service URLs (Railway format)
-API_SERVICE="${API_SERVICE_URL:-https://api-service.railway.app}"
-GITHUB_SERVICE="${GITHUB_SERVICE_URL:-https://github-service.railway.app}"
-ANALYSIS_SERVICE="${ANALYSIS_SERVICE_URL:-https://analysis-service.railway.app}"
+# Service URLs
+API_SERVICE="${API_SERVICE_URL:-http://localhost:3000}"
+GITHUB_SERVICE="${GITHUB_SERVICE_URL:-http://localhost:3002}"
+ANALYSIS_SERVICE="${ANALYSIS_SERVICE_URL:-http://localhost:8001}"
 
 # Alert webhook (optional - for Slack/Discord notifications)
 WEBHOOK_URL="${ALERT_WEBHOOK_URL:-}"

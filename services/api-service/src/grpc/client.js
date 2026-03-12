@@ -29,8 +29,8 @@ let githubClient = null;
  * Initialize gRPC clients
  */
 function initializeClients() {
-  const GITHUB_SERVICE_URL = process.env.GITHUB_SERVICE_GRPC_URL || 'github-service.railway.internal:50051';
-  const ANALYSIS_SERVICE_URL = process.env.ANALYSIS_SERVICE_GRPC_URL || 'analysis-service.railway.internal:50052';
+  const GITHUB_SERVICE_URL = process.env.GITHUB_SERVICE_GRPC_URL || 'github-service:50051';
+  const ANALYSIS_SERVICE_URL = process.env.ANALYSIS_SERVICE_GRPC_URL || 'analysis-service:50052';
 
   // Create GitHub service client
   githubClient = new protoDescriptor.github.GitHubService(
