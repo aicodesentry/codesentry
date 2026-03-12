@@ -6,6 +6,27 @@ const { pool } = require('../config/database');
 const router = express.Router();
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const DEFAULT_GITHUB_APP_SLUG = 'aicodesentry';
+
+function resolveGithubAppSlug() {
+  const raw = (process.env.GITHUB_APP_SLUG || '').trim();
+  const lowered = raw.toLowerCase();
+
+  if (
+    !raw ||
+    lowered.includes('replace_me') ||
+    lowered.includes('your_') ||
+    lowered === 'github_app_slug'
+  ) {
+    return DEFAULT_GITHUB_APP_SLUG;
+  }
+
+  // Support passing the full GitHub App URL as env value.
+  const match = raw.match(/github\.com\/apps\/([^/]+)/i);
+  if (match?.[1]) return match[1];
+
+  return raw;
+}
 
 function isCrossSiteFrontend(req) {
   try {
@@ -139,9 +160,8 @@ router.get('/me', async (req, res) => {
     }
 
     const user = userResult.rows[0];
-    const installUrl = process.env.GITHUB_APP_SLUG
-      ? `https://github.com/apps/${process.env.GITHUB_APP_SLUG}/installations/new`
-      : null;
+    const appSlug = resolveGithubAppSlug();
+    const installUrl = appSlug ? `https://github.com/apps/${appSlug}/installations/new` : null;
 
     return res.json({ user, github_app_install_url: installUrl });
   } catch (_err) {
