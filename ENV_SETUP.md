@@ -1,6 +1,6 @@
 # Environment Variables Setup Guide
 
-This document describes all environment variables used across the AI Code Review Assistant project.
+This document describes all environment variables used across CodeSentry.
 
 ## Quick Start
 
@@ -42,17 +42,16 @@ cp frontend/.env.example frontend/.env
 #### Database
 - `DATABASE_URL` - PostgreSQL connection string
   - Format: `postgresql://user:password@host:port/database`
-  - Development: `postgresql://dev:devpass123@postgres:5432/code_review`
+  - Development: `postgresql://dev:devpass123@postgres:5432/codesentry`
   - Production: Use secure credentials and consider using connection pooling
-- `REDIS_URL` - Redis connection string
-  - Format: `redis://host:port`
-  - Development: `redis://redis:6379`
-  - Used for session management and caching
 
 #### Services
-- `GITHUB_SERVICE_URL` - URL of the GitHub webhook service
+- `GITHUB_SERVICE_URL` - URL of the GitHub service
   - Development: `http://github-service:3002`
   - Production: Use actual service URL
+- `ANALYSIS_SERVICE_URL` - URL of analysis service
+  - Development: `http://analysis-service:8001`
+- `GITHUB_SERVICE_INTERNAL_SECRET` - shared internal auth secret for API -> GitHub service calls
 
 ### GitHub Service (`services/github-service/.env`)
 
@@ -60,11 +59,9 @@ cp frontend/.env.example frontend/.env
 - `PORT` - Port for the GitHub service (default: 3002)
 
 #### Webhook Configuration
-- `WEBHOOK_URL` - Public URL where GitHub can send webhook events
-  - Development: Use ngrok or similar tunneling service
-  - Example: `https://your-subdomain.ngrok-free.dev`
-  - Production: Use your actual domain
-  - **IMPORTANT**: This must be publicly accessible for GitHub webhooks
+- `WEBHOOK_SECRET` - HMAC secret to validate inbound GitHub webhooks
+- `GITHUB_APP_ID` - GitHub App ID
+- `GITHUB_APP_PRIVATE_KEY` - GitHub App private key PEM
 
 ### Frontend (`frontend/.env`)
 

@@ -2,10 +2,10 @@
 
 ## Project Structure & Module Organization
 - `frontend/` React + Vite UI with Tailwind and ESLint; assets live under `public/`, routes and components under `src/`.
-- `services/api-service/` Node.js/Express REST API (port 3000) with Jest tests and PostgreSQL/Redis integrations.
+- `services/api-service/` Node.js/Express REST API (port 3000) with Jest tests and PostgreSQL integrations.
 - `services/github-service/` Node.js/Express webhook + notification service (port 3002); optional email delivery.
 - `services/analysis-service/` FastAPI + gRPC worker (port 8001) that runs code analysis; Python deps in `src/requirements.txt`; credentials expected in `services/analysis-service/credentials/`.
-- `services/mcp-service/` Python gRPC helpers; `proto/` holds shared protobuf definitions; `scripts/` and `infrastructure/` provide operational tooling; Docker orchestration via `docker-compose.yml`.
+- `proto/` holds shared protobuf definitions; `scripts/` and `infrastructure/` provide operational tooling; Docker orchestration via `docker-compose.yml`.
 
 ## Build, Test, and Development Commands
 - Full stack with containers: `docker-compose up --build` (start) and `docker-compose down` (stop/clean). Wait for health before UI work.
@@ -22,7 +22,7 @@
 ## Testing Guidelines
 - API: place tests in `services/api-service/src/__tests__/`; run `npm test`. Mock external calls (GitHub, DB) to keep tests deterministic.
 - Frontend: rely on `npm run lint`; add React tests near components when introducing new UI behavior.
-- Analysis/MCP: add lightweight unit tests for helpers or gRPC clients as Python `unittest` modules adjacent to the code; prefer fast offline fixtures.
+- Analysis: add lightweight unit tests for helpers or gRPC clients as Python `unittest` modules adjacent to the code; prefer fast offline fixtures.
 - Aim for coverage on request/response validators, error paths, and webhook handlers; document any gaps in PRs.
 
 ## Commit & Pull Request Guidelines

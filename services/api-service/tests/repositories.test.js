@@ -8,10 +8,6 @@ jest.mock('../src/config/database', () => ({
   transaction: jest.fn(),
 }));
 
-jest.mock('../src/config/queue', () => ({
-  getAnalysisQueue: jest.fn(() => ({ add: jest.fn() })),
-}));
-
 const { pool } = require('../src/config/database');
 const { createApp } = require('../src/app');
 

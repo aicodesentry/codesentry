@@ -10,8 +10,8 @@ It focuses on **trustworthy security findings** in changed code, with:
 
 ## Architecture
 - `frontend/`: React + Vite dashboard
-- `services/api-service/`: control plane API, webhook ingestion, auth, queue producer
-- `services/worker-service/`: queue consumer, GitHub orchestration, finding persistence
+- `services/api-service/`: control plane API, webhook ingestion, auth, analysis orchestration trigger
+- `services/github-service/`: GitHub App adapter for PR files, comments, and check-runs
 - `services/analysis-service/`: Python security analysis pipeline
 - `infrastructure/docker/postgres/init.sql`: canonical PostgreSQL schema
 
@@ -51,8 +51,6 @@ See docs:
 ## Testing
 - API tests:
   - `cd services/api-service && npm test`
-- Worker unit tests:
-  - `cd services/worker-service && npm test`
 - Analysis pipeline test:
   - `cd services/analysis-service/src && python -m unittest test_pipeline.py`
 - End-to-end happy path:

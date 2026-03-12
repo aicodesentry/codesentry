@@ -1,11 +1,10 @@
 require('dotenv').config();
 
 const { pool } = require('./config/database');
-const { initQueue, redisConnection } = require('./config/queue');
 const logger = require('./utils/logger');
 const { createApp } = require('./app');
 
-const requiredEnvVars = ['DATABASE_URL', 'REDIS_URL', 'JWT_SECRET', 'GITHUB_WEBHOOK_SECRET'];
+const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET', 'GITHUB_WEBHOOK_SECRET', 'GITHUB_SERVICE_INTERNAL_SECRET'];
 const missing = requiredEnvVars.filter((v) => !process.env[v]);
 if (missing.length > 0) {
   console.error(`Missing required env vars: ${missing.join(', ')}`);
@@ -19,17 +18,6 @@ async function start() {
   const server = app.listen(PORT, () => {
     logger.info('API service started', { port: PORT });
   });
-
-  (async () => {
-    try {
-      await initQueue();
-      const redis = redisConnection();
-      await redis.ping();
-      logger.info('Redis queue initialized');
-    } catch (err) {
-      logger.error('Redis unavailable, continuing in degraded mode', { error: err.message });
-    }
-  })();
 
   const shutdown = async () => {
     logger.info('API service shutting down');

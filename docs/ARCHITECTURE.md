@@ -5,18 +5,15 @@
 - auth/session for dashboard users
 - GitHub App installation sync APIs
 - webhook verification and idempotent ingest
-- queue enqueue for PR analysis
+- async PR analysis orchestration trigger
 - repositories / PRs / findings / suppressions APIs
 
-## Worker Plane
-`services/worker-service` provides:
-- BullMQ consumer over Redis
+## GitHub Integration Plane
+`services/github-service` provides:
+- GitHub App installation-token usage
 - changed-file collection from GitHub PR files API
-- calls to analysis-service
-- normalization and fingerprinting
-- dedupe/upsert into PostgreSQL
-- suppression and baseline application
 - check-run and PR comment publication
+- internal authenticated endpoints used by api-service
 
 ## Analysis Plane
 `services/analysis-service` provides:

@@ -9,18 +9,12 @@ Guardrails baseline for this plan is defined in `docs/GUARDRAILS.md`.
 - API: Cloud Run (public)
 - GitHub Service: Cloud Run (public/internal auth)
 - Analysis: Cloud Run (private/internal)
-- Worker: Cloud Run (private)
 - Postgres: Cloud SQL (smallest tier using credits)
-- Redis: Memorystore (smallest tier)
 
 ## Mode Selection
 ### Recommended (current)
-- Worker runs as Cloud Run service.
-- API, worker, and analysis deploy through GitHub Actions workflows.
+- API, github-service, and analysis deploy through GitHub Actions workflows.
 - Frontend deploys through GitHub Actions to Firebase Hosting.
-
-### Optional cost optimization
-- Worker can be converted to a Cloud Run Job + Scheduler later if latency tradeoffs are acceptable.
 
 ## Step-by-Step
 1. Create Artifact Registry repository.
@@ -29,7 +23,6 @@ Guardrails baseline for this plan is defined in `docs/GUARDRAILS.md`.
 4. Trigger deploy workflows:
    - `Deploy API (Cloud Run)`
    - `Deploy GitHub Service (Cloud Run)`
-   - `Deploy Worker (Cloud Run)`
    - `Deploy Analysis (Cloud Run)`
 5. Set GitHub App webhook URL:
    - `<API_URL>/webhooks/github`

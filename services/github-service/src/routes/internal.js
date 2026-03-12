@@ -5,7 +5,7 @@ const githubAppAuth = require('../services/githubAppAuth');
 const router = express.Router();
 
 function ensureInternalAuth(req, res, next) {
-  const expected = process.env.GITHUB_SERVICE_INTERNAL_SECRET || process.env.WORKER_CALLBACK_SECRET;
+  const expected = process.env.GITHUB_SERVICE_INTERNAL_SECRET;
   if (!expected) {
     return res.status(500).json({ error: 'Internal secret is not configured' });
   }

@@ -13,7 +13,6 @@ const prRoutes = require('./routes/prs');
 const findingRoutes = require('./routes/findings');
 const suppressionRoutes = require('./routes/suppressions');
 const webhookRoutes = require('./routes/webhooks');
-const workerRoutes = require('./routes/worker');
 const healthRoutes = require('./routes/health');
 const logger = require('./utils/logger');
 
@@ -86,7 +85,6 @@ function createApp() {
   app.use('/api', prRoutes);
   app.use('/api', findingRoutes);
   app.use('/api', suppressionRoutes);
-  app.use('/internal', workerRoutes);
   app.use('/health', healthRoutes);
 
   app.get('/metrics', async (_req, res) => {

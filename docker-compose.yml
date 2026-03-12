@@ -21,19 +21,6 @@ services:
     networks:
       - codesentry-net
 
-  redis:
-    image: redis:7-alpine
-    container_name: codesentry-redis
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - codesentry-net
-
   api-service:
     build:
       context: ./services/api-service
@@ -45,8 +32,10 @@ services:
       NODE_ENV: development
       PORT: 3000
       DATABASE_URL: postgresql://dev:${POSTGRES_PASSWORD:-devpass123}@postgres:5432/codesentry
-      REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-in-prod}
+      ANALYSIS_SERVICE_URL: http://analysis-service:8001
+      GITHUB_SERVICE_URL: http://github-service:3002
+      GITHUB_SERVICE_INTERNAL_SECRET: ${GITHUB_SERVICE_INTERNAL_SECRET:-dev-github-internal-secret}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
       GITHUB_CALLBACK_URL: ${GITHUB_CALLBACK_URL:-http://localhost:3000/auth/github/callback}
@@ -55,47 +44,15 @@ services:
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev-webhook-secret}
       GITHUB_APP_SLUG: ${GITHUB_APP_SLUG:-aicodesentry}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
-      WORKER_CALLBACK_SECRET: ${WORKER_CALLBACK_SECRET:-dev-worker-secret}
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./services/api-service:/app
-      - /app/node_modules
-    networks:
-      - codesentry-net
-
-  worker-service:
-    build:
-      context: ./services/worker-service
-      dockerfile: Dockerfile
-    container_name: codesentry-worker
-    environment:
-      NODE_ENV: development
-      PORT: 8080
-      DATABASE_URL: postgresql://dev:${POSTGRES_PASSWORD:-devpass123}@postgres:5432/codesentry
-      REDIS_URL: redis://redis:6379
-      ANALYSIS_SERVICE_URL: http://analysis-service:8001
-      API_CALLBACK_URL: http://api-service:3000
-      GITHUB_SERVICE_URL: http://github-service:3002
-      GITHUB_SERVICE_INTERNAL_SECRET: ${GITHUB_SERVICE_INTERNAL_SECRET:-dev-github-internal-secret}
-      WORKER_CALLBACK_SECRET: ${WORKER_CALLBACK_SECRET:-dev-worker-secret}
-      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      api-service:
-        condition: service_started
       github-service:
         condition: service_started
       analysis-service:
         condition: service_started
     volumes:
-      - ./services/worker-service:/app
+      - ./services/api-service:/app
       - /app/node_modules
     networks:
       - codesentry-net

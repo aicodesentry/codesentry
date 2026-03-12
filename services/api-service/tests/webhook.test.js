@@ -7,10 +7,6 @@ jest.mock('../src/config/database', () => ({
   transaction: jest.fn(),
 }));
 
-jest.mock('../src/config/queue', () => ({
-  getAnalysisQueue: jest.fn(() => ({ add: jest.fn() })),
-}));
-
 jest.mock('../src/services/githubApp', () => ({
   verifyWebhookSignature: jest.fn(() => false),
 }));

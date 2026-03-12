@@ -1,7 +1,7 @@
 const express = require('express');
 const { pool, transaction } = require('../config/database');
 const { verifyWebhookSignature } = require('../services/githubApp');
-const { getAnalysisQueue } = require('../config/queue');
+const { triggerAnalysisJob } = require('../services/prAnalysisOrchestrator');
 const logger = require('../utils/logger');
 
 const router = express.Router();
@@ -16,6 +16,7 @@ router.post('/github', async (req, res) => {
   const event = req.headers['x-github-event'];
   const deliveryId = req.headers['x-github-delivery'];
   const correlationId = req.correlationId;
+  let analysisPayload = null;
 
   if (!event || !deliveryId) {
     return res.status(400).json({ error: 'Missing webhook headers' });
@@ -195,8 +196,7 @@ router.post('/github', async (req, res) => {
           [repoId, prResult.rows[0].id, pr.number, pr.head.sha]
         );
 
-        const queue = getAnalysisQueue();
-        await queue.add('analyze-pr', {
+        analysisPayload = {
           correlation_id: correlationId,
           delivery_id: deliveryId,
           analysis_run_id: run.rows[0].id,
@@ -209,7 +209,7 @@ router.post('/github', async (req, res) => {
           commit_sha: pr.head.sha,
           base_sha: pr.base.sha,
           baseline_set: repoResult.rows[0].baseline_set,
-        });
+        };
       });
     }
 
@@ -220,7 +220,11 @@ router.post('/github', async (req, res) => {
       [deliveryId]
     );
 
-    res.status(200).json({ success: true });
+    if (analysisPayload) {
+      triggerAnalysisJob(analysisPayload);
+    }
+
+    res.status(200).json({ success: true, analysis_queued: Boolean(analysisPayload) });
   } catch (error) {
     logger.error('Webhook processing failed', {
       deliveryId,

@@ -19,8 +19,6 @@
   - `docker-compose down -v && docker-compose up --build`
 - API tests:
   - `cd services/api-service && npm test`
-- Worker tests:
-  - `cd services/worker-service && npm test`
 - Analysis tests:
   - `cd services/analysis-service/src && python -m unittest test_pipeline.py`
 - E2E smoke:
