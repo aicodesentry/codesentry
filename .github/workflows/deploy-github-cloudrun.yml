@@ -31,7 +31,7 @@ jobs:
       - name: Validate required config
         run: |
           test -n "${{ secrets.CODESENTRY_INTERNAL_SECRET }}" || (echo "Missing repo secret: CODESENTRY_INTERNAL_SECRET" && exit 1)
-          test -n "${{ vars.GITHUB_APP_ID }}" || (echo "Missing repo variable: GITHUB_APP_ID" && exit 1)
+          test -n "${{ vars.CODESENTRY_APP_ID }}" || (echo "Missing repo variable: CODESENTRY_APP_ID" && exit 1)
           test -n "${{ secrets.CODESENTRY_APP_PRIVATE_KEY }}" || (echo "Missing repo secret: CODESENTRY_APP_PRIVATE_KEY" && exit 1)
           test -n "${{ secrets.CODESENTRY_WEBHOOK_SECRET }}" || (echo "Missing repo secret: CODESENTRY_WEBHOOK_SECRET" && exit 1)
 
@@ -55,7 +55,7 @@ jobs:
             --platform managed \
             --update-env-vars "PORT=8080" \
             --update-env-vars "GITHUB_SERVICE_INTERNAL_SECRET=${{ secrets.CODESENTRY_INTERNAL_SECRET }}" \
-            --update-env-vars "GITHUB_APP_ID=${{ vars.GITHUB_APP_ID }}" \
+            --update-env-vars "GITHUB_APP_ID=${{ vars.CODESENTRY_APP_ID }}" \
             --update-env-vars "GITHUB_APP_PRIVATE_KEY=${{ secrets.CODESENTRY_APP_PRIVATE_KEY }}" \
             --update-env-vars "WEBHOOK_SECRET=${{ secrets.CODESENTRY_WEBHOOK_SECRET }}" \
             --allow-unauthenticated
