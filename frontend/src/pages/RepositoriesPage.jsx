@@ -8,12 +8,24 @@ export default function RepositoriesPage() {
   const [syncSummary, setSyncSummary] = useState({ synced_installations: 0, synced_repositories: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [syncError, setSyncError] = useState(null)
+  const [syncing, setSyncing] = useState(false)
 
   const load = async () => {
     setLoading(true)
     setError(null)
+    setSyncError(null)
+    setSyncing(true)
     try {
-      const syncData = await installationAPI.sync().catch(() => ({ synced_installations: 0, synced_repositories: 0 }))
+      let syncData = { synced_installations: 0, synced_repositories: 0 }
+      try {
+        syncData = await installationAPI.sync()
+      } catch (syncErr) {
+        setSyncError(syncErr.response?.data?.error || syncErr.message || 'Failed to sync installations')
+      } finally {
+        setSyncing(false)
+      }
+
       setSyncSummary({
         synced_installations: Number(syncData?.synced_installations || 0),
         synced_repositories: Number(syncData?.synced_repositories || 0)
@@ -25,6 +37,7 @@ export default function RepositoriesPage() {
     } catch (err) {
       setError(err.response?.data?.error || err.message)
     } finally {
+      setSyncing(false)
       setLoading(false)
     }
   }
@@ -47,6 +60,14 @@ export default function RepositoriesPage() {
 
       {loading && <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading repositories...</div>}
       {error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>}
+      {!loading && !error && syncError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-900">{syncError}</p>
+          <p className="mt-1 text-xs text-amber-800">
+            Showing repositories from current database state. Re-sync can be retried after GitHub app permissions are fixed.
+          </p>
+        </div>
+      )}
       {!loading && !error && repositories.length === 0 && installationCount > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm font-semibold text-amber-900">
@@ -69,9 +90,10 @@ export default function RepositoriesPage() {
             </a>
             <button
               onClick={load}
+              disabled={syncing}
               className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-900"
             >
-              Re-sync
+              {syncing ? 'Re-syncing...' : 'Re-sync'}
             </button>
           </div>
         </div>

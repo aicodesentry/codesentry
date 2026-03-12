@@ -2,6 +2,7 @@ import axios from 'axios'
 
 const DEFAULT_LOCAL_API_URL = 'http://localhost:3000'
 const DEFAULT_PROD_API_URL = 'https://codesentry-api-bv5j37b5tq-uc.a.run.app'
+const AUTH_TOKEN_KEY = 'codesentry_auth_token'
 const isBrowser = typeof window !== 'undefined'
 const isLocalHost =
   isBrowser && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -17,6 +18,34 @@ const api = axios.create({
   }
 })
 
+const getStoredAuthToken = () => {
+  if (typeof window === 'undefined') return null
+  return window.localStorage.getItem(AUTH_TOKEN_KEY)
+}
+
+export const setAuthToken = (token) => {
+  if (typeof window === 'undefined') return
+  if (!token) {
+    window.localStorage.removeItem(AUTH_TOKEN_KEY)
+    return
+  }
+  window.localStorage.setItem(AUTH_TOKEN_KEY, token)
+}
+
+export const clearAuthToken = () => {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(AUTH_TOKEN_KEY)
+}
+
+api.interceptors.request.use((config) => {
+  const token = getStoredAuthToken()
+  if (token) {
+    config.headers = config.headers || {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -24,6 +53,7 @@ api.interceptors.response.use(
       error?.response?.status === 401 &&
       (window.location.pathname.startsWith('/app') || window.location.pathname.startsWith('/dashboard'))
     ) {
+      clearAuthToken()
       window.location.href = '/'
     }
     return Promise.reject(error)
@@ -40,6 +70,7 @@ export const authAPI = {
   },
   logout: async () => {
     await api.post('/auth/logout')
+    clearAuthToken()
   }
 }
 

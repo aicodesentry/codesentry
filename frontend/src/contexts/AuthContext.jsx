@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { authAPI } from '../services/api'
+import { authAPI, setAuthToken, clearAuthToken } from '../services/api'
 
 const AuthContext = createContext(null)
 
@@ -20,6 +20,16 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const init = async () => {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+      const queryParams = new URLSearchParams(window.location.search)
+      const tokenFromRedirect = hashParams.get('token') || queryParams.get('token')
+
+      if (tokenFromRedirect) {
+        setAuthToken(tokenFromRedirect)
+        const cleanPath = `${window.location.pathname}${window.location.search.replace(/[?&]token=[^&]*/g, '').replace(/\?$/, '')}`
+        window.history.replaceState({}, document.title, cleanPath || '/dashboard')
+      }
+
       try {
         const data = await authAPI.getMe()
         setUser(data.user)
@@ -27,6 +37,7 @@ export const AuthProvider = ({ children }) => {
       } catch (_error) {
         setUser(null)
         setGithubAppInstallUrl(null)
+        clearAuthToken()
       } finally {
         setIsLoading(false)
       }
@@ -37,6 +48,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     await authAPI.logout()
+    clearAuthToken()
     setUser(null)
     navigate('/')
   }
