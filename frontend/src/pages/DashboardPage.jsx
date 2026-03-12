@@ -1,7 +1,7 @@
 import { useAuth } from '../contexts/AuthContext'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { repositoryAPI } from '../services/api'
+import { installationAPI, repositoryAPI } from '../services/api'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
@@ -23,6 +23,7 @@ const DashboardPage = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
+        await installationAPI.sync().catch(() => null)
         const repoData = await repositoryAPI.getConnectedCount()
         setConnectedRepoCount(repoData.count)
 
@@ -38,6 +39,7 @@ const DashboardPage = () => {
     const fetchPRInsights = async () => {
       try {
         setInsightsLoading(true)
+        await installationAPI.sync().catch(() => null)
         const reposResponse = await repositoryAPI.list()
         const repositories = reposResponse.repositories || []
         const prLists = await Promise.allSettled(

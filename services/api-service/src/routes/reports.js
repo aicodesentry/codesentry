@@ -6,150 +6,296 @@ const { DEFAULT_SEVERITY_COUNTS, DEFAULT_STYLE_CATEGORIES } = require('../consta
 
 const router = express.Router();
 
-// Get all PR analysis reports
+function isSchemaMismatch(error) {
+  return error?.code === '42P01' || error?.code === '42703';
+}
+
+async function queryAnalysesFromRuns(userId, { repositoryId, status, limit, offset }) {
+  const params = [userId];
+  const where = ['r.owner_id = $1'];
+
+  if (repositoryId) {
+    where.push(`r.id = $${params.length + 1}`);
+    params.push(repositoryId);
+  }
+
+  if (status) {
+    where.push(`ar.status = $${params.length + 1}`);
+    params.push(status);
+  }
+
+  const listQuery = `
+    SELECT
+      ar.id,
+      ar.pr_number,
+      pr.html_url AS pr_url,
+      ar.status,
+      ar.started_at,
+      ar.completed_at,
+      EXTRACT(EPOCH FROM (ar.completed_at - ar.started_at)) AS processing_time_seconds,
+      r.id AS repository_id,
+      r.full_name AS repository_name,
+      r.name AS repo_short_name
+    FROM analysis_runs ar
+    JOIN repositories r ON ar.repository_id = r.id
+    LEFT JOIN pull_requests pr ON pr.id = ar.pull_request_id
+    WHERE ${where.join(' AND ')}
+    ORDER BY COALESCE(ar.started_at, ar.created_at) DESC
+    LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+  `;
+
+  const countQuery = `
+    SELECT COUNT(*) AS total
+    FROM analysis_runs ar
+    JOIN repositories r ON ar.repository_id = r.id
+    WHERE ${where.join(' AND ')}
+  `;
+
+  const list = await pool.query(listQuery, [...params, limit, offset]);
+  const count = await pool.query(countQuery, params);
+  return { rows: list.rows, total: parseInt(count.rows[0].total, 10) };
+}
+
+async function queryAnalysesLegacy(userId, { repositoryId, status, limit, offset }) {
+  const tryOwnerScoped = async () => {
+    const params = [userId];
+    const where = ['r.owner_id = $1'];
+
+    if (repositoryId) {
+      where.push(`r.id = $${params.length + 1}`);
+      params.push(repositoryId);
+    }
+    if (status) {
+      where.push(`a.status = $${params.length + 1}`);
+      params.push(status);
+    }
+
+    const list = await pool.query(
+      `SELECT
+         a.id,
+         a.pr_number,
+         a.pr_url,
+         a.status,
+         a.started_at,
+         a.completed_at,
+         EXTRACT(EPOCH FROM (a.completed_at - a.started_at)) AS processing_time_seconds,
+         r.id AS repository_id,
+         r.full_name AS repository_name,
+         r.name AS repo_short_name
+       FROM analysis a
+       JOIN repositories r ON a.repository_id = r.id
+       WHERE ${where.join(' AND ')}
+       ORDER BY a.started_at DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    );
+
+    const count = await pool.query(
+      `SELECT COUNT(*) AS total
+       FROM analysis a
+       JOIN repositories r ON a.repository_id = r.id
+       WHERE ${where.join(' AND ')}`,
+      params
+    );
+    return { rows: list.rows, total: parseInt(count.rows[0].total, 10) };
+  };
+
+  const tryUserScoped = async () => {
+    const params = [userId];
+    const where = ['r.user_id = $1'];
+
+    if (repositoryId) {
+      where.push(`r.id = $${params.length + 1}`);
+      params.push(repositoryId);
+    }
+    if (status) {
+      where.push(`a.status = $${params.length + 1}`);
+      params.push(status);
+    }
+
+    const list = await pool.query(
+      `SELECT
+         a.id,
+         a.pr_number,
+         a.pr_url,
+         a.status,
+         a.started_at,
+         a.completed_at,
+         EXTRACT(EPOCH FROM (a.completed_at - a.started_at)) AS processing_time_seconds,
+         r.id AS repository_id,
+         r.full_name AS repository_name,
+         r.name AS repo_short_name
+       FROM analysis a
+       JOIN repositories r ON a.repository_id = r.id
+       WHERE ${where.join(' AND ')}
+       ORDER BY a.started_at DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    );
+
+    const count = await pool.query(
+      `SELECT COUNT(*) AS total
+       FROM analysis a
+       JOIN repositories r ON a.repository_id = r.id
+       WHERE ${where.join(' AND ')}`,
+      params
+    );
+    return { rows: list.rows, total: parseInt(count.rows[0].total, 10) };
+  };
+
+  try {
+    return await tryOwnerScoped();
+  } catch (error) {
+    if (!isSchemaMismatch(error)) throw error;
+    return tryUserScoped();
+  }
+}
+
+async function querySummaryFromRuns(userId) {
+  const result = await pool.query(
+    `SELECT
+       COUNT(*) AS total,
+       COUNT(*) FILTER (WHERE ar.status = 'completed') AS completed,
+       COUNT(*) FILTER (WHERE ar.status = 'failed') AS failed,
+       COUNT(*) FILTER (WHERE COALESCE(ar.started_at, ar.created_at) >= NOW() - INTERVAL '7 days') AS recent
+     FROM analysis_runs ar
+     JOIN repositories r ON ar.repository_id = r.id
+     WHERE r.owner_id = $1`,
+    [userId]
+  );
+  return result.rows[0];
+}
+
+async function querySummaryLegacy(userId) {
+  try {
+    const result = await pool.query(
+      `SELECT
+         COUNT(*) AS total,
+         COUNT(*) FILTER (WHERE a.status = 'completed') AS completed,
+         COUNT(*) FILTER (WHERE a.status = 'failed') AS failed,
+         COUNT(*) FILTER (WHERE a.started_at >= NOW() - INTERVAL '7 days') AS recent
+       FROM analysis a
+       JOIN repositories r ON a.repository_id = r.id
+       WHERE r.owner_id = $1`,
+      [userId]
+    );
+    return result.rows[0];
+  } catch (error) {
+    if (!isSchemaMismatch(error)) throw error;
+    const fallback = await pool.query(
+      `SELECT
+         COUNT(*) AS total,
+         COUNT(*) FILTER (WHERE a.status = 'completed') AS completed,
+         COUNT(*) FILTER (WHERE a.status = 'failed') AS failed,
+         COUNT(*) FILTER (WHERE a.started_at >= NOW() - INTERVAL '7 days') AS recent
+       FROM analysis a
+       JOIN repositories r ON a.repository_id = r.id
+       WHERE r.user_id = $1`,
+      [userId]
+    );
+    return fallback.rows[0];
+  }
+}
+
 router.get('/pr-analyses', authenticateToken, async (req, res) => {
   try {
     const { repository_id, status, limit = 50, offset = 0 } = req.query;
 
-    // Validate repository_id is a valid UUID format if provided
     if (repository_id) {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!uuidRegex.test(repository_id)) {
         return res.status(400).json({
           error: 'Invalid repository ID format',
-          details: 'Repository ID must be a valid UUID'
+          details: 'Repository ID must be a valid UUID',
         });
       }
     }
 
-    // Build dynamic query — always scoped to authenticated user
-    const conditions = [];
-    const queryParams = [];
+    const pagination = {
+      repositoryId: repository_id,
+      status,
+      limit: parseInt(limit, 10),
+      offset: parseInt(offset, 10),
+    };
 
-    conditions.push(`r.user_id = $${queryParams.length + 1}`);
-    queryParams.push(req.user.user_id);
-
-    if (repository_id) {
-      conditions.push(`r.id = $${queryParams.length + 1}`);
-      queryParams.push(repository_id);
+    let data;
+    try {
+      data = await queryAnalysesFromRuns(req.user.user_id, pagination);
+    } catch (error) {
+      if (!isSchemaMismatch(error)) throw error;
+      data = await queryAnalysesLegacy(req.user.user_id, pagination);
     }
-
-    if (status) {
-      conditions.push(`a.status = $${queryParams.length + 1}`);
-      queryParams.push(status);
-    }
-
-    let query = `
-      SELECT
-        a.id,
-        a.pr_number,
-        a.pr_url,
-        a.status,
-        a.started_at,
-        a.completed_at,
-        EXTRACT(EPOCH FROM (a.completed_at - a.started_at)) as processing_time_seconds,
-        r.id as repository_id,
-        r.full_name as repository_name,
-        r.name as repo_short_name
-      FROM analysis a
-      JOIN repositories r ON a.repository_id = r.id
-    `;
-
-    if (conditions.length > 0) {
-      query += ` WHERE ${conditions.join(' AND ')}`;
-    }
-
-    query += ` ORDER BY a.started_at DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
-    queryParams.push(parseInt(limit), parseInt(offset));
-
-    const result = await pool.query(query, queryParams);
-
-    // Get total count
-    let countQuery = `
-      SELECT COUNT(*) as total
-      FROM analysis a
-      JOIN repositories r ON a.repository_id = r.id
-    `;
-    const countParams = [];
-    const countConditions = [];
-
-    countConditions.push(`r.user_id = $${countParams.length + 1}`);
-    countParams.push(req.user.user_id);
-
-    if (repository_id) {
-      countConditions.push(`r.id = $${countParams.length + 1}`);
-      countParams.push(repository_id);
-    }
-
-    if (status) {
-      countConditions.push(`a.status = $${countParams.length + 1}`);
-      countParams.push(status);
-    }
-
-    countQuery += ` WHERE ${countConditions.join(' AND ')}`;
-
-    const countResult = await pool.query(countQuery, countParams);
 
     res.json({
       success: true,
-      analyses: result.rows,
-      total: parseInt(countResult.rows[0].total),
-      limit: parseInt(limit),
-      offset: parseInt(offset)
+      analyses: data.rows,
+      total: data.total,
+      limit: pagination.limit,
+      offset: pagination.offset,
     });
   } catch (error) {
     console.error('Error fetching PR analyses:', error);
-    res.status(500).json({
-      error: 'Failed to fetch PR analyses',
-      details: error.message
-    });
+    res.status(500).json({ error: 'Failed to fetch PR analyses', details: error.message });
   }
 });
 
-// Get detailed analysis for a specific PR (including vulnerabilities from MongoDB)
 router.get('/pr-analyses/:analysisId', authenticateToken, async (req, res) => {
   try {
     const { analysisId } = req.params;
+    let analysis;
 
-    const conditions = ['a.id = $1', 'r.user_id = $2'];
-    const params = [analysisId, req.user.user_id];
+    try {
+      const runResult = await pool.query(
+        `SELECT
+           ar.id,
+           ar.pr_number,
+           pr.html_url AS pr_url,
+           ar.status,
+           ar.started_at,
+           ar.completed_at,
+           EXTRACT(EPOCH FROM (ar.completed_at - ar.started_at)) AS processing_time_seconds,
+           r.id AS repository_id,
+           r.full_name AS repository_name,
+           r.github_id AS repository_github_id
+         FROM analysis_runs ar
+         JOIN repositories r ON ar.repository_id = r.id
+         LEFT JOIN pull_requests pr ON pr.id = ar.pull_request_id
+         WHERE ar.id = $1 AND r.owner_id = $2`,
+        [analysisId, req.user.user_id]
+      );
+      analysis = runResult.rows[0];
+    } catch (error) {
+      if (!isSchemaMismatch(error)) throw error;
+      const legacyResult = await pool.query(
+        `SELECT
+           a.id,
+           a.pr_number,
+           a.pr_url,
+           a.status,
+           a.started_at,
+           a.completed_at,
+           EXTRACT(EPOCH FROM (a.completed_at - a.started_at)) AS processing_time_seconds,
+           r.id AS repository_id,
+           r.full_name AS repository_name,
+           r.github_id AS repository_github_id
+         FROM analysis a
+         JOIN repositories r ON a.repository_id = r.id
+         WHERE a.id = $1 AND (r.owner_id = $2 OR r.user_id = $2)`,
+        [analysisId, req.user.user_id]
+      );
+      analysis = legacyResult.rows[0];
+    }
 
-    // Get analysis record from PostgreSQL
-    const analysisResult = await pool.query(
-      `SELECT
-        a.id,
-        a.pr_number,
-        a.pr_url,
-        a.status,
-        a.started_at,
-        a.completed_at,
-        EXTRACT(EPOCH FROM (a.completed_at - a.started_at)) as processing_time_seconds,
-        r.id as repository_id,
-        r.full_name as repository_name,
-        r.github_id as repository_github_id
-      FROM analysis a
-      JOIN repositories r ON a.repository_id = r.id
-      WHERE ${conditions.join(' AND ')}`,
-      params
-    );
-
-    if (analysisResult.rows.length === 0) {
+    if (!analysis) {
       return res.status(404).json({ error: 'Analysis not found' });
     }
 
-    const analysis = analysisResult.rows[0];
-
-    // Get vulnerability details from analysis-service (MongoDB)
     const ANALYSIS_SERVICE_URL = process.env.ANALYSIS_SERVICE_URL || 'http://analysis-service:8001';
 
     try {
       const vulnerabilitiesResponse = await axios.get(
         `${ANALYSIS_SERVICE_URL}/api/analysis/pr/${analysis.pr_number}`,
-        {
-          params: {
-            repository: analysis.repository_name
-          }
-        }
+        { params: { repository: analysis.repository_name } }
       );
 
       analysis.vulnerabilities = vulnerabilitiesResponse.data.vulnerabilities || [];
@@ -160,10 +306,6 @@ router.get('/pr-analyses/:analysisId', authenticateToken, async (req, res) => {
       analysis.total_style_issues = vulnerabilitiesResponse.data.total_style_issues || 0;
       analysis.files_analyzed = vulnerabilitiesResponse.data.files_analyzed || 0;
     } catch (mongoError) {
-      console.error('Failed to fetch vulnerabilities from MongoDB:', mongoError.message);
-      console.error('Request URL:', `${ANALYSIS_SERVICE_URL}/api/analysis/pr/${analysis.pr_number}?repository=${analysis.repository_name}`);
-      console.error('Full error:', mongoError.response?.data || mongoError);
-      // Return analysis without vulnerability details if MongoDB fetch fails
       analysis.vulnerabilities = [];
       analysis.style_issues = [];
       analysis.severity_counts = DEFAULT_SEVERITY_COUNTS;
@@ -173,55 +315,35 @@ router.get('/pr-analyses/:analysisId', authenticateToken, async (req, res) => {
       analysis.vulnerability_fetch_error = `Could not retrieve vulnerability details: ${mongoError.message}`;
     }
 
-    res.json({
-      success: true,
-      analysis: analysis
-    });
+    res.json({ success: true, analysis });
   } catch (error) {
     console.error('Error fetching analysis details:', error);
-    res.status(500).json({
-      error: 'Failed to fetch analysis details',
-      details: error.message
-    });
+    res.status(500).json({ error: 'Failed to fetch analysis details', details: error.message });
   }
 });
 
-// Get summary statistics for reports dashboard
 router.get('/summary', authenticateToken, async (req, res) => {
   try {
-    // Get summary statistics scoped to the authenticated user only
-    const params = [req.user.user_id];
-
-    const summaryQuery = `
-      SELECT
-        COUNT(*) as total,
-        COUNT(*) FILTER (WHERE a.status = 'completed') as completed,
-        COUNT(*) FILTER (WHERE a.status = 'failed') as failed,
-        COUNT(*) FILTER (WHERE a.started_at >= NOW() - INTERVAL '7 days') as recent
-       FROM analysis a
-       JOIN repositories r ON a.repository_id = r.id
-       WHERE r.user_id = $1
-    `;
-
-    const result = await pool.query(summaryQuery, params);
-
-    const summary = result.rows[0];
+    let summary;
+    try {
+      summary = await querySummaryFromRuns(req.user.user_id);
+    } catch (error) {
+      if (!isSchemaMismatch(error)) throw error;
+      summary = await querySummaryLegacy(req.user.user_id);
+    }
 
     res.json({
       success: true,
       summary: {
-        total_analyses: parseInt(summary.total),
-        completed: parseInt(summary.completed),
-        failed: parseInt(summary.failed),
-        recent_7_days: parseInt(summary.recent)
-      }
+        total_analyses: parseInt(summary.total, 10),
+        completed: parseInt(summary.completed, 10),
+        failed: parseInt(summary.failed, 10),
+        recent_7_days: parseInt(summary.recent, 10),
+      },
     });
   } catch (error) {
     console.error('Error fetching summary:', error);
-    res.status(500).json({
-      error: 'Failed to fetch summary',
-      details: error.message
-    });
+    res.status(500).json({ error: 'Failed to fetch summary', details: error.message });
   }
 });
 
