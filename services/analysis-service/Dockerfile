@@ -12,5 +12,5 @@ COPY . .
 # Expose default local port
 EXPOSE 8001
 
-# Cloud Run injects PORT (usually 8080); local can still use 8001.
-CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8001}"]
+# Cloud Run injects PORT; use src as app dir for reliable module import.
+CMD ["sh", "-c", "uvicorn main:app --app-dir src --host 0.0.0.0 --port ${PORT:-8001}"]
