@@ -9,7 +9,6 @@ require('dotenv').config();
 
 // Validate required environment variables
 const requiredEnvVars = [
-  'DATABASE_URL',
   'WEBHOOK_SECRET'
 ];
 
