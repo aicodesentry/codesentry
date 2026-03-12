@@ -8,6 +8,10 @@ on:
       - '.github/workflows/deploy-analysis-cloudrun.yml'
   workflow_dispatch:
 
+concurrency:
+  group: cloudrun-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -32,7 +36,8 @@ jobs:
           TAG="analysis-${GITHUB_SHA::12}"
           IMAGE="us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/analysis:${TAG}"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
-          gcloud builds submit ./services/analysis-service --tag "$IMAGE" --project '${{ vars.GCP_PROJECT_ID }}'
+          docker build -t "$IMAGE" ./services/analysis-service
+          docker push "$IMAGE"
 
       - name: Deploy Analysis
         run: |

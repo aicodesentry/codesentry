@@ -3,7 +3,6 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
 
 # Python
 venv/
@@ -36,10 +35,6 @@ services/**/.env.*
 !**/.env.example
 !.env.example
 !services/**/.env.example
-
-# Ignore all Markdown files
-*.md
-**/*.md
 
 # Credentials - NEVER COMMIT THESE
 credentials/
@@ -100,10 +95,13 @@ FIXES_APPLIED.md
 FREE_INFRASTRUCTURE_GUIDE.md
 PRE_DEPLOYMENT_CHECKLIST.md
 RENDER_ENV_SETUP.md
+DEPLOY_GCP_FREE.md
+DEPLOYMENT_FIX_CHECKLIST.md
 SECURITY_FIX_*.md
 TEST_GRPC.md
 test_fixes.md
 deploy-free-infrastructure.sh
+deploy-gcp.sh
 migrate_table_name.sh
 reset_database_fresh.sh
 restart_database.sh
