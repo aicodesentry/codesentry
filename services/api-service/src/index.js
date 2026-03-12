@@ -4,7 +4,16 @@ const { pool } = require('./config/database');
 const logger = require('./utils/logger');
 const { createApp } = require('./app');
 
-const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET', 'GITHUB_WEBHOOK_SECRET', 'GITHUB_SERVICE_INTERNAL_SECRET'];
+if (process.env.NODE_ENV !== 'production') {
+  process.env.GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET || 'dev-webhook-secret';
+  process.env.GITHUB_SERVICE_INTERNAL_SECRET =
+    process.env.GITHUB_SERVICE_INTERNAL_SECRET || 'dev-github-internal-secret';
+}
+
+const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
+if (process.env.NODE_ENV === 'production') {
+  requiredEnvVars.push('GITHUB_WEBHOOK_SECRET', 'GITHUB_SERVICE_INTERNAL_SECRET');
+}
 const missing = requiredEnvVars.filter((v) => !process.env[v]);
 if (missing.length > 0) {
   console.error(`Missing required env vars: ${missing.join(', ')}`);

@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { reportsAPI, repositoryAPI } from '../services/api';
 
 // Lazy load modal for better performance
@@ -33,34 +33,7 @@ const ReportsPage = () => {
   const [totalCount, setTotalCount] = useState(0);
   const itemsPerPage = 10;
 
-  useEffect(() => {
-    const cacheKey = getCacheKey(currentPage, selectedRepo, selectedStatus);
-    const cached = localStorage.getItem(cacheKey);
-
-    let hasDisplayedCached = false;
-
-    if (cached) {
-      try {
-        const { data, timestamp, total, repos, summaryData } = JSON.parse(cached);
-        if (Date.now() - timestamp < CACHE_DURATION) {
-          setAnalyses(data);
-          setTotalCount(total);
-          if (repos) setRepositories(repos);
-          if (summaryData) setSummary(summaryData);
-          setLoading(false);
-          hasDisplayedCached = true;
-        }
-      } catch (e) {
-        console.error("Failed to parse cache:", e);
-        localStorage.removeItem(cacheKey); // Clear corrupted cache
-      }
-    }
-    
-    // Always fetch fresh data, either to initially populate or to update displayed cache
-    fetchData(hasDisplayedCached);
-  }, [selectedRepo, selectedStatus, currentPage]);
-
-  const fetchData = async (isBackgroundFetch = false) => {
+  const fetchData = useCallback(async (isBackgroundFetch = false) => {
     if (!isBackgroundFetch) {
       setLoading(true);
     }
@@ -106,7 +79,34 @@ const ReportsPage = () => {
         setLoading(false);
       }
     }
-  };
+  }, [currentPage, itemsPerPage, selectedRepo, selectedStatus]);
+
+  useEffect(() => {
+    const cacheKey = getCacheKey(currentPage, selectedRepo, selectedStatus);
+    const cached = localStorage.getItem(cacheKey);
+
+    let hasDisplayedCached = false;
+
+    if (cached) {
+      try {
+        const { data, timestamp, total, repos, summaryData } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          setAnalyses(data);
+          setTotalCount(total);
+          if (repos) setRepositories(repos);
+          if (summaryData) setSummary(summaryData);
+          setLoading(false);
+          hasDisplayedCached = true;
+        }
+      } catch (e) {
+        console.error("Failed to parse cache:", e);
+        localStorage.removeItem(cacheKey); // Clear corrupted cache
+      }
+    }
+    
+    // Always fetch fresh data, either to initially populate or to update displayed cache
+    fetchData(hasDisplayedCached);
+  }, [currentPage, fetchData, selectedRepo, selectedStatus]);
 
   const handleViewDetails = async (analysis) => {
     try {
@@ -459,4 +459,3 @@ const ReportsPage = () => {
 };
 
 export default ReportsPage;
-

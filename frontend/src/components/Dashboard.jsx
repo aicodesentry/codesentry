@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react'
-import { useAuth } from '../contexts/AuthContext'
+import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 
 const API_URL = import.meta.env.VITE_API_SERVICE_URL
 
 const Dashboard = () => {
-  const { user } = useAuth()
   const [analyses, setAnalyses] = useState([])
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
@@ -15,30 +13,6 @@ const Dashboard = () => {
     low: 0,
     total: 0
   })
-
-  useEffect(() => {
-    const loadAnalyses = async () => {
-      try {
-        setLoading(true);
-        const cachedAnalyses = localStorage.getItem('prAnalysesCache');
-        if (cachedAnalyses) {
-          const parsedAnalyses = JSON.parse(cachedAnalyses);
-          setAnalyses(parsedAnalyses);
-          updateStats(parsedAnalyses); // Update stats from cache
-        }
-      } catch (error) {
-        console.error('Failed to load cached analyses:', error);
-        // Clear corrupted cache
-        localStorage.removeItem('prAnalysesCache');
-      } finally {
-        setLoading(false);
-        // Always fetch fresh data in the background
-        await fetchAnalyses(true);
-      }
-    };
-
-    loadAnalyses();
-  }, []);
 
   const updateStats = (analysesData) => {
     const totalStats = analysesData.reduce((acc, pr) => ({
@@ -51,7 +25,7 @@ const Dashboard = () => {
     setStats(totalStats);
   };
 
-  const fetchAnalyses = async (isBackgroundFetch = false) => {
+  const fetchAnalyses = useCallback(async (isBackgroundFetch = false) => {
     try {
       if (!isBackgroundFetch) {
         setLoading(true);
@@ -114,7 +88,29 @@ const Dashboard = () => {
         setLoading(false);
       }
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const loadAnalyses = async () => {
+      try {
+        setLoading(true)
+        const cachedAnalyses = localStorage.getItem('prAnalysesCache')
+        if (cachedAnalyses) {
+          const parsedAnalyses = JSON.parse(cachedAnalyses)
+          setAnalyses(parsedAnalyses)
+          updateStats(parsedAnalyses)
+        }
+      } catch (error) {
+        console.error('Failed to load cached analyses:', error)
+        localStorage.removeItem('prAnalysesCache')
+      } finally {
+        setLoading(false)
+        await fetchAnalyses(true)
+      }
+    }
+
+    loadAnalyses()
+  }, [fetchAnalyses])
 
   const formatDate = (timestamp) => {
     return new Date(timestamp).toLocaleDateString('en-US', {
@@ -222,7 +218,7 @@ const Dashboard = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {analyses.map((pr, index) => (
+                {analyses.map((pr) => (
                   <tr key={`${pr.repository}-${pr.pr_number}`} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {pr.repository}

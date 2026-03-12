@@ -1,7 +1,6 @@
 import { useAuth } from '../contexts/AuthContext'
 import Header from './Header'
 import Footer from './Footer'
-import CodePreview from './CodePreview'
 
 const HomePage = () => {
   const { loginWithGitHub } = useAuth()

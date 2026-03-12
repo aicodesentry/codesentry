@@ -18,7 +18,7 @@ const CodePreview = () => {
           <div className="text-gray-500">1</div>
           <div className="text-purple-400">def <span className="text-blue-400">analyze_code</span>():</div>
           <div className="text-gray-500">2</div>
-          <div className="ml-4 text-gray-300">result = <span className="text-green-400">"Clean"</span></div>
+          <div className="ml-4 text-gray-300">result = <span className="text-green-400">{'"Clean"'}</span></div>
           <div className="text-gray-500">3</div>
           <div className="ml-4 text-purple-400">return <span className="text-gray-300">result</span></div>
           <div className="text-gray-500 mt-2">4</div>
