@@ -20,6 +20,7 @@ const logger = require('./utils/logger');
 function createApp() {
   const app = express();
   const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+  app.set('trust proxy', 1);
 
   const metricsRegister = new client.Registry();
   client.collectDefaultMetrics({ register: metricsRegister });

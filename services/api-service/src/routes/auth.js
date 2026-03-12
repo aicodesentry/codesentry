@@ -12,8 +12,10 @@ router.get('/github', (req, res) => {
     return res.status(500).json({ error: 'GitHub OAuth is not configured' });
   }
 
+  const forwardedProto = req.get('x-forwarded-proto');
+  const protocol = forwardedProto ? forwardedProto.split(',')[0] : req.protocol;
   const callbackUrl =
-    process.env.GITHUB_CALLBACK_URL || `${req.protocol}://${req.get('host')}/auth/github/callback`;
+    process.env.GITHUB_CALLBACK_URL || `${protocol}://${req.get('host')}/auth/github/callback`;
 
   const authUrl =
     `https://github.com/login/oauth/authorize?client_id=${process.env.GITHUB_CLIENT_ID}` +
