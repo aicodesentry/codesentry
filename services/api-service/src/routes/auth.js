@@ -7,6 +7,26 @@ const router = express.Router();
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
+function isCrossSiteFrontend(req) {
+  try {
+    const frontendHost = new URL(FRONTEND_URL).hostname;
+    const apiHost = (req.get('host') || '').split(':')[0];
+    return Boolean(frontendHost && apiHost && frontendHost !== apiHost);
+  } catch (_err) {
+    return false;
+  }
+}
+
+function authCookieOptions(req) {
+  const crossSite = isCrossSiteFrontend(req);
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production' || crossSite,
+    sameSite: crossSite ? 'none' : 'lax',
+    path: '/',
+  };
+}
+
 router.get('/github', (req, res) => {
   if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
     return res.status(500).json({ error: 'GitHub OAuth is not configured' });
@@ -88,10 +108,7 @@ router.get('/github/callback', async (req, res) => {
     );
 
     res.cookie('auth_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
+      ...authCookieOptions(req),
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -134,10 +151,7 @@ router.get('/me', async (req, res) => {
 
 router.post('/logout', (_req, res) => {
   res.clearCookie('auth_token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
+    ...authCookieOptions(_req),
   });
   res.json({ success: true });
 });

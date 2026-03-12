@@ -1,6 +1,12 @@
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const DEFAULT_LOCAL_API_URL = 'http://localhost:3000'
+const DEFAULT_PROD_API_URL = 'https://codesentry-api-bv5j37b5tq-uc.a.run.app'
+const isBrowser = typeof window !== 'undefined'
+const isLocalHost =
+  isBrowser && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || (isLocalHost ? DEFAULT_LOCAL_API_URL : DEFAULT_PROD_API_URL)
 const ANALYSIS_BASE_URL = import.meta.env.VITE_ANALYSIS_SERVICE_URL || API_BASE_URL
 
 const api = axios.create({
