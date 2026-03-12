@@ -7,6 +7,7 @@ Guardrails baseline for this plan is defined in `docs/GUARDRAILS.md`.
 ## Platform Choices
 - Frontend: Firebase Hosting (Google Analytics enabled)
 - API: Cloud Run (public)
+- GitHub Service: Cloud Run (public/internal auth)
 - Analysis: Cloud Run (private/internal)
 - Worker: Cloud Run (private)
 - Postgres: Cloud SQL (smallest tier using credits)
@@ -27,6 +28,7 @@ Guardrails baseline for this plan is defined in `docs/GUARDRAILS.md`.
 3. Configure GitHub repository Actions secrets/variables.
 4. Trigger deploy workflows:
    - `Deploy API (Cloud Run)`
+   - `Deploy GitHub Service (Cloud Run)`
    - `Deploy Worker (Cloud Run)`
    - `Deploy Analysis (Cloud Run)`
 5. Set GitHub App webhook URL:

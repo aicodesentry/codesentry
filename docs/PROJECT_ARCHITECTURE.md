@@ -6,6 +6,7 @@ The active V1 runtime path is:
 
 - `frontend` (React/Vite dashboard)
 - `api-service` (Node/Express control plane + webhook ingest)
+- `github-service` (Node/Express GitHub adapter for PR file fetch/comments/check-runs)
 - `worker-service` (BullMQ async orchestration worker)
 - `analysis-service` (FastAPI deterministic analysis engine)
 - `postgres` (system of record)
@@ -30,13 +31,21 @@ Primary runtime wiring is defined in `docker-compose.yml`.
 
 ### Worker Service (`services/worker-service/`)
 - Consumes BullMQ queue `pr-analysis`.
-- Fetches changed PR files from GitHub using installation token.
+- Fetches changed PR files via github-service.
 - Calls analysis-service `POST /analyze/pr`.
 - Normalizes findings, computes fingerprints, and upserts to Postgres.
 - Applies suppression and baseline logic.
 - Marks stale findings as fixed.
-- Publishes GitHub summary comment, high-confidence inline comments, and check-runs.
+- Calls github-service for summary comments, high-confidence inline comments, and check-runs.
 - Calls API internal endpoint to finalize `analysis_runs` status/counts.
+
+### GitHub Service (`services/github-service/`)
+- Owns GitHub App installation-token usage and API calls.
+- Exposes internal authenticated endpoints for:
+  - PR changed-file fetch
+  - Summary comment upsert
+  - Inline PR comments
+  - Check-run creation
 
 ### Analysis Service (`services/analysis-service/`)
 - Accepts changed-file payloads for PR analysis.
@@ -72,11 +81,11 @@ Core behaviors:
 1. GitHub sends a `pull_request` webhook to API.
 2. API verifies webhook signature and deduplicates by delivery ID.
 3. API upserts repository/PR data, inserts `analysis_runs` row, enqueues analysis job.
-4. Worker consumes job and fetches changed files from GitHub.
+4. Worker consumes job and requests changed files from github-service.
 5. Worker calls analysis-service with PR metadata + file patches.
 6. Analysis-service returns normalized findings.
 7. Worker upserts findings, applies suppressions/baseline, marks fixed findings.
-8. Worker posts summary + inline comments (high confidence) + check-run to GitHub.
+8. Worker calls github-service to post summary + inline comments (high confidence) + check-run.
 9. Worker calls API internal completion endpoint.
 10. API marks run completed/failed and records audit log entries.
 11. Frontend reads stored runs/findings/repositories via API.
@@ -98,5 +107,4 @@ Core behaviors:
 - Production model: independently deployed containers/services with the same env contract, managed Postgres/Redis, and separately hosted frontend.
 
 ## Repo Note: Legacy/Parallel Components
-The repository still contains additional/older components (for example `github-service`, gRPC/MCP artifacts, and an older production compose path) that are not the primary active V1 runtime described above.  
-For current architecture, treat the API + Worker + Analysis + Frontend path as canonical.
+The repository still contains older gRPC/MCP artifacts and an older production compose path that are not part of the current primary runtime.

@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const crypto = require('crypto');
+const http = require('http');
 const axios = require('axios');
 const { Worker } = require('bullmq');
 const IORedis = require('ioredis');
@@ -22,54 +22,6 @@ const pool = new Pool({
 
 function log(level, message, meta = {}) {
   console.log(JSON.stringify({ ts: new Date().toISOString(), level, message, ...meta }));
-}
-
-function normalizePrivateKey(rawKey) {
-  if (!rawKey) return null;
-  let key = rawKey;
-  if (!key.includes('BEGIN')) {
-    try {
-      key = Buffer.from(rawKey, 'base64').toString('utf8');
-    } catch (_) {
-      key = rawKey;
-    }
-  }
-  return key.replace(/\\n/g, '\n');
-}
-
-function createAppJwt() {
-  const appId = process.env.GITHUB_APP_ID;
-  const privateKey = normalizePrivateKey(process.env.GITHUB_APP_PRIVATE_KEY);
-  if (!appId || !privateKey) {
-    throw new Error('GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY are required in worker');
-  }
-
-  const now = Math.floor(Date.now() / 1000);
-  const header = { alg: 'RS256', typ: 'JWT' };
-  const payload = { iat: now - 60, exp: now + 9 * 60, iss: appId };
-
-  const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
-  const content = `${b64(header)}.${b64(payload)}`;
-  const signer = crypto.createSign('RSA-SHA256');
-  signer.update(content);
-  const sig = signer.sign(privateKey, 'base64url');
-  return `${content}.${sig}`;
-}
-
-async function getInstallationToken(installationId) {
-  const jwt = createAppJwt();
-  const resp = await axios.post(
-    `https://api.github.com/app/installations/${installationId}/access_tokens`,
-    {},
-    {
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        Accept: 'application/vnd.github+json',
-      },
-      timeout: 20000,
-    }
-  );
-  return resp.data.token;
 }
 
 function markdownEscape(text) {
@@ -126,62 +78,25 @@ function buildSummaryComment(prNumber, findings, runId) {
   return body.join('\n');
 }
 
-async function githubRequest(method, url, token, data) {
-  const maxAttempts = 4;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      return await axios({
-        method,
-        url,
-        data,
-        timeout: 25000,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      });
-    } catch (error) {
-      const status = error.response?.status;
-      const retryable = [429, 500, 502, 503, 504].includes(status);
-      if (!retryable || attempt === maxAttempts) {
-        throw error;
-      }
-      const delayMs = 1000 * Math.pow(2, attempt - 1);
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-  }
+async function githubServiceRequest(path, payload) {
+  const baseUrl = process.env.GITHUB_SERVICE_URL || 'http://github-service:3002';
+  const internalSecret = process.env.GITHUB_SERVICE_INTERNAL_SECRET || process.env.WORKER_CALLBACK_SECRET;
+  const response = await axios.post(`${baseUrl}${path}`, payload, {
+    timeout: 45000,
+    headers: {
+      'x-internal-secret': internalSecret,
+    },
+  });
+  return response.data;
 }
 
-async function fetchChangedFiles({ repositoryFullName, pullRequestNumber, token }) {
-  const files = [];
-  let page = 1;
-
-  while (true) {
-    const response = await githubRequest(
-      'get',
-      `https://api.github.com/repos/${repositoryFullName}/pulls/${pullRequestNumber}/files?per_page=100&page=${page}`,
-      token
-    );
-
-    files.push(...response.data);
-    if (response.data.length < 100) break;
-    page += 1;
-  }
-
-  return files
-    .filter((f) => ['added', 'modified', 'renamed'].includes(f.status))
-    .filter((f) => !f.filename.startsWith('dist/') && !f.filename.includes('node_modules'))
-    .slice(0, 200)
-    .map((f) => ({
-      path: f.filename,
-      patch: f.patch || '',
-      additions: f.additions,
-      deletions: f.deletions,
-      status: f.status,
-      raw_url: f.raw_url,
-    }));
+async function fetchChangedFiles({ repositoryFullName, pullRequestNumber, installationId }) {
+  const response = await githubServiceRequest('/internal/github/pulls/files', {
+    repository_full_name: repositoryFullName,
+    pull_request_number: pullRequestNumber,
+    installation_id: installationId,
+  });
+  return response.files || [];
 }
 
 async function upsertFinding({ finding, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha, isBaseline }) {
@@ -323,41 +238,30 @@ async function applySuppressions(findingRows, repositoryId) {
   return result;
 }
 
-async function postOrUpdateSummaryComment({ owner, repo, prNumber, token, body }) {
-  const existingResp = await githubRequest(
-    'get',
-    `https://api.github.com/repos/${owner}/${repo}/issues/${prNumber}/comments?per_page=100`,
-    token
-  );
-
+async function postOrUpdateSummaryComment({ owner, repo, prNumber, installationId, body }) {
   const marker = `<!-- codesentry-summary:${prNumber} -->`;
-  const existing = existingResp.data.find((comment) => comment.body?.includes(marker));
-
-  if (existing) {
-    const resp = await githubRequest(
-      'patch',
-      `https://api.github.com/repos/${owner}/${repo}/issues/comments/${existing.id}`,
-      token,
-      { body }
-    );
-    return resp.data.id;
-  }
-
-  const created = await githubRequest(
-    'post',
-    `https://api.github.com/repos/${owner}/${repo}/issues/${prNumber}/comments`,
-    token,
-    { body }
-  );
-  return created.data.id;
+  const response = await githubServiceRequest('/internal/github/comments/summary-upsert', {
+    owner,
+    repo,
+    pr_number: prNumber,
+    installation_id: installationId,
+    body,
+    marker,
+  });
+  return response.comment_id;
 }
 
-async function postInlineComments({ owner, repo, prNumber, token, findings, commitSha }) {
+async function postInlineComments({ owner, repo, prNumber, installationId, findings, commitSha }) {
+  const candidates = [];
   for (const finding of findings) {
     if (Number(finding.confidence) < 0.8) continue;
     if (finding.inline_comment_id) continue;
 
-    const body = [
+    candidates.push({
+      finding_id: finding.id,
+      file_path: finding.file_path,
+      line_start: finding.line_start || 1,
+      body: [
       `**${finding.title}**`,
       '',
       `Severity: **${finding.severity}** | Confidence: **${Math.round(Number(finding.confidence) * 100)}%**`,
@@ -367,46 +271,48 @@ async function postInlineComments({ owner, repo, prNumber, token, findings, comm
       `Exploitability: ${finding.exploitability || 'medium'}`,
       '',
       `Remediation: ${finding.remediation || 'Apply input validation and secure handling.'}`,
-    ].join('\n');
+      ].join('\n'),
+    });
+  }
 
-    try {
-      const resp = await githubRequest(
-        'post',
-        `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/comments`,
-        token,
-        {
-          body,
-          commit_id: commitSha,
-          path: finding.file_path,
-          line: finding.line_start || 1,
-          side: 'RIGHT',
-        }
-      );
+  if (candidates.length === 0) return;
 
-      await pool.query('UPDATE findings SET inline_comment_id = $1 WHERE id = $2', [resp.data.id, finding.id]);
-    } catch (error) {
-      log('warn', 'Failed inline comment', {
-        finding_id: finding.id,
-        status: error.response?.status,
-        detail: error.response?.data,
-      });
-    }
+  const response = await githubServiceRequest('/internal/github/comments/inline', {
+    owner,
+    repo,
+    pr_number: prNumber,
+    installation_id: installationId,
+    commit_sha: commitSha,
+    findings: candidates,
+  });
+
+  for (const posted of response.posted || []) {
+    await pool.query('UPDATE findings SET inline_comment_id = $1 WHERE id = $2', [
+      posted.comment_id,
+      posted.finding_id,
+    ]);
+  }
+
+  for (const failed of response.failed || []) {
+    log('warn', 'Failed inline comment', {
+      finding_id: failed.finding_id,
+      status: failed.status,
+      detail: failed.detail,
+    });
   }
 }
 
-async function upsertCheckRun({ owner, repo, token, headSha, conclusion, summary, title }) {
-  const resp = await githubRequest('post', `https://api.github.com/repos/${owner}/${repo}/check-runs`, token, {
-    name: 'CodeSentry Security Review',
+async function upsertCheckRun({ owner, repo, installationId, headSha, conclusion, summary, title }) {
+  const response = await githubServiceRequest('/internal/github/check-runs', {
+    owner,
+    repo,
+    installation_id: installationId,
     head_sha: headSha,
-    status: 'completed',
     conclusion,
-    output: {
-      title,
-      summary,
-    },
+    title,
+    summary,
   });
-
-  return resp.data.id;
+  return response.check_run_id;
 }
 
 async function markFixedFindings({ repositoryId, pullRequestId, activeFingerprints }) {
@@ -453,8 +359,11 @@ async function processJob(job) {
     repositoryFullName,
   });
 
-  const token = await getInstallationToken(installationId);
-  const files = await fetchChangedFiles({ repositoryFullName, pullRequestNumber: prNumber, token });
+  const files = await fetchChangedFiles({
+    repositoryFullName,
+    pullRequestNumber: prNumber,
+    installationId,
+  });
 
   const analysisResp = await axios.post(
     `${process.env.ANALYSIS_SERVICE_URL || 'http://analysis-service:8001'}/analyze/pr`,
@@ -504,7 +413,7 @@ async function processJob(job) {
     owner,
     repo,
     prNumber,
-    token,
+    installationId,
     body: summaryBody,
   });
 
@@ -512,7 +421,7 @@ async function processJob(job) {
     owner,
     repo,
     prNumber,
-    token,
+    installationId,
     findings: actionable,
     commitSha,
   });
@@ -523,7 +432,7 @@ async function processJob(job) {
   const checkRunId = await upsertCheckRun({
     owner,
     repo,
-    token,
+    installationId,
     headSha: commitSha,
     conclusion: highOrCritical > 0 ? 'failure' : 'success',
     title: highOrCritical > 0 ? 'Security findings require attention' : 'No blocking security findings',
@@ -578,13 +487,36 @@ async function failRun(runId, message) {
   }
 }
 
+function startHealthServer() {
+  const port = Number(process.env.PORT || 8080);
+  const server = http.createServer((req, res) => {
+    if (req.url === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', service: 'worker-service' }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('ok');
+  });
+  server.listen(port, () => {
+    log('info', 'Worker health server listening', { port });
+  });
+}
+
 async function start() {
-  const required = ['DATABASE_URL', 'REDIS_URL', 'WORKER_CALLBACK_SECRET', 'GITHUB_APP_ID', 'GITHUB_APP_PRIVATE_KEY'];
+  const required = [
+    'DATABASE_URL',
+    'REDIS_URL',
+    'WORKER_CALLBACK_SECRET',
+    'GITHUB_SERVICE_URL',
+    'GITHUB_SERVICE_INTERNAL_SECRET',
+  ];
   const missing = required.filter((name) => !process.env[name]);
   if (missing.length > 0) {
     throw new Error(`Missing environment variables: ${missing.join(', ')}`);
   }
 
+  startHealthServer();
   await pool.query('SELECT 1');
   await redis.ping();
 

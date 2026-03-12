@@ -74,13 +74,14 @@ services:
     container_name: codesentry-worker
     environment:
       NODE_ENV: development
+      PORT: 8080
       DATABASE_URL: postgresql://dev:${POSTGRES_PASSWORD:-devpass123}@postgres:5432/codesentry
       REDIS_URL: redis://redis:6379
       ANALYSIS_SERVICE_URL: http://analysis-service:8001
       API_CALLBACK_URL: http://api-service:3000
+      GITHUB_SERVICE_URL: http://github-service:3002
+      GITHUB_SERVICE_INTERNAL_SECRET: ${GITHUB_SERVICE_INTERNAL_SECRET:-dev-github-internal-secret}
       WORKER_CALLBACK_SECRET: ${WORKER_CALLBACK_SECRET:-dev-worker-secret}
-      GITHUB_APP_ID: ${GITHUB_APP_ID}
-      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
     depends_on:
       postgres:
@@ -89,10 +90,36 @@ services:
         condition: service_healthy
       api-service:
         condition: service_started
+      github-service:
+        condition: service_started
       analysis-service:
         condition: service_started
     volumes:
       - ./services/worker-service:/app
+      - /app/node_modules
+    networks:
+      - codesentry-net
+
+  github-service:
+    build:
+      context: ./services/github-service
+      dockerfile: Dockerfile
+    container_name: codesentry-github
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      DATABASE_URL: postgresql://dev:${POSTGRES_PASSWORD:-devpass123}@postgres:5432/codesentry
+      WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev-webhook-secret}
+      GITHUB_APP_ID: ${GITHUB_APP_ID}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY}
+      GITHUB_SERVICE_INTERNAL_SECRET: ${GITHUB_SERVICE_INTERNAL_SECRET:-dev-github-internal-secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/github-service:/app
       - /app/node_modules
     networks:
       - codesentry-net

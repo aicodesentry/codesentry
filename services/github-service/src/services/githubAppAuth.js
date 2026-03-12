@@ -36,15 +36,15 @@ function buildAppJWT(appId, privateKey) {
   return `${signingInput}.${signature}`;
 }
 
-async function getInstallationToken() {
+async function getInstallationToken(installationIdOverride) {
   const appId = process.env.GITHUB_APP_ID;
-  const installationId = process.env.GITHUB_APP_INSTALLATION_ID;
+  const installationId = installationIdOverride || process.env.GITHUB_APP_INSTALLATION_ID;
   const rawKey = process.env.GITHUB_APP_PRIVATE_KEY;
 
   const privateKey = normalizePrivateKey(rawKey);
 
   if (!appId || !installationId || !privateKey) {
-    throw new Error('GitHub App env vars missing (GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID, GITHUB_APP_PRIVATE_KEY)');
+    throw new Error('GitHub App values missing (GITHUB_APP_ID, installation_id, or GITHUB_APP_PRIVATE_KEY)');
   }
 
   const jwt = buildAppJWT(appId, privateKey);
@@ -75,14 +75,13 @@ async function getInstallationToken() {
 function isConfigured() {
   return Boolean(
     process.env.GITHUB_APP_ID &&
-    process.env.GITHUB_APP_INSTALLATION_ID &&
     process.env.GITHUB_APP_PRIVATE_KEY
   );
 }
 
 async function healthCheck() {
   if (!isConfigured()) {
-    return { ok: false, error: 'Missing GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID, or GITHUB_APP_PRIVATE_KEY' };
+    return { ok: false, error: 'Missing GITHUB_APP_ID or GITHUB_APP_PRIVATE_KEY' };
   }
 
   return { ok: true };

@@ -4,14 +4,16 @@
 Production uses:
 1. `frontend` -> Firebase Hosting
 2. `api-service` -> Cloud Run
-3. `worker-service` -> Cloud Run
-4. `analysis-service` -> Cloud Run
-5. PostgreSQL (managed)
-6. Redis (managed)
+3. `github-service` -> Cloud Run
+4. `worker-service` -> Cloud Run
+5. `analysis-service` -> Cloud Run
+6. PostgreSQL (managed)
+7. Redis (managed)
 
 ## CI/CD Source Of Truth
 Deployments are performed by GitHub Actions only:
 - `.github/workflows/deploy-api-cloudrun.yml`
+- `.github/workflows/deploy-github-cloudrun.yml`
 - `.github/workflows/deploy-worker-cloudrun.yml`
 - `.github/workflows/deploy-analysis-cloudrun.yml`
 - `.github/workflows/deploy-frontend-firebase.yml`
@@ -22,6 +24,7 @@ Cloud Run deploy workflows are serialized with a shared `concurrency` group to a
 ### Repository secrets
 - `GCP_SA_KEY`
 - `FIREBASE_TOKEN`
+- `GITHUB_SERVICE_INTERNAL_SECRET`
 
 ### Repository variables
 - `GCP_PROJECT_ID`
@@ -29,11 +32,14 @@ Cloud Run deploy workflows are serialized with a shared `concurrency` group to a
 - `GAR_REPOSITORY`
 - `FIREBASE_PROJECT_ID`
 - `VITE_API_URL`
+- `GITHUB_SERVICE_URL`
+- `GITHUB_APP_ID`
 
 ## Required Runtime Env (Cloud Run services)
 Set strong production values for:
 - `JWT_SECRET`
 - `WORKER_CALLBACK_SECRET`
+- `GITHUB_SERVICE_INTERNAL_SECRET`
 - `GITHUB_WEBHOOK_SECRET`
 - `GITHUB_APP_PRIVATE_KEY`
 - `GITHUB_CLIENT_SECRET`
@@ -43,6 +49,7 @@ Set service endpoints and URLs:
 - `REDIS_URL`
 - `ANALYSIS_SERVICE_URL` (worker)
 - `API_CALLBACK_URL` (worker -> api)
+- `GITHUB_SERVICE_URL` (worker -> github-service)
 - `FRONTEND_URL` (api CORS + OAuth redirect target)
 - `GITHUB_CALLBACK_URL` (api OAuth callback)
 

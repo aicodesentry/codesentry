@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const client = require('prom-client');
 const webhookRoutes = require('./routes/webhooks');
+const internalRoutes = require('./routes/internal');
 const githubAppAuth = require('./services/githubAppAuth');
 require('dotenv').config();
 
@@ -75,6 +76,7 @@ app.get('/metrics', async (_req, res) => {
 
 // Mount routes
 app.use('/webhooks', webhookRoutes);
+app.use('/internal', internalRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

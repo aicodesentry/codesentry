@@ -1,11 +1,11 @@
-name: Deploy Worker (Cloud Run)
+name: Deploy GitHub Service (Cloud Run)
 
 on:
   push:
     branches: [main]
     paths:
-      - 'services/worker-service/**'
-      - '.github/workflows/deploy-worker-cloudrun.yml'
+      - 'services/github-service/**'
+      - '.github/workflows/deploy-github-cloudrun.yml'
   workflow_dispatch:
 
 concurrency:
@@ -31,21 +31,21 @@ jobs:
       - name: Configure Docker auth
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-      - name: Build Worker image
+      - name: Build GitHub Service image
         run: |
-          TAG="worker-${GITHUB_SHA::12}"
-          IMAGE="us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/worker:${TAG}"
+          TAG="github-${GITHUB_SHA::12}"
+          IMAGE="us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/github:${TAG}"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
-          docker build -t "$IMAGE" ./services/worker-service
+          docker build -t "$IMAGE" ./services/github-service
           docker push "$IMAGE"
 
-      - name: Deploy Worker
+      - name: Deploy GitHub Service
         run: |
-          gcloud run deploy codesentry-worker \
+          gcloud run deploy codesentry-github \
             --image "$IMAGE" \
             --region '${{ vars.GCP_REGION }}' \
             --project '${{ vars.GCP_PROJECT_ID }}' \
             --platform managed \
-            --update-env-vars "GITHUB_SERVICE_URL=${{ vars.GITHUB_SERVICE_URL }}" \
             --update-env-vars "GITHUB_SERVICE_INTERNAL_SECRET=${{ secrets.GITHUB_SERVICE_INTERNAL_SECRET }}" \
+            --update-env-vars "GITHUB_APP_ID=${{ vars.GITHUB_APP_ID }}" \
             --allow-unauthenticated
