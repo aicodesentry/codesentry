@@ -52,7 +52,6 @@ jobs:
             --region '${{ vars.GCP_REGION }}' \
             --project '${{ vars.GCP_PROJECT_ID }}' \
             --platform managed \
-            --update-env-vars "PORT=8080" \
             --update-env-vars "GITHUB_SERVICE_URL=${{ vars.CODESENTRY_GH_SERVICE_URL }}" \
             --update-env-vars "ANALYSIS_SERVICE_URL=${{ vars.CODESENTRY_ANALYSIS_URL }}" \
             --update-env-vars "GITHUB_SERVICE_INTERNAL_SECRET=${{ secrets.CODESENTRY_INTERNAL_SECRET }}" \

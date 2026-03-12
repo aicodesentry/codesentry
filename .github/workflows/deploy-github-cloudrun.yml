@@ -53,7 +53,6 @@ jobs:
             --region '${{ vars.GCP_REGION }}' \
             --project '${{ vars.GCP_PROJECT_ID }}' \
             --platform managed \
-            --update-env-vars "PORT=8080" \
             --update-env-vars "GITHUB_SERVICE_INTERNAL_SECRET=${{ secrets.CODESENTRY_INTERNAL_SECRET }}" \
             --update-env-vars "GITHUB_APP_ID=${{ vars.CODESENTRY_APP_ID }}" \
             --update-env-vars "GITHUB_APP_PRIVATE_KEY=${{ secrets.CODESENTRY_APP_PRIVATE_KEY }}" \
