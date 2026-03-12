@@ -32,7 +32,7 @@ jobs:
         run: |
           test -n "${{ vars.GITHUB_SERVICE_URL }}" || (echo "Missing repo variable: GITHUB_SERVICE_URL" && exit 1)
           test -n "${{ vars.ANALYSIS_SERVICE_URL }}" || (echo "Missing repo variable: ANALYSIS_SERVICE_URL" && exit 1)
-          test -n "${{ secrets.GITHUB_SERVICE_INTERNAL_SECRET }}" || (echo "Missing repo secret: GITHUB_SERVICE_INTERNAL_SECRET" && exit 1)
+          test -n "${{ secrets.CODESENTRY_INTERNAL_SECRET }}" || (echo "Missing repo secret: CODESENTRY_INTERNAL_SECRET" && exit 1)
 
       - name: Configure Docker auth
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
@@ -55,5 +55,5 @@ jobs:
             --update-env-vars "PORT=8080" \
             --update-env-vars "GITHUB_SERVICE_URL=${{ vars.GITHUB_SERVICE_URL }}" \
             --update-env-vars "ANALYSIS_SERVICE_URL=${{ vars.ANALYSIS_SERVICE_URL }}" \
-            --update-env-vars "GITHUB_SERVICE_INTERNAL_SECRET=${{ secrets.GITHUB_SERVICE_INTERNAL_SECRET }}" \
+            --update-env-vars "GITHUB_SERVICE_INTERNAL_SECRET=${{ secrets.CODESENTRY_INTERNAL_SECRET }}" \
             --allow-unauthenticated
