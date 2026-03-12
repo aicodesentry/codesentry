@@ -32,6 +32,9 @@ export const AuthProvider = ({ children }) => {
 
       try {
         const data = await authAPI.getMe()
+        if (!data?.user) {
+          throw new Error('Invalid auth response')
+        }
         setUser(data.user)
         setGithubAppInstallUrl(data.github_app_install_url)
       } catch (_error) {

@@ -5,6 +5,14 @@ const { pool } = require('../config/database');
 
 const router = express.Router();
 
+router.use((_req, res, next) => {
+  // Auth responses should never be cached by browsers/CDNs.
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
+
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const DEFAULT_GITHUB_APP_SLUG = 'aicodesentry';
 
