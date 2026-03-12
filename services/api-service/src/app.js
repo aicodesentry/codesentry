@@ -14,6 +14,7 @@ const findingRoutes = require('./routes/findings');
 const suppressionRoutes = require('./routes/suppressions');
 const reportsRoutes = require('./routes/reports');
 const webhookRoutes = require('./routes/webhooks');
+const webhookEventsRoutes = require('./routes/webhookEvents');
 const healthRoutes = require('./routes/health');
 const logger = require('./utils/logger');
 
@@ -87,6 +88,7 @@ function createApp() {
   app.use('/api', findingRoutes);
   app.use('/api', suppressionRoutes);
   app.use('/api/reports', reportsRoutes);
+  app.use('/api/webhooks', webhookEventsRoutes);
   app.use('/health', healthRoutes);
 
   app.get('/metrics', async (_req, res) => {
