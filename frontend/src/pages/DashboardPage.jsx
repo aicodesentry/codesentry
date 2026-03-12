@@ -1,7 +1,7 @@
 import { useAuth } from '../contexts/AuthContext'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { repositoryAPI, reportsAPI } from '../services/api'
+import { repositoryAPI } from '../services/api'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
@@ -38,46 +38,47 @@ const DashboardPage = () => {
     const fetchPRInsights = async () => {
       try {
         setInsightsLoading(true)
-        const reportList = await reportsAPI.getPRAnalyses({ limit: 20, offset: 0 })
-        const analyses = reportList.analyses || []
-        const detailResults = await Promise.allSettled(
-          analyses.slice(0, 12).map((analysis) => reportsAPI.getPRAnalysisDetails(analysis.id))
+        const reposResponse = await repositoryAPI.list()
+        const repositories = reposResponse.repositories || []
+        const prLists = await Promise.allSettled(
+          repositories.slice(0, 12).map(async (repo) => {
+            const response = await repositoryAPI.listPRs(repo.id)
+            return { repo, prs: response.pull_requests || [] }
+          })
         )
         const prMap = new Map()
 
-        detailResults.forEach((result, index) => {
+        prLists.forEach((result) => {
           if (result.status !== 'fulfilled') return
-          const analysis = result.value.analysis
-          const fallback = analyses[index]
-          const repositoryName = analysis.repository_name || fallback?.repository_name
-          if (!repositoryName || repositoryName === 'playground') return
-          const prKey = `${repositoryName}#${analysis.pr_number}`
+          const { repo, prs } = result.value
+          prs.forEach((prItem) => {
+            const prKey = `${repo.full_name}#${prItem.pr_number}`
+            const critical = Number(prItem.critical_count || 0)
+            const high = Number(prItem.high_count || 0)
+            const totalVulns = Number(prItem.open_findings_count || 0)
+            const medium = Math.max(0, totalVulns - critical - high)
 
-          if (!prMap.has(prKey)) {
-            prMap.set(prKey, {
-              repository: repositoryName,
-              pr_number: analysis.pr_number,
-              timestamp: analysis.started_at || fallback?.started_at,
-              files_count: 0,
-              total_vulnerabilities: 0,
-              severity_counts: { critical: 0, high: 0, medium: 0, low: 0 }
-            })
-          }
+            if (!prMap.has(prKey)) {
+              prMap.set(prKey, {
+                repository: repo.full_name,
+                pr_number: prItem.pr_number,
+                timestamp: prItem.updated_at || prItem.created_at,
+                files_count: 1,
+                total_vulnerabilities: totalVulns,
+                severity_counts: { critical, high, medium, low: 0 }
+              })
+              return
+            }
 
-          const pr = prMap.get(prKey)
-          pr.files_count += Number(analysis.files_analyzed || 1)
-          pr.total_vulnerabilities += (analysis.total_vulnerabilities || 0)
-
-          const counts = analysis.severity_counts || {}
-          pr.severity_counts.critical += (counts.critical || 0)
-          pr.severity_counts.high += (counts.high || 0)
-          pr.severity_counts.medium += (counts.medium || 0)
-          pr.severity_counts.low += (counts.low || 0)
-
-          const latestTimestamp = analysis.started_at || fallback?.started_at
-          if (latestTimestamp && new Date(latestTimestamp) > new Date(pr.timestamp)) {
-            pr.timestamp = latestTimestamp
-          }
+            const existing = prMap.get(prKey)
+            existing.total_vulnerabilities += totalVulns
+            existing.severity_counts.critical += critical
+            existing.severity_counts.high += high
+            existing.severity_counts.medium += medium
+            if (prItem.updated_at && new Date(prItem.updated_at) > new Date(existing.timestamp)) {
+              existing.timestamp = prItem.updated_at
+            }
+          })
         })
 
         const groupedPRs = Array.from(prMap.values())
