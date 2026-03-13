@@ -20,13 +20,14 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const init = async () => {
-      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
       const queryParams = new URLSearchParams(window.location.search)
-      const tokenFromRedirect = hashParams.get('token') || queryParams.get('token')
+      const tokenFromRedirect = queryParams.get('token')
 
       if (tokenFromRedirect) {
         setAuthToken(tokenFromRedirect)
-        const cleanPath = `${window.location.pathname}${window.location.search.replace(/[?&]token=[^&]*/g, '').replace(/\?$/, '')}`
+        queryParams.delete('token')
+        const rest = queryParams.toString()
+        const cleanPath = `${window.location.pathname}${rest ? `?${rest}` : ''}`
         window.history.replaceState({}, document.title, cleanPath || '/dashboard')
       }
 

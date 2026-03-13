@@ -36,26 +36,6 @@ function resolveGithubAppSlug() {
   return raw;
 }
 
-function isCrossSiteFrontend(req) {
-  try {
-    const frontendHost = new URL(FRONTEND_URL).hostname;
-    const apiHost = (req.get('host') || '').split(':')[0];
-    return Boolean(frontendHost && apiHost && frontendHost !== apiHost);
-  } catch (_err) {
-    return false;
-  }
-}
-
-function authCookieOptions(req) {
-  const crossSite = isCrossSiteFrontend(req);
-  return {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production' || crossSite,
-    sameSite: crossSite ? 'none' : 'lax',
-    path: '/',
-  };
-}
-
 router.get('/github', (req, res) => {
   if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
     return res.status(500).json({ error: 'GitHub OAuth is not configured' });
@@ -136,12 +116,7 @@ router.get('/github/callback', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    res.cookie('auth_token', token, {
-      ...authCookieOptions(req),
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
-    res.redirect(`${FRONTEND_URL}/dashboard#token=${encodeURIComponent(token)}`);
+    res.redirect(`${FRONTEND_URL}/dashboard?token=${encodeURIComponent(token)}`);
   } catch (error) {
     console.error('OAuth callback failed', error.response?.data || error.message);
     res.redirect(`${FRONTEND_URL}/?error=oauth_callback_failed`);
@@ -149,7 +124,7 @@ router.get('/github/callback', async (req, res) => {
 });
 
 router.get('/me', async (req, res) => {
-  const token = req.cookies?.auth_token || req.headers.authorization?.replace('Bearer ', '');
+  const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) {
     return res.status(401).json({ error: 'No token' });
   }
@@ -178,9 +153,6 @@ router.get('/me', async (req, res) => {
 });
 
 router.post('/logout', (_req, res) => {
-  res.clearCookie('auth_token', {
-    ...authCookieOptions(_req),
-  });
   res.json({ success: true });
 });
 

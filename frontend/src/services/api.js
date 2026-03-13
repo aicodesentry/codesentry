@@ -12,7 +12,6 @@ const ANALYSIS_BASE_URL = import.meta.env.VITE_ANALYSIS_SERVICE_URL || API_BASE_
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
   }
