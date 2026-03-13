@@ -46,4 +46,5 @@ jobs:
             --region '${{ vars.GCP_REGION }}' \
             --project '${{ vars.GCP_PROJECT_ID }}' \
             --platform managed \
+            --ingress all \
             --allow-unauthenticated
