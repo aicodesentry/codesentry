@@ -95,7 +95,7 @@ def generate_finding(rule, file_path: str, patch: str) -> Dict[str, Any]:
         "evidence": f"Matched deterministic rule `{rule.rule_id}` in changed content.",
         "exploit_scenario": "If attacker-controlled input reaches this code path, they may execute the vulnerable behavior.",
         "remediation": rule.remediation,
-        "remediation_patch_optional": "",
+        "remediation_patch": "",
         "fingerprint": make_fingerprint(rule.rule_id, file_path, line_start, snippet),
     }
 
@@ -127,7 +127,7 @@ def dependency_findings(path: str, patch: str) -> List[Dict[str, Any]]:
                     "evidence": "Dependency declaration matches known risky version pattern.",
                     "exploit_scenario": "Exploitation depends on vulnerable code path usage and package exposure.",
                     "remediation": "Upgrade to a patched package version and verify lockfile resolution.",
-                    "remediation_patch_optional": "",
+                    "remediation_patch": "",
                     "fingerprint": make_fingerprint("dependency.risk.version", path, line_start, snippet),
                 }
             )

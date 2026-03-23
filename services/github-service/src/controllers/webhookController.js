@@ -6,20 +6,24 @@ const notificationService = require('../services/notificationService');
 const githubAppAuth = require('../services/githubAppAuth');
 const { Pool } = require('pg');
 
-// Database connection with secure SSL
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // Neon provides valid SSL certificates - verify them for security
-  // But if we are running in docker-compose production (local container), SSL is not supported
   ssl: (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL.includes('postgres:5432')) ? true : false,
 });
 
+function countBySeverity(findings) {
+  const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+  for (const finding of findings) {
+    const severity = String(finding.severity || '').toLowerCase();
+    if (counts[severity] !== undefined) {
+      counts[severity] += 1;
+    }
+  }
+  return counts;
+}
+
 class WebhookController {
-  /**
-   * SCRUM-88: Process PR webhook and analyze Python files
-   */
   async processPullRequest(payload, action) {
-    // Only process opened and synchronize events
     if (action !== 'opened' && action !== 'synchronize') {
       console.log(`[SKIP] Skipping ${action} event`);
       return;
@@ -28,10 +32,8 @@ class WebhookController {
     const pr = payload.pull_request;
     const repository = payload.repository;
 
-    // Fetch GitHub token from database
     let githubToken;
     try {
-      // Get repository from database
       const repoResult = await pool.query(
         'SELECT user_id FROM repositories WHERE github_id = $1',
         [repository.id]
@@ -43,8 +45,6 @@ class WebhookController {
       }
 
       const userId = repoResult.rows[0].user_id;
-
-      // Get user's GitHub token
       const userResult = await pool.query(
         'SELECT github_token FROM users WHERE id = $1',
         [userId]
@@ -56,7 +56,6 @@ class WebhookController {
       }
 
       githubToken = userResult.rows[0].github_token;
-
       if (!githubToken) {
         console.error('[ERROR] GitHub token not found for user');
         return;
@@ -66,7 +65,6 @@ class WebhookController {
       return;
     }
 
-    // Prefer GitHub App or bot token for posting comments so authorship shows as CodeSentry
     let commentToken = null;
     let commentTokenSource = 'none';
 
@@ -80,7 +78,6 @@ class WebhookController {
       }
     }
 
-    // Fallback to bot token (PAT for CodeSentry bot) if provided
     if (!commentToken && process.env.GITHUB_BOT_TOKEN) {
       commentToken = process.env.GITHUB_BOT_TOKEN;
       commentTokenSource = 'bot_token';
@@ -94,44 +91,23 @@ class WebhookController {
     const owner = repository.owner.login;
     const repoName = repository.name;
 
-    // Helper to post a summary comment with fallback to the user token if the bot/app lacks access
     const postSummaryWithFallback = async (body) => {
-      // If no app/bot token, try the user token so comments still post (last resort)
       if (!commentToken) {
         console.warn('[WARN] No app/bot token; posting with user token');
-        return githubCommentService.postSummaryComment(
-          owner,
-          repoName,
-          pr.number,
-          body,
-          githubToken
-        );
+        return githubCommentService.postSummaryComment(owner, repoName, pr.number, body, githubToken);
       }
 
       try {
-        return await githubCommentService.postSummaryComment(
-          owner,
-          repoName,
-          pr.number,
-          body,
-          commentToken
-        );
+        return await githubCommentService.postSummaryComment(owner, repoName, pr.number, body, commentToken);
       } catch (error) {
         const status = error.response?.status;
         const detail = error.response?.data || error.message;
         console.error(`[ERROR] Failed to post summary comment with ${commentTokenSource} token (status ${status}):`, detail);
 
-        // Fallback to user token if auth issues with app/bot token
         const shouldFallback = commentToken !== githubToken && [401, 403, 404].includes(status);
         if (shouldFallback) {
           console.warn(`[WARN] Retrying comment with user token due to status ${status}`);
-          return githubCommentService.postSummaryComment(
-            owner,
-            repoName,
-            pr.number,
-            body,
-            githubToken
-          );
+          return githubCommentService.postSummaryComment(owner, repoName, pr.number, body, githubToken);
         }
 
         throw error;
@@ -141,7 +117,6 @@ class WebhookController {
     console.log(`\n[START] Starting analysis for PR #${pr.number} in ${repository.full_name}`);
 
     try {
-      // Step 1: Get Python files from PR
       const pythonFiles = await prService.getPythonFilesFromPR(pr.url, githubToken);
 
       if (pythonFiles.length === 0) {
@@ -149,7 +124,6 @@ class WebhookController {
         return;
       }
 
-      // Post initial progress comment for large PRs
       if (pythonFiles.length > 3) {
         try {
           const progressComment = `## 🔍 CodeSentry Analysis Started\n\n` +
@@ -164,20 +138,14 @@ class WebhookController {
         }
       }
 
-      // Track all analysis results for email notification
-      const allVulnerabilities = [];
-      const allStyleIssues = [];
+      const allFindings = [];
 
-      // Step 2: Analyze each Python file (sequential for memory efficiency)
       for (let i = 0; i < pythonFiles.length; i++) {
         const file = pythonFiles[i];
         console.log(`\n[FILE ${i + 1}/${pythonFiles.length}] Processing: ${file.filename}`);
 
         try {
-          // Get file content
           const fileContent = await prService.getFileContent(file, githubToken);
-
-          // Call analysis service (SCRUM-87, 97, 99)
           const analysisResult = await analysisClient.analyzeCode(
             fileContent,
             file.filename,
@@ -185,86 +153,34 @@ class WebhookController {
             repository.full_name
           );
 
-          // Step 3: Process ALL findings for email/database (full analysis)
-          if (analysisResult.vulnerabilities && analysisResult.vulnerabilities.length > 0) {
-            // Add ALL vulnerabilities to aggregated list for email notification
-            analysisResult.vulnerabilities.forEach(vuln => {
-              allVulnerabilities.push({
-                ...vuln,
-                file_path: file.filename
-              });
-            });
+          const findings = analysisResult.findings || [];
+          if (findings.length > 0) {
+            allFindings.push(...findings);
+            console.log(`  [PR ANALYSIS] Posting all ${findings.length} findings`);
 
-            // Determine which vulnerabilities to post
-            // User requested ALL analysis even for big PRs
-            const vulnsToPost = analysisResult.vulnerabilities;
-            console.log(`  [PR ANALYSIS] Posting all ${vulnsToPost.length} vulnerabilities`);
-
-            // Post to GitHub if there are issues to report
-            if (vulnsToPost.length > 0) {
-              try {
-                const batchedComment = commentFormatter.formatBatchedSecurityComment(
-                  vulnsToPost,
-                  file.filename
-                );
-
-                if (batchedComment) {
-                  await postSummaryWithFallback(batchedComment);
-
-                  console.log(`  [SECURITY] Posted comment with ${vulnsToPost.length} issues to GitHub`);
-                }
-              } catch (error) {
-                console.error(`  [WARN] Failed to post batched security comment:`, error.message);
+            try {
+              const batchedComment = commentFormatter.formatBatchedSecurityComment(findings, file.filename);
+              if (batchedComment) {
+                await postSummaryWithFallback(batchedComment);
+                console.log(`  [SECURITY] Posted comment with ${findings.length} findings to GitHub`);
               }
-            } else {
-              console.log(`  [SKIP] No critical/high severity issues to post on GitHub (found ${analysisResult.vulnerabilities.length} medium/low issues)`);
+            } catch (error) {
+              console.error('  [WARN] Failed to post batched security comment:', error.message);
             }
           }
-
-          // Step 4: Add style issues to aggregated list (for email/database only, not posted to GitHub)
-          if (analysisResult.style_issues && analysisResult.style_issues.length > 0) {
-            console.log(`[STYLE] Found ${analysisResult.style_issues.length} style issues (stored for email, not posted to GitHub)`);
-
-            // Add ALL style issues to aggregated list for email notification
-            analysisResult.style_issues.forEach(issue => {
-              allStyleIssues.push({
-                ...issue,
-                file_path: file.filename
-              });
-            });
-          }
-
         } catch (error) {
           console.error(`[ERROR] Failed to analyze ${file.filename}:`, error.message);
-          // Continue with other files
         }
 
-        // Small delay between files to allow garbage collection (helps with memory on free tier)
         if (i < pythonFiles.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second between files
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
 
-      // Step 6: Send email notification to reviewers with analysis preview
       try {
         console.log('\n[EMAIL] Preparing notification to reviewers...');
+        const severityCounts = countBySeverity(allFindings);
 
-        // Calculate severity counts
-        const severityCounts = {
-          critical: 0,
-          high: 0,
-          medium: 0,
-          low: 0
-        };
-
-        allVulnerabilities.forEach(vuln => {
-          const severity = vuln.severity?.toLowerCase() || 'low';
-          if (severityCounts[severity] !== undefined) {
-            severityCounts[severity]++;
-          }
-        });
-
-        // Prepare PR data for email
         const prData = {
           repository: repository.full_name,
           pr_number: pr.number,
@@ -276,49 +192,38 @@ class WebhookController {
           repo_owner: repository.owner.login
         };
 
-        // Prepare aggregated analysis results
         const analysisResults = {
-          total_vulnerabilities: allVulnerabilities.length,
+          total_findings: allFindings.length,
           critical_count: severityCounts.critical,
           high_count: severityCounts.high,
           medium_count: severityCounts.medium,
           low_count: severityCounts.low,
-          total_style_issues: allStyleIssues.length,
-          vulnerabilities: allVulnerabilities,
-          styleIssues: allStyleIssues,
+          findings: allFindings,
           hasCritical: severityCounts.critical > 0
         };
 
-        // Send notification (non-blocking, won't fail PR analysis if email fails)
         await notificationService.notifyReviewers(prData, analysisResults);
-
         console.log('[EMAIL] Notification process complete');
-
       } catch (error) {
-        // Email failure should not fail the PR analysis
         console.error('[EMAIL] Failed to send notifications (PR analysis still succeeded):', error.message);
       }
 
-      // Always post a final summary comment so PR shows status (even if clean)
-      const highCount = allVulnerabilities.filter(
-        v => v.severity === 'critical' || v.severity === 'high'
+      const highCount = allFindings.filter(
+        (finding) => finding.severity === 'critical' || finding.severity === 'high'
       ).length;
-      const totalVulns = allVulnerabilities.length;
-      const totalStyle = allStyleIssues.length;
-      const clean = totalVulns === 0;
+      const totalFindings = allFindings.length;
+      const clean = totalFindings === 0;
 
       const completionComment = clean
         ? `CodeSentry Analysis Complete ✅\n\n` +
           `Analyzed ${pythonFiles.length} Python ${pythonFiles.length === 1 ? 'file' : 'files'}.\n\n` +
-          `No security vulnerabilities detected in this PR.\n` +
-          (totalStyle > 0 ? `Code quality suggestions: ${totalStyle}\n\n` : `\n`) +
+          `No security findings detected in this PR.\n\n` +
           `<sub>Powered by CodeSentry</sub>`
         : `CodeSentry Analysis Complete ✅\n\n` +
           `Analyzed ${pythonFiles.length} Python ${pythonFiles.length === 1 ? 'file' : 'files'}\n\n` +
           `Summary:\n` +
-          `- ⚠️ Critical/High Issues: ${highCount}\n` +
-          `- 🔎 Total Security Findings: ${totalVulns}\n` +
-          `- 🛠️ Code Quality Suggestions: ${totalStyle}\n\n` +
+          `- ⚠️ Critical/High Findings: ${highCount}\n` +
+          `- 🔎 Total Security Findings: ${totalFindings}\n\n` +
           `${highCount > 0 ? 'Please review the critical/high severity issues posted above.' : 'No critical or high severity issues found.'}\n\n` +
           `<sub>Powered by CodeSentry</sub>`;
 
@@ -330,7 +235,6 @@ class WebhookController {
       }
 
       console.log(`\n[COMPLETE] PR analysis complete for #${pr.number}\n`);
-
     } catch (error) {
       console.error('[ERROR] PR analysis failed:', error);
     }

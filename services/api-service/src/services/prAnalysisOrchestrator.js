@@ -77,7 +77,7 @@ async function upsertFinding({
   isBaseline,
 }) {
   const normalized = normalizeFinding(finding);
-  const fingerprint = calculateFingerprint(normalized);
+  const fingerprint = normalized.fingerprint || calculateFingerprint(normalized);
 
   const existing = await pool.query('SELECT id FROM findings WHERE fingerprint = $1', [fingerprint]);
   if (existing.rowCount > 0) {
@@ -128,7 +128,7 @@ async function upsertFinding({
         normalized.evidence || null,
         normalized.exploit_scenario || null,
         normalized.remediation || null,
-        normalized.remediation_patch_optional || null,
+        normalized.remediation_patch || null,
         existing.rows[0].id,
       ]
     );
@@ -175,7 +175,7 @@ async function upsertFinding({
       normalized.evidence || null,
       normalized.exploit_scenario || null,
       normalized.remediation || null,
-      normalized.remediation_patch_optional || null,
+      normalized.remediation_patch || null,
       isBaseline,
     ]
   );

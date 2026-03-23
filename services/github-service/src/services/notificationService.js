@@ -152,12 +152,12 @@ class NotificationService {
    */
   getEmailSubject(prData, analysisResults) {
     const { pr_number, pr_title } = prData;
-    const { total_vulnerabilities, critical_count } = analysisResults;
+    const { total_findings, critical_count } = analysisResults;
 
     if (critical_count > 0) {
-      return `🚨 CRITICAL: PR #${pr_number} - ${critical_count} critical issues found`;
-    } else if (total_vulnerabilities > 0) {
-      return `⚠️ Review Needed: PR #${pr_number} - ${total_vulnerabilities} issues found`;
+      return `🚨 CRITICAL: PR #${pr_number} - ${critical_count} critical findings found`;
+    } else if (total_findings > 0) {
+      return `⚠️ Review Needed: PR #${pr_number} - ${total_findings} findings found`;
     } else {
       return `✅ PR #${pr_number} - No issues found: ${pr_title}`;
     }
@@ -177,14 +177,12 @@ class NotificationService {
     } = prData;
 
     const {
-      total_vulnerabilities,
+      total_findings,
       critical_count,
       high_count,
       medium_count,
       low_count,
-      total_style_issues,
-      vulnerabilities,
-      styleIssues,
+      findings,
       hasCritical
     } = analysisResults;
 
@@ -404,17 +402,18 @@ class NotificationService {
                 </div>
               </div>
               <div style="text-align: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e1e4e8;">
-                <strong>${total_vulnerabilities || 0}</strong> security issues ·
-                <strong>${total_style_issues || 0}</strong> style issues
+                <strong>${total_findings || 0}</strong> security findings
               </div>
             </div>
 
             ${hasCritical ? '<div style="background: #ffeef0; border: 2px solid #d73a49; border-radius: 6px; padding: 15px; margin-bottom: 20px;"><strong>⚠️ Action Required:</strong> This PR contains critical security vulnerabilities that need immediate attention.</div>' : ''}
 
-            ${total_vulnerabilities === 0 && total_style_issues === 0 ?
-        '<div class="no-issues"><div class="no-issues-icon">✅</div><h3>Great Job!</h3><p>No security vulnerabilities or style issues detected.</p></div>' :
+            ${total_findings === 0 ?
+        '<div class="no-issues"><div class="no-issues-icon">✅</div><h3>Great Job!</h3><p>No security findings detected.</p></div>' :
         '<div style="text-align: center; padding: 30px 20px; background: #f6f8fa; border-radius: 8px; margin: 20px 0;"><p style="font-size: 16px; color: #24292e; margin-bottom: 15px;"><strong>AI analysis is complete!</strong></p><p style="color: #586069; margin: 0;">All detailed findings have been posted as comments directly on the pull request.</p></div>'
       }
+
+            ${this.generateFindingPreviews(findings)}
 
             <!-- CTA Button -->
             <div style="text-align: center;">
@@ -439,36 +438,35 @@ class NotificationService {
   /**
    * Generate HTML preview of top vulnerabilities
    */
-  generateVulnerabilityPreviews(vulnerabilities) {
-    if (!vulnerabilities || vulnerabilities.length === 0) {
+  generateFindingPreviews(findings) {
+    if (!findings || findings.length === 0) {
       return '';
     }
 
-    // Show top 5 most severe
-    const topVulns = vulnerabilities.slice(0, 5);
+    const topFindings = findings.slice(0, 5);
 
-    const vulnHtml = topVulns.map(vuln => `
-      <div class="issue-card ${vuln.severity}">
+    const findingHtml = topFindings.map(finding => `
+      <div class="issue-card ${finding.severity}">
         <div class="issue-header">
-          <div class="issue-type">${this.formatVulnType(vuln.type)}</div>
-          <span class="issue-severity severity-${vuln.severity}">${vuln.severity}</span>
+          <div class="issue-type">${this.escapeHtml(finding.title || finding.rule_id || 'Security Finding')}</div>
+          <span class="issue-severity severity-${finding.severity}">${finding.severity}</span>
         </div>
-        <div class="issue-file">📄 ${vuln.file_path || 'Unknown file'} · Line ${vuln.line_number || 0}</div>
-        <div class="issue-description">${this.escapeHtml(vuln.description || 'No description')}</div>
-        ${vuln.code_snippet ? `<div class="issue-code">${this.escapeHtml(vuln.code_snippet)}</div>` : ''}
+        <div class="issue-file">📄 ${finding.file_path || 'Unknown file'} · Line ${finding.line_start || 0}</div>
+        <div class="issue-description">${this.escapeHtml(finding.description || 'No description')}</div>
+        ${finding.code_snippet ? `<div class="issue-code">${this.escapeHtml(finding.code_snippet)}</div>` : ''}
         <div class="issue-recommendation">
-          <strong>💡 Recommendation:</strong> ${this.escapeHtml(vuln.recommendation || 'Review and fix this issue')}
+          <strong>💡 Remediation:</strong> ${this.escapeHtml(finding.remediation || 'Review and fix this issue')}
         </div>
       </div>
     `).join('');
 
-    const remaining = vulnerabilities.length - topVulns.length;
-    const moreText = remaining > 0 ? `<p style="text-align: center; color: #586069; font-size: 13px;">+ ${remaining} more security issues</p>` : '';
+    const remaining = findings.length - topFindings.length;
+    const moreText = remaining > 0 ? `<p style="text-align: center; color: #586069; font-size: 13px;">+ ${remaining} more security findings</p>` : '';
 
     return `
       <div class="section">
-        <div class="section-title">🛡️ Security Vulnerabilities (Top ${topVulns.length})</div>
-        ${vulnHtml}
+        <div class="section-title">🛡️ Security Findings (Top ${topFindings.length})</div>
+        ${findingHtml}
         ${moreText}
       </div>
     `;
