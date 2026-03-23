@@ -40,9 +40,26 @@ function createApp() {
     })
   );
 
+  const CORS_ORIGINS = [
+    FRONTEND_URL,
+    'http://localhost:5173',
+    'http://localhost:3001',
+    ...(process.env.FIREBASE_HOSTING_URL ? [process.env.FIREBASE_HOSTING_URL] : []),
+  ].filter(Boolean);
+
   app.use(
     cors({
-      origin: [FRONTEND_URL, 'http://localhost:5173', 'http://localhost:3001'],
+      origin(origin, callback) {
+        // Allow requests with no origin (server-to-server, curl, etc.)
+        if (!origin) return callback(null, true);
+        if (
+          CORS_ORIGINS.includes(origin) ||
+          origin.endsWith('.web.app') && origin.includes('codesentry')
+        ) {
+          return callback(null, true);
+        }
+        callback(new Error('Not allowed by CORS'));
+      },
       credentials: true,
     })
   );

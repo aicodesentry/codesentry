@@ -2,7 +2,7 @@ const express = require('express');
 const { pool } = require('../config/database');
 const axios = require('axios');
 const { authenticateToken } = require('../middleware/auth');
-const { DEFAULT_SEVERITY_COUNTS, DEFAULT_STYLE_CATEGORIES } = require('../constants/defaults');
+const { DEFAULT_SEVERITY_COUNTS } = require('../constants/defaults');
 
 const router = express.Router();
 
@@ -315,26 +315,20 @@ router.get('/pr-analyses/:analysisId', authenticateToken, async (req, res) => {
     const ANALYSIS_SERVICE_URL = process.env.ANALYSIS_SERVICE_URL || 'http://analysis-service:8001';
 
     try {
-      const vulnerabilitiesResponse = await axios.get(
+      const findingsResponse = await axios.get(
         `${ANALYSIS_SERVICE_URL}/api/analysis/pr/${analysis.pr_number}`,
         { params: { repository: analysis.repository_name } }
       );
 
-      analysis.vulnerabilities = vulnerabilitiesResponse.data.vulnerabilities || [];
-      analysis.style_issues = vulnerabilitiesResponse.data.style_issues || [];
-      analysis.severity_counts = vulnerabilitiesResponse.data.severity_counts || DEFAULT_SEVERITY_COUNTS;
-      analysis.style_categories = vulnerabilitiesResponse.data.style_categories || DEFAULT_STYLE_CATEGORIES;
-      analysis.total_vulnerabilities = vulnerabilitiesResponse.data.total_vulnerabilities || 0;
-      analysis.total_style_issues = vulnerabilitiesResponse.data.total_style_issues || 0;
-      analysis.files_analyzed = vulnerabilitiesResponse.data.files_analyzed || 0;
+      analysis.findings = findingsResponse.data.findings || findingsResponse.data.vulnerabilities || [];
+      analysis.severity_counts = findingsResponse.data.severity_counts || DEFAULT_SEVERITY_COUNTS;
+      analysis.total_findings = findingsResponse.data.total_findings || findingsResponse.data.total_vulnerabilities || analysis.findings.length;
+      analysis.files_analyzed = findingsResponse.data.files_analyzed || 0;
     } catch (mongoError) {
-      analysis.vulnerabilities = [];
-      analysis.style_issues = [];
+      analysis.findings = [];
       analysis.severity_counts = DEFAULT_SEVERITY_COUNTS;
-      analysis.style_categories = DEFAULT_STYLE_CATEGORIES;
-      analysis.total_vulnerabilities = 0;
-      analysis.total_style_issues = 0;
-      analysis.vulnerability_fetch_error = `Could not retrieve vulnerability details: ${mongoError.message}`;
+      analysis.total_findings = 0;
+      analysis.finding_fetch_error = `Could not retrieve finding details: ${mongoError.message}`;
     }
 
     res.json({ success: true, analysis });

@@ -2,8 +2,8 @@ class CommentFormatter {
   /**
    * Format batched security vulnerabilities comment (CodeRabbit-style)
    */
-  formatBatchedSecurityComment(vulnerabilities, fileName) {
-    if (!vulnerabilities || vulnerabilities.length === 0) return null;
+  formatBatchedSecurityComment(findings, fileName) {
+    if (!findings || findings.length === 0) return null;
 
     // Group by severity
     const grouped = {
@@ -13,14 +13,14 @@ class CommentFormatter {
       low: []
     };
 
-    vulnerabilities.forEach(vuln => {
-      const severity = vuln.severity?.toLowerCase() || 'low';
+    findings.forEach((finding) => {
+      const severity = finding.severity?.toLowerCase() || 'low';
       if (grouped[severity]) {
-        grouped[severity].push(vuln);
+        grouped[severity].push(finding);
       }
     });
 
-    const totalCount = vulnerabilities.length;
+    const totalCount = findings.length;
     const criticalCount = grouped.critical.length;
     const highCount = grouped.high.length;
     const mediumCount = grouped.medium.length;
@@ -58,36 +58,40 @@ class CommentFormatter {
 
       comment += `### ${emoji} ${label}\n\n`;
 
-      issues.forEach((vuln, index) => {
-        const vulnType = this.formatVulnTypeHuman(vuln.type);
-        const lineInfo = vuln.line_number ? ` (Line ${vuln.line_number})` : '';
+      issues.forEach((finding, index) => {
+        const findingTitle = finding.title || finding.rule_id || 'Security finding';
+        const lineInfo = finding.line_start ? ` (Line ${finding.line_start})` : '';
 
         comment += `<details>\n`;
-        comment += `<summary><strong>${index + 1}. ${vulnType}${lineInfo}</strong></summary>\n\n`;
+        comment += `<summary><strong>${index + 1}. ${findingTitle}${lineInfo}</strong></summary>\n\n`;
+
+        if (finding.cwe_id || finding.owasp_category) {
+          comment += `**Classification:** ${[finding.cwe_id, finding.owasp_category].filter(Boolean).join(' • ')}\n\n`;
+        }
 
         comment += `**Description:**\n`;
-        comment += `${vuln.description}\n\n`;
+        comment += `${finding.description}\n\n`;
 
         // Show code snippet if available
-        if (vuln.code_snippet) {
-          comment += `**Code:**\n\`\`\`python\n${vuln.code_snippet}\n\`\`\`\n\n`;
+        if (finding.code_snippet) {
+          comment += `**Code:**\n\`\`\`python\n${finding.code_snippet}\n\`\`\`\n\n`;
         }
 
         // Context
-        const impact = this.buildImpactText(vuln, severity);
+        const impact = finding.exploit_scenario || finding.evidence || this.buildImpactText(finding, severity);
         if (impact) {
-          comment += `**Impact:**\n`;
+          comment += `**Context:**\n`;
           comment += `${impact}\n\n`;
         }
 
         // Recommendation (collapsible)
         comment += `<details>\n`;
         comment += `<summary><strong>💡 Recommended Solution</strong></summary>\n\n`;
-        comment += `${this.buildRecommendationText(vuln, severity)}\n\n`;
+        comment += `${finding.remediation || this.buildRecommendationText(finding, severity)}\n\n`;
         comment += `</details>\n\n`;
 
         // Confidence indicator
-        if (vuln.confidence < 0.7) {
+        if (finding.confidence < 0.7) {
           comment += `> **Note:** This finding has moderate confidence. Please review the context carefully.\n\n`;
         }
 

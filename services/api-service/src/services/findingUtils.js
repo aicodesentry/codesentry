@@ -28,7 +28,8 @@ function normalizeFinding(raw) {
     evidence: raw.evidence || raw.description || '',
     exploit_scenario: raw.exploit_scenario || '',
     remediation: raw.remediation || '',
-    remediation_patch_optional: raw.remediation_patch_optional || '',
+    remediation_patch: raw.remediation_patch || '',
+    fingerprint: raw.fingerprint || calculateFingerprint(raw),
   };
 }
 
