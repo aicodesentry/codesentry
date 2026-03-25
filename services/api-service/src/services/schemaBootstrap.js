@@ -220,16 +220,22 @@ const ALTER_STATEMENTS = [
   `ALTER TABLE findings ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'open';`,
   `DO $$ BEGIN
      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'repositories_github_id_key') THEN
+       DELETE FROM repositories a USING repositories b
+         WHERE a.github_id = b.github_id AND a.updated_at < b.updated_at;
        ALTER TABLE repositories ADD CONSTRAINT repositories_github_id_key UNIQUE (github_id);
      END IF;
    END $$;`,
   `DO $$ BEGIN
      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'pull_requests_repository_id_pr_number_key') THEN
+       DELETE FROM pull_requests a USING pull_requests b
+         WHERE a.repository_id = b.repository_id AND a.pr_number = b.pr_number AND a.updated_at < b.updated_at;
        ALTER TABLE pull_requests ADD CONSTRAINT pull_requests_repository_id_pr_number_key UNIQUE (repository_id, pr_number);
      END IF;
    END $$;`,
   `DO $$ BEGIN
      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'findings_fingerprint_key') THEN
+       DELETE FROM findings a USING findings b
+         WHERE a.fingerprint = b.fingerprint AND a.updated_at < b.updated_at;
        ALTER TABLE findings ADD CONSTRAINT findings_fingerprint_key UNIQUE (fingerprint);
      END IF;
    END $$;`,
