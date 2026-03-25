@@ -26,9 +26,8 @@ router.get('/', authenticateToken, async (req, res) => {
      LEFT JOIN pull_requests pr ON pr.repository_id = r.id
      LEFT JOIN findings f ON f.repository_id = r.id
      WHERE r.owner_id = $1
-       AND r.is_active = true
      GROUP BY r.id
-     ORDER BY r.updated_at DESC`,
+     ORDER BY r.is_active DESC, r.updated_at DESC`,
     [req.user.user_id]
   );
 
@@ -60,6 +59,38 @@ router.get('/:id', authenticateToken, async (req, res) => {
   );
 
   res.json({ repository: repo.rows[0], summary: summary.rows[0] });
+});
+
+router.post('/:id/connect', authenticateToken, async (req, res) => {
+  const updated = await pool.query(
+    `UPDATE repositories
+     SET is_active = true, updated_at = NOW()
+     WHERE id = $1 AND owner_id = $2
+     RETURNING id, full_name, is_active`,
+    [req.params.id, req.user.user_id]
+  );
+
+  if (updated.rowCount === 0) {
+    return res.status(404).json({ error: 'Repository not found' });
+  }
+
+  res.json({ repository: updated.rows[0], connected: true });
+});
+
+router.post('/:id/disconnect', authenticateToken, async (req, res) => {
+  const updated = await pool.query(
+    `UPDATE repositories
+     SET is_active = false, updated_at = NOW()
+     WHERE id = $1 AND owner_id = $2
+     RETURNING id, full_name, is_active`,
+    [req.params.id, req.user.user_id]
+  );
+
+  if (updated.rowCount === 0) {
+    return res.status(404).json({ error: 'Repository not found' });
+  }
+
+  res.json({ repository: updated.rows[0], connected: false });
 });
 
 router.patch('/:id/baseline', authenticateToken, async (req, res) => {

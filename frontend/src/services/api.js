@@ -148,6 +148,14 @@ export const repositoryAPI = {
     const { data } = await api.patch(`/api/repositories/${repositoryId}/baseline`, { enabled })
     return data
   },
+  connect: async (repositoryId) => {
+    const { data } = await api.post(`/api/repositories/${repositoryId}/connect`)
+    return data
+  },
+  disconnect: async (repositoryId) => {
+    const { data } = await api.post(`/api/repositories/${repositoryId}/disconnect`)
+    return data
+  },
   getRepositories: async () => {
     const { data } = await api.get('/api/repositories')
     return data
