@@ -6,6 +6,64 @@ const { getInstallationToken } = require('../services/githubApp');
 
 const router = express.Router();
 
+async function syncRepoPullRequests({ repoFullName, repoId, githubToken }) {
+  const prs = [];
+  for (const state of ['open', 'closed']) {
+    try {
+      const resp = await axios.get(
+        `https://api.github.com/repos/${repoFullName}/pulls`,
+        {
+          headers: {
+            Authorization: `Bearer ${githubToken}`,
+            Accept: 'application/vnd.github+json',
+          },
+          params: { state, per_page: 20, sort: 'updated', direction: 'desc' },
+          timeout: 15000,
+        }
+      );
+      prs.push(...(resp.data || []));
+    } catch (_) {
+      // skip repos where we can't list PRs
+    }
+  }
+  if (prs.length === 0) return 0;
+
+  for (const pr of prs) {
+    await pool.query(
+      `INSERT INTO pull_requests
+        (repository_id, github_pr_id, pr_number, title, body, state, head_sha, base_sha, head_branch, base_branch, author, html_url, draft)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       ON CONFLICT (repository_id, pr_number)
+       DO UPDATE SET
+         title = EXCLUDED.title,
+         state = EXCLUDED.state,
+         head_sha = EXCLUDED.head_sha,
+         base_sha = EXCLUDED.base_sha,
+         author = EXCLUDED.author,
+         html_url = EXCLUDED.html_url,
+         draft = EXCLUDED.draft,
+         updated_at = NOW()`,
+      [
+        repoId,
+        pr.id,
+        pr.number,
+        pr.title,
+        pr.body,
+        pr.state,
+        pr.head?.sha,
+        pr.base?.sha,
+        pr.head?.ref,
+        pr.base?.ref,
+        pr.user?.login,
+        pr.html_url,
+        Boolean(pr.draft),
+      ]
+    );
+  }
+
+  return prs.length;
+}
+
 async function fetchInstallationRepositories({ installationId, githubToken }) {
   const repositories = [];
 
@@ -150,7 +208,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
         });
 
         for (const repo of repositories) {
-          await pool.query(
+          const upserted = await pool.query(
             `INSERT INTO repositories
               (github_id, installation_id, owner_id, name, full_name, private, default_branch, language, html_url, clone_url, is_active)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
@@ -166,7 +224,8 @@ router.post('/sync', authenticateToken, async (req, res) => {
                html_url = EXCLUDED.html_url,
                clone_url = EXCLUDED.clone_url,
                is_active = true,
-               updated_at = NOW()`,
+               updated_at = NOW()
+             RETURNING id`,
             [
               repo.id,
               installation.id,
@@ -181,6 +240,16 @@ router.post('/sync', authenticateToken, async (req, res) => {
             ]
           );
           syncedRepos += 1;
+
+          try {
+            await syncRepoPullRequests({
+              repoFullName: repo.full_name,
+              repoId: upserted.rows[0].id,
+              githubToken,
+            });
+          } catch (_) {
+            // PR sync is non-fatal
+          }
         }
       } catch (repoSyncError) {
         syncErrors.push({
