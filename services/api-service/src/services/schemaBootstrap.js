@@ -218,6 +218,21 @@ const ALTER_STATEMENTS = [
   `ALTER TABLE findings ADD COLUMN IF NOT EXISTS pull_request_id UUID;`,
   `ALTER TABLE findings ADD COLUMN IF NOT EXISTS analysis_run_id UUID;`,
   `ALTER TABLE findings ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'open';`,
+  `DO $$ BEGIN
+     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'repositories_github_id_key') THEN
+       ALTER TABLE repositories ADD CONSTRAINT repositories_github_id_key UNIQUE (github_id);
+     END IF;
+   END $$;`,
+  `DO $$ BEGIN
+     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'pull_requests_repository_id_pr_number_key') THEN
+       ALTER TABLE pull_requests ADD CONSTRAINT pull_requests_repository_id_pr_number_key UNIQUE (repository_id, pr_number);
+     END IF;
+   END $$;`,
+  `DO $$ BEGIN
+     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'findings_fingerprint_key') THEN
+       ALTER TABLE findings ADD CONSTRAINT findings_fingerprint_key UNIQUE (fingerprint);
+     END IF;
+   END $$;`,
 ];
 
 async function ensureDatabaseSchema() {
