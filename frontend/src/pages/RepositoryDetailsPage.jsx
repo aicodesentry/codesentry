@@ -41,20 +41,32 @@ export default function RepositoryDetailsPage() {
           <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">No pull requests yet.</div>
         )}
         {pullRequests.map((pr) => (
-          <Link
+          <div
             key={pr.id}
-            to={`/dashboard/pull-requests/${pr.id}/findings`}
             className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300"
           >
-            <div>
+            <Link to={`/dashboard/pull-requests/${pr.id}/findings`} className="flex-1 min-w-0">
               <p className="font-medium text-slate-900">#{pr.pr_number} {pr.title}</p>
               <p className="text-sm text-slate-500">{pr.state} • {pr.author}</p>
+            </Link>
+            <div className="flex items-center gap-4">
+              <div className="text-right text-sm text-slate-600">
+                <p>Open findings: <span className="font-semibold text-slate-900">{pr.open_findings_count}</span></p>
+                <p>Critical/High: <span className="font-semibold text-slate-900">{(pr.critical_count || 0) + (pr.high_count || 0)}</span></p>
+              </div>
+              {pr.html_url && (
+                <a
+                  href={pr.html_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex-shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  View on GitHub
+                </a>
+              )}
             </div>
-            <div className="text-right text-sm text-slate-600">
-              <p>Open findings: <span className="font-semibold text-slate-900">{pr.open_findings_count}</span></p>
-              <p>Critical/High: <span className="font-semibold text-slate-900">{(pr.critical_count || 0) + (pr.high_count || 0)}</span></p>
-            </div>
-          </Link>
+          </div>
         ))}
       </div>
     </div>
