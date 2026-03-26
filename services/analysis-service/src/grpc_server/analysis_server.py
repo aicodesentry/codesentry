@@ -13,7 +13,6 @@ from grpc_generated import analysis_pb2, analysis_pb2_grpc
 from services.vertex_ai_service import vertex_ai_service
 from services.vulnerability_detector import vulnerability_detector
 from services.style_analyzer import style_analyzer
-from config.database import get_database
 from grpc_client import mcp_client
 import uuid
 import asyncio
@@ -100,27 +99,11 @@ class AnalysisServicer(analysis_pb2_grpc.AnalysisServiceServicer):
 
         # Step 3: Create response
         analysis_id = str(uuid.uuid4())
-        db = get_database()
-        
-        result_payload = {
-            "analysis_id": analysis_id,
-            "timestamp": datetime.utcnow(),
-            "repository_id": request.repository_id,
-            "pull_request_id": request.pull_request_id,
-            "file_path": file_to_analyze.file_path,
-            "language": file_to_analyze.language,
-            "vulnerabilities": [v.model_dump() for v in classified_vulns],
-            "severity_counts": severity_counts,
-            "total_vulnerabilities": len(classified_vulns),
-        }
-
-        await db.analyses.insert_one(result_payload)
-        print(f"✅ Analysis results stored in DB for {analysis_id}")
+        timestamp = datetime.utcnow()
 
         return analysis_pb2.AnalysisResponse(
             analysis_id=analysis_id,
-            timestamp=int(result_payload["timestamp"].timestamp()),
-            # This is a simplified response for now
+            timestamp=int(timestamp.timestamp()),
             status="completed"
         )
 
