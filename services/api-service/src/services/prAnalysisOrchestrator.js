@@ -312,9 +312,10 @@ async function runAnalysisJob(payload) {
 
     try {
       const reviewBody = buildReviewBody(actionable, runId);
-      const diffPaths = new Set(files.map((f) => f.path));
+      const fileMaxLines = new Map(files.map((f) => [f.path, f.additions || 1]));
       const reviewComments = actionable
-        .filter((f) => Number(f.confidence) >= 0.7 && diffPaths.has(f.file_path))
+        .filter((f) => Number(f.confidence) >= 0.7 && fileMaxLines.has(f.file_path))
+        .filter((f) => (f.line_start || 1) <= (fileMaxLines.get(f.file_path) || 1))
         .map((f) => ({
           path: f.file_path,
           line: f.line_start || 1,
