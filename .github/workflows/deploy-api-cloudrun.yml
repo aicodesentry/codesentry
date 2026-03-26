@@ -52,15 +52,15 @@ jobs:
               GITHUB_SERVICE_URL=${{ vars.CODESENTRY_GH_SERVICE_URL }},\
               ANALYSIS_SERVICE_URL=${{ vars.CODESENTRY_ANALYSIS_URL }},\
               GITHUB_CALLBACK_URL=${{ vars.CODESENTRY_GH_CALLBACK_URL }},\
-              GITHUB_APP_SLUG=${{ vars.CODESENTRY_GH_APP_SLUG }},\
-              GITHUB_SERVICE_INTERNAL_SECRET=${{ secrets.CODESENTRY_INTERNAL_SECRET }},\
-              GITHUB_WEBHOOK_SECRET=${{ secrets.CODESENTRY_WEBHOOK_SECRET }},\
-              GITHUB_CLIENT_ID=${{ secrets.CODESENTRY_GH_CLIENT_ID }},\
-              GITHUB_CLIENT_SECRET=${{ secrets.CODESENTRY_GH_CLIENT_SECRET }}" \
+              GITHUB_APP_SLUG=aicodesentry,\
+              GITHUB_SERVICE_INTERNAL_SECRET=${{ secrets.CODESENTRY_INTERNAL_SECRET }}" \
             --set-secrets "\
               JWT_SECRET=codesentry-jwt-secret:latest,\
               ENCRYPTION_KEY=codesentry-encryption-key:latest,\
               DATABASE_URL=codesentry-database-url:latest,\
               GITHUB_APP_ID=codesentry-github-app-id:latest,\
-              GITHUB_APP_PRIVATE_KEY=codesentry-github-app-private-key:latest" \
+              GITHUB_APP_PRIVATE_KEY=codesentry-github-app-private-key:latest,\
+              GITHUB_WEBHOOK_SECRET=codesentry-webhook-secret:latest,\
+              GITHUB_CLIENT_ID=codesentry-github-client-id:latest,\
+              GITHUB_CLIENT_SECRET=codesentry-github-client-secret:latest" \
             --allow-unauthenticated

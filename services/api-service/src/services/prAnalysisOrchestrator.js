@@ -103,10 +103,11 @@ async function upsertFinding({
            exploit_scenario = $18,
            remediation = $19,
            remediation_patch = $20,
+           is_baseline = $21,
            last_seen_at = NOW(),
            updated_at = NOW(),
            status = CASE WHEN status = 'fixed' THEN 'open' ELSE status END
-       WHERE id = $21
+       WHERE id = $22
        RETURNING *`,
       [
         runId,
@@ -129,6 +130,7 @@ async function upsertFinding({
         normalized.exploit_scenario || null,
         normalized.remediation || null,
         normalized.remediation_patch || null,
+        isBaseline,
         existing.rows[0].id,
       ]
     );
