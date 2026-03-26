@@ -45,7 +45,7 @@ app.use((req, res, next) => {
   if (req.path === '/webhooks/github') {
     next(); // Let webhook route handle raw body
   } else {
-    express.json()(req, res, next);
+    express.json({ limit: '2mb' })(req, res, next);
   }
 });
 

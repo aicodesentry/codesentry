@@ -15,7 +15,6 @@ function ensureInternalAuth(req, res, next) {
   next();
 }
 
-router.use(express.json({ limit: '1mb' }));
 router.use(ensureInternalAuth);
 
 async function githubRequest(method, url, token, data) {
