@@ -424,7 +424,7 @@ class NotificationService {
           <!-- Footer -->
           <div class="footer">
             <p><strong>CodeSentry</strong></p>
-            <p>Automated security and style analysis powered by Google Vertex AI</p>
+            <p>Automated security vulnerability analysis</p>
             <p style="margin-top: 10px;">
               This is an automated notification. AI analysis comments have been posted directly on the PR.
             </p>
@@ -472,67 +472,6 @@ class NotificationService {
     `;
   }
 
-  /**
-   * Generate HTML preview of top style issues
-   */
-  generateStyleIssuePreviews(styleIssues) {
-    if (!styleIssues || styleIssues.length === 0) {
-      return '';
-    }
-
-    // Show top 3 style issues
-    const topIssues = styleIssues.slice(0, 3);
-
-    const styleHtml = topIssues.map(issue => `
-      <div class="issue-card ${issue.severity}">
-        <div class="issue-header">
-          <div class="issue-type">${this.formatStyleType(issue.category)}</div>
-          <span class="issue-severity severity-${issue.severity}">${issue.severity}</span>
-        </div>
-        <div class="issue-file">📄 ${issue.file_path || 'Unknown file'} · Line ${issue.line || 0}</div>
-        <div class="issue-description">${this.escapeHtml(issue.message || 'Style issue detected')}</div>
-        <div class="issue-recommendation">
-          <strong>💡 Recommendation:</strong> ${this.escapeHtml(issue.recommendation || 'Follow coding standards')}
-        </div>
-      </div>
-    `).join('');
-
-    const remaining = styleIssues.length - topIssues.length;
-    const moreText = remaining > 0 ? `<p style="text-align: center; color: #586069; font-size: 13px;">+ ${remaining} more style issues</p>` : '';
-
-    return `
-      <div class="section">
-        <div class="section-title">🎨 Code Style Issues (Top ${topIssues.length})</div>
-        ${styleHtml}
-        ${moreText}
-      </div>
-    `;
-  }
-
-  /**
-   * Format vulnerability type for display
-   */
-  formatVulnType(type) {
-    if (!type) return 'Security Issue';
-    return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  }
-
-  /**
-   * Format style issue type for display
-   */
-  formatStyleType(category) {
-    if (!category) return 'Style Issue';
-    const map = {
-      'pep8': 'PEP 8 Violation',
-      'pylint': 'Code Quality',
-      'naming': 'Naming Convention',
-      'complexity': 'Code Complexity',
-      'class_name': 'Class Naming',
-      'function_name': 'Function Naming',
-      'constant_name': 'Constant Naming'
-    };
-    return map[category] || category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  }
 
   /**
    * Escape HTML to prevent XSS
@@ -568,7 +507,7 @@ class NotificationService {
         connectionString: process.env.DATABASE_URL,
         // Neon provides valid SSL certificates - verify them for security
         // But if we are running in docker-compose production (local container), SSL is not supported
-        ssl: (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL.includes('postgres:5432')) ? true : false,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false,
       });
 
       // Strategy 1: Get requested reviewers from PR

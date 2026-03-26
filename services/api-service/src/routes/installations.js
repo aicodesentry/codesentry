@@ -244,11 +244,21 @@ router.post('/sync', authenticateToken, async (req, res) => {
             ]
           );
           syncedRepos += 1;
+        }
 
+        // Sync PRs only for repos that already have PR history (avoid rate limits)
+        const reposWithPRs = await pool.query(
+          `SELECT DISTINCT r.id, r.full_name FROM repositories r
+           JOIN pull_requests pr ON pr.repository_id = r.id
+           WHERE r.owner_id = $1 AND r.installation_id = $2 AND r.is_active = true
+           LIMIT 15`,
+          [req.user.user_id, installation.id]
+        );
+        for (const row of reposWithPRs.rows) {
           try {
             await syncRepoPullRequests({
-              repoFullName: repo.full_name,
-              repoId: upserted.rows[0].id,
+              repoFullName: row.full_name,
+              repoId: row.id,
               githubToken,
             });
           } catch (_) {

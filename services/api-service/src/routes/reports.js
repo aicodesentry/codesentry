@@ -1,201 +1,10 @@
 const express = require('express');
-const { pool } = require('../config/database');
 const axios = require('axios');
 const { authenticateToken } = require('../middleware/auth');
 const { DEFAULT_SEVERITY_COUNTS } = require('../constants/defaults');
+const analysisDb = require('../db/analysisRuns');
 
 const router = express.Router();
-
-function isSchemaMismatch(error) {
-  return error?.code === '42P01' || error?.code === '42703';
-}
-
-async function queryAnalysesFromRuns(userId, { repositoryId, status, limit, offset }) {
-  const params = [userId];
-  const where = ['r.owner_id = $1'];
-
-  if (repositoryId) {
-    where.push(`r.id = $${params.length + 1}`);
-    params.push(repositoryId);
-  }
-
-  if (status) {
-    where.push(`ar.status = $${params.length + 1}`);
-    params.push(status);
-  }
-
-  const listQuery = `
-    SELECT
-      ar.id,
-      ar.pr_number,
-      pr.html_url AS pr_url,
-      ar.status,
-      ar.started_at,
-      ar.completed_at,
-      EXTRACT(EPOCH FROM (ar.completed_at - ar.started_at)) AS processing_time_seconds,
-      r.id AS repository_id,
-      r.full_name AS repository_name,
-      r.name AS repo_short_name
-    FROM analysis_runs ar
-    JOIN repositories r ON ar.repository_id = r.id
-    LEFT JOIN pull_requests pr ON pr.id = ar.pull_request_id
-    WHERE ${where.join(' AND ')}
-    ORDER BY COALESCE(ar.started_at, ar.created_at) DESC
-    LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-  `;
-
-  const countQuery = `
-    SELECT COUNT(*) AS total
-    FROM analysis_runs ar
-    JOIN repositories r ON ar.repository_id = r.id
-    WHERE ${where.join(' AND ')}
-  `;
-
-  const list = await pool.query(listQuery, [...params, limit, offset]);
-  const count = await pool.query(countQuery, params);
-  return { rows: list.rows, total: parseInt(count.rows[0].total, 10) };
-}
-
-async function queryAnalysesLegacy(userId, { repositoryId, status, limit, offset }) {
-  const tryOwnerScoped = async () => {
-    const params = [userId];
-    const where = ['r.owner_id = $1'];
-
-    if (repositoryId) {
-      where.push(`r.id = $${params.length + 1}`);
-      params.push(repositoryId);
-    }
-    if (status) {
-      where.push(`a.status = $${params.length + 1}`);
-      params.push(status);
-    }
-
-    const list = await pool.query(
-      `SELECT
-         a.id,
-         a.pr_number,
-         a.pr_url,
-         a.status,
-         a.started_at,
-         a.completed_at,
-         EXTRACT(EPOCH FROM (a.completed_at - a.started_at)) AS processing_time_seconds,
-         r.id AS repository_id,
-         r.full_name AS repository_name,
-         r.name AS repo_short_name
-       FROM analysis a
-       JOIN repositories r ON a.repository_id = r.id
-       WHERE ${where.join(' AND ')}
-       ORDER BY a.started_at DESC
-       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      [...params, limit, offset]
-    );
-
-    const count = await pool.query(
-      `SELECT COUNT(*) AS total
-       FROM analysis a
-       JOIN repositories r ON a.repository_id = r.id
-       WHERE ${where.join(' AND ')}`,
-      params
-    );
-    return { rows: list.rows, total: parseInt(count.rows[0].total, 10) };
-  };
-
-  const tryUserScoped = async () => {
-    const params = [userId];
-    const where = ['r.user_id = $1'];
-
-    if (repositoryId) {
-      where.push(`r.id = $${params.length + 1}`);
-      params.push(repositoryId);
-    }
-    if (status) {
-      where.push(`a.status = $${params.length + 1}`);
-      params.push(status);
-    }
-
-    const list = await pool.query(
-      `SELECT
-         a.id,
-         a.pr_number,
-         a.pr_url,
-         a.status,
-         a.started_at,
-         a.completed_at,
-         EXTRACT(EPOCH FROM (a.completed_at - a.started_at)) AS processing_time_seconds,
-         r.id AS repository_id,
-         r.full_name AS repository_name,
-         r.name AS repo_short_name
-       FROM analysis a
-       JOIN repositories r ON a.repository_id = r.id
-       WHERE ${where.join(' AND ')}
-       ORDER BY a.started_at DESC
-       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      [...params, limit, offset]
-    );
-
-    const count = await pool.query(
-      `SELECT COUNT(*) AS total
-       FROM analysis a
-       JOIN repositories r ON a.repository_id = r.id
-       WHERE ${where.join(' AND ')}`,
-      params
-    );
-    return { rows: list.rows, total: parseInt(count.rows[0].total, 10) };
-  };
-
-  try {
-    return await tryOwnerScoped();
-  } catch (error) {
-    if (!isSchemaMismatch(error)) throw error;
-    return tryUserScoped();
-  }
-}
-
-async function querySummaryFromRuns(userId) {
-  const result = await pool.query(
-    `SELECT
-       COUNT(*) AS total,
-       COUNT(*) FILTER (WHERE ar.status = 'completed') AS completed,
-       COUNT(*) FILTER (WHERE ar.status = 'failed') AS failed,
-       COUNT(*) FILTER (WHERE COALESCE(ar.started_at, ar.created_at) >= NOW() - INTERVAL '7 days') AS recent
-     FROM analysis_runs ar
-     JOIN repositories r ON ar.repository_id = r.id
-     WHERE r.owner_id = $1`,
-    [userId]
-  );
-  return result.rows[0];
-}
-
-async function querySummaryLegacy(userId) {
-  try {
-    const result = await pool.query(
-      `SELECT
-         COUNT(*) AS total,
-         COUNT(*) FILTER (WHERE a.status = 'completed') AS completed,
-         COUNT(*) FILTER (WHERE a.status = 'failed') AS failed,
-         COUNT(*) FILTER (WHERE a.started_at >= NOW() - INTERVAL '7 days') AS recent
-       FROM analysis a
-       JOIN repositories r ON a.repository_id = r.id
-       WHERE r.owner_id = $1`,
-      [userId]
-    );
-    return result.rows[0];
-  } catch (error) {
-    if (!isSchemaMismatch(error)) throw error;
-    const fallback = await pool.query(
-      `SELECT
-         COUNT(*) AS total,
-         COUNT(*) FILTER (WHERE a.status = 'completed') AS completed,
-         COUNT(*) FILTER (WHERE a.status = 'failed') AS failed,
-         COUNT(*) FILTER (WHERE a.started_at >= NOW() - INTERVAL '7 days') AS recent
-       FROM analysis a
-       JOIN repositories r ON a.repository_id = r.id
-       WHERE r.user_id = $1`,
-      [userId]
-    );
-    return fallback.rows[0];
-  }
-}
 
 router.get('/pr-analyses', authenticateToken, async (req, res) => {
   try {
@@ -218,13 +27,7 @@ router.get('/pr-analyses', authenticateToken, async (req, res) => {
       offset: parseInt(offset, 10),
     };
 
-    let data;
-    try {
-      data = await queryAnalysesFromRuns(req.user.user_id, pagination);
-    } catch (error) {
-      if (!isSchemaMismatch(error)) throw error;
-      data = await queryAnalysesLegacy(req.user.user_id, pagination);
-    }
+    const data = await analysisDb.listAnalyses(req.user.user_id, pagination);
 
     res.json({
       success: true,
@@ -235,78 +38,15 @@ router.get('/pr-analyses', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching PR analyses:', error);
-    res.status(500).json({ error: 'Failed to fetch PR analyses', details: error.message });
+    res.status(500).json({ error: 'Failed to fetch PR analyses' });
   }
 });
 
 router.get('/pr-analyses/:analysisId', authenticateToken, async (req, res) => {
   try {
     const { analysisId } = req.params;
-    let analysis;
 
-    try {
-      const runResult = await pool.query(
-        `SELECT
-           ar.id,
-           ar.pr_number,
-           pr.html_url AS pr_url,
-           ar.status,
-           ar.started_at,
-           ar.completed_at,
-           EXTRACT(EPOCH FROM (ar.completed_at - ar.started_at)) AS processing_time_seconds,
-           r.id AS repository_id,
-           r.full_name AS repository_name,
-           r.github_id AS repository_github_id
-         FROM analysis_runs ar
-         JOIN repositories r ON ar.repository_id = r.id
-         LEFT JOIN pull_requests pr ON pr.id = ar.pull_request_id
-         WHERE ar.id = $1 AND r.owner_id = $2`,
-        [analysisId, req.user.user_id]
-      );
-      analysis = runResult.rows[0];
-    } catch (error) {
-      if (!isSchemaMismatch(error)) throw error;
-      try {
-        const legacyOwnerResult = await pool.query(
-          `SELECT
-             a.id,
-             a.pr_number,
-             a.pr_url,
-             a.status,
-             a.started_at,
-             a.completed_at,
-             EXTRACT(EPOCH FROM (a.completed_at - a.started_at)) AS processing_time_seconds,
-             r.id AS repository_id,
-             r.full_name AS repository_name,
-             r.github_id AS repository_github_id
-           FROM analysis a
-           JOIN repositories r ON a.repository_id = r.id
-           WHERE a.id = $1 AND r.owner_id = $2`,
-          [analysisId, req.user.user_id]
-        );
-        analysis = legacyOwnerResult.rows[0];
-      } catch (legacyOwnerError) {
-        if (!isSchemaMismatch(legacyOwnerError)) throw legacyOwnerError;
-        const legacyUserResult = await pool.query(
-          `SELECT
-             a.id,
-             a.pr_number,
-             a.pr_url,
-             a.status,
-             a.started_at,
-             a.completed_at,
-             EXTRACT(EPOCH FROM (a.completed_at - a.started_at)) AS processing_time_seconds,
-             r.id AS repository_id,
-             r.full_name AS repository_name,
-             r.github_id AS repository_github_id
-           FROM analysis a
-           JOIN repositories r ON a.repository_id = r.id
-           WHERE a.id = $1 AND r.user_id = $2`,
-          [analysisId, req.user.user_id]
-        );
-        analysis = legacyUserResult.rows[0];
-      }
-    }
+    const analysis = await analysisDb.getAnalysisById(analysisId, req.user.user_id);
 
     if (!analysis) {
       return res.status(404).json({ error: 'Analysis not found' });
@@ -334,19 +74,13 @@ router.get('/pr-analyses/:analysisId', authenticateToken, async (req, res) => {
     res.json({ success: true, analysis });
   } catch (error) {
     console.error('Error fetching analysis details:', error);
-    res.status(500).json({ error: 'Failed to fetch analysis details', details: error.message });
+    res.status(500).json({ error: 'Failed to fetch analysis details' });
   }
 });
 
 router.get('/summary', authenticateToken, async (req, res) => {
   try {
-    let summary;
-    try {
-      summary = await querySummaryFromRuns(req.user.user_id);
-    } catch (error) {
-      if (!isSchemaMismatch(error)) throw error;
-      summary = await querySummaryLegacy(req.user.user_id);
-    }
+    const summary = await analysisDb.querySummary(req.user.user_id);
 
     res.json({
       success: true,
@@ -359,7 +93,7 @@ router.get('/summary', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching summary:', error);
-    res.status(500).json({ error: 'Failed to fetch summary', details: error.message });
+    res.status(500).json({ error: 'Failed to fetch summary' });
   }
 });
 

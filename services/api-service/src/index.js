@@ -5,12 +5,6 @@ const logger = require('./utils/logger');
 const { createApp } = require('./app');
 const { ensureDatabaseSchema } = require('./services/schemaBootstrap');
 
-if (process.env.NODE_ENV !== 'production') {
-  process.env.GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET || 'dev-webhook-secret';
-  process.env.GITHUB_SERVICE_INTERNAL_SECRET =
-    process.env.GITHUB_SERVICE_INTERNAL_SECRET || 'dev-github-internal-secret';
-}
-
 const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
 if (process.env.NODE_ENV === 'production') {
   requiredEnvVars.push('GITHUB_WEBHOOK_SECRET', 'GITHUB_SERVICE_INTERNAL_SECRET');

@@ -5,8 +5,10 @@ const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 
 router.get('/events', authenticateToken, async (req, res) => {
-  const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10), 1), 200);
-  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+  const rawLimit = parseInt(req.query.limit || '50', 10);
+  const rawOffset = parseInt(req.query.offset || '0', 10);
+  const limit = Math.min(Math.max(Number.isNaN(rawLimit) ? 50 : rawLimit, 1), 200);
+  const offset = Math.max(Number.isNaN(rawOffset) ? 0 : rawOffset, 0);
 
   try {
     const eventsResult = await pool.query(

@@ -43,6 +43,12 @@ router.get('/github', (req, res) => {
 
   const forwardedProto = req.get('x-forwarded-proto');
   const protocol = forwardedProto ? forwardedProto.split(',')[0] : req.protocol;
+
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction && protocol !== 'https') {
+    return res.status(400).json({ error: 'HTTPS required' });
+  }
+
   const callbackUrl =
     process.env.GITHUB_CALLBACK_URL || `${protocol}://${req.get('host')}/auth/github/callback`;
 

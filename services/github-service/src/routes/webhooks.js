@@ -9,14 +9,14 @@ const router = express.Router();
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   // Neon provides valid SSL certificates - verify them for security
-  ssl: process.env.NODE_ENV === 'production' ? true : false,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false,
 });
 
 // Verify GitHub webhook signature
 function verifySignature(payloadBuffer, signatureHeader) {
   if (!process.env.WEBHOOK_SECRET) {
-    console.warn('WEBHOOK_SECRET not set - skipping signature verification');
-    return true; // Allow in development if secret not set
+    console.warn('WEBHOOK_SECRET not set - rejecting webhook');
+    return false;
   }
   if (!signatureHeader) {
     return false;
@@ -38,6 +38,11 @@ function verifySignature(payloadBuffer, signatureHeader) {
 
 // Register webhook for a repository
 router.post('/register', async (req, res) => {
+  const internalSecret = process.env.GITHUB_SERVICE_INTERNAL_SECRET;
+  if (internalSecret && req.headers['x-internal-secret'] !== internalSecret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   const { repository_full_name, github_token } = req.body;
 
   if (!repository_full_name || !github_token) {
@@ -250,54 +255,6 @@ router.post('/github', express.raw({ type: 'application/json' }), async (req, re
     ]
   );
     console.log(`[LOG] Webhook event logged: ${action} on PR #${pr.number}`);
-
-    // SCRUM-88: Analyze Python files and post comments
-    if (action === 'opened' || action === 'synchronize') {
-      const webhookController = require('../controllers/webhookController');
-
-      // Check if analysis already exists
-      const existingAnalysis = await pool.query(
-        'SELECT id FROM analysis WHERE repository_id = $1 AND pr_number = $2',
-        [repositoryId, pr.number]
-      );
-
-      if (existingAnalysis.rows.length === 0) {
-        // Insert new analysis
-        await pool.query(
-          `INSERT INTO analysis (repository_id, pr_number, pr_url, status, started_at)
-           VALUES ($1, $2, $3, $4, NOW())`,
-          [repositoryId, pr.number, pr.html_url, 'processing']
-        );
-        console.log(`[CREATE] New PR analysis created for ${repository.full_name}#${pr.number}`);
-      } else {
-        // Update existing analysis
-        await pool.query(
-          `UPDATE analysis
-           SET status = $1, started_at = NOW()
-           WHERE repository_id = $2 AND pr_number = $3`,
-          ['processing', repositoryId, pr.number]
-        );
-        console.log(`[UPDATE] PR analysis updated for ${repository.full_name}#${pr.number}`);
-      }
-      
-      // Process in background (don't wait for response)
-      webhookController.processPullRequest(payload, action)
-        .then(() => {
-          // Update status to completed
-          pool.query(
-            `UPDATE analysis SET status = $1, completed_at = NOW() WHERE repository_id = $2 AND pr_number = $3`,
-            ['completed', repositoryId, pr.number]
-          );
-        })
-        .catch(err => {
-          console.error('Background analysis error:', err);
-          // Update status to failed
-          pool.query(
-            `UPDATE analysis SET status = $1 WHERE repository_id = $2 AND pr_number = $3`,
-            ['failed', repositoryId, pr.number]
-          );
-        });
-    }
 
     console.log(`=============================\n`);
 

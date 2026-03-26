@@ -273,27 +273,11 @@ const CodeAnalysisTest = () => {
                   <span className="text-blue-600">🔵 {result.low_count}</span>
                 </span>
               </div>
-              {result.total_style_issues > 0 && (
-                <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                  <span>Style: {result.total_style_issues} issues</span>
-                  {result.style_categories && (
-                    <>
-                      <span>•</span>
-                      <span className="flex items-center gap-2">
-                        {result.style_categories.pep8 > 0 && <span>PEP8: {result.style_categories.pep8}</span>}
-                        {result.style_categories.pylint > 0 && <span>Quality: {result.style_categories.pylint}</span>}
-                        {result.style_categories.naming > 0 && <span>Naming: {result.style_categories.naming}</span>}
-                        {result.style_categories.complexity > 0 && <span>Complexity: {result.style_categories.complexity}</span>}
-                      </span>
-                    </>
-                  )}
-                </div>
-              )}
             </div>
           </div>
 
           {/* Security Vulnerabilities Section */}
-          {result.vulnerabilities.length === 0 && (!result.style_issues || result.style_issues.length === 0) ? (
+          {result.vulnerabilities.length === 0 ? (
             <div className="text-center py-8">
               <span className="text-6xl mb-4 block">✅</span>
               <p className="text-lg font-medium text-gray-900 dark:text-white mb-2">
@@ -351,45 +335,6 @@ const CodeAnalysisTest = () => {
                 </div>
               )}
 
-              {/* Style Issues */}
-              {result.style_issues && result.style_issues.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                    Style Issues
-                  </h3>
-                  <div className="space-y-4">
-                    {result.style_issues.map((issue, index) => (
-                      <div
-                        key={index}
-                        className={`border-l-4 rounded-lg p-4 ${getSeverityColor(issue.severity)}`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <span className="text-2xl">📋</span>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="font-bold uppercase">{issue.severity}</span>
-                              <span>•</span>
-                              <span className="font-medium">{issue.category.toUpperCase()}</span>
-                              <span>•</span>
-                              <span className="text-sm">Code: {issue.code}</span>
-                              <span>•</span>
-                              <span className="text-sm">Line {issue.line}</span>
-                            </div>
-
-                            <p className="text-sm mb-2">
-                              <strong>Issue:</strong> {issue.message}
-                            </p>
-
-                            <p className="text-sm">
-                              <strong>Recommendation:</strong> {issue.recommendation}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>

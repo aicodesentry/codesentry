@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const axios = require('axios');
 const githubAppAuth = require('../services/githubAppAuth');
 
@@ -9,7 +10,10 @@ function ensureInternalAuth(req, res, next) {
   if (!expected) {
     return res.status(500).json({ error: 'Internal secret is not configured' });
   }
-  if (req.headers['x-internal-secret'] !== expected) {
+  const provided = req.headers['x-internal-secret'] || '';
+  const expectedBuf = Buffer.from(expected);
+  const providedBuf = Buffer.from(provided);
+  if (expectedBuf.length !== providedBuf.length || !crypto.timingSafeEqual(expectedBuf, providedBuf)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
@@ -46,6 +50,9 @@ router.post('/github/pulls/files', async (req, res) => {
   const { repository_full_name, pull_request_number, installation_id } = req.body || {};
   if (!repository_full_name || !pull_request_number || !installation_id) {
     return res.status(400).json({ error: 'repository_full_name, pull_request_number and installation_id are required' });
+  }
+  if (!repository_full_name.includes('/') || repository_full_name.split('/').length !== 2) {
+    return res.status(400).json({ error: 'Invalid repository_full_name format' });
   }
 
   try {
@@ -91,6 +98,9 @@ router.post('/github/comments/summary-upsert', async (req, res) => {
   const { owner, repo, pr_number, installation_id, body, marker } = req.body || {};
   if (!owner || !repo || !pr_number || !installation_id || !body || !marker) {
     return res.status(400).json({ error: 'owner, repo, pr_number, installation_id, body, marker are required' });
+  }
+  if (!/^[a-zA-Z0-9_.-]+$/.test(owner) || !/^[a-zA-Z0-9_.-]+$/.test(repo)) {
+    return res.status(400).json({ error: 'Invalid owner or repo format' });
   }
 
   try {
