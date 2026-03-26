@@ -1,4 +1,6 @@
+const path = require('path');
 require('dotenv').config();
+require('dotenv').config({ path: path.resolve(__dirname, '../../../.env'), override: false });
 
 const { pool } = require('./config/database');
 const logger = require('./utils/logger');

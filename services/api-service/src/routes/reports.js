@@ -1,8 +1,7 @@
 const express = require('express');
-const axios = require('axios');
 const { authenticateToken } = require('../middleware/auth');
-const { DEFAULT_SEVERITY_COUNTS } = require('../constants/defaults');
 const analysisDb = require('../db/analysisRuns');
+const findingsDb = require('../db/findings');
 
 const router = express.Router();
 
@@ -52,24 +51,14 @@ router.get('/pr-analyses/:analysisId', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Analysis not found' });
     }
 
-    const ANALYSIS_SERVICE_URL = process.env.ANALYSIS_SERVICE_URL || 'http://analysis-service:8001';
-
-    try {
-      const findingsResponse = await axios.get(
-        `${ANALYSIS_SERVICE_URL}/api/analysis/pr/${analysis.pr_number}`,
-        { params: { repository: analysis.repository_name } }
-      );
-
-      analysis.findings = findingsResponse.data.findings || findingsResponse.data.vulnerabilities || [];
-      analysis.severity_counts = findingsResponse.data.severity_counts || DEFAULT_SEVERITY_COUNTS;
-      analysis.total_findings = findingsResponse.data.total_findings || findingsResponse.data.total_vulnerabilities || analysis.findings.length;
-      analysis.files_analyzed = findingsResponse.data.files_analyzed || 0;
-    } catch (mongoError) {
-      analysis.findings = [];
-      analysis.severity_counts = DEFAULT_SEVERITY_COUNTS;
-      analysis.total_findings = 0;
-      analysis.finding_fetch_error = `Could not retrieve finding details: ${mongoError.message}`;
-    }
+    const findings = await findingsDb.listByAnalysisRun(analysisId);
+    analysis.findings = findings;
+    analysis.total_findings = findings.length;
+    analysis.severity_counts = findings.reduce((acc, f) => {
+      const s = f.severity || 'low';
+      acc[s] = (acc[s] || 0) + 1;
+      return acc;
+    }, { critical: 0, high: 0, medium: 0, low: 0 });
 
     res.json({ success: true, analysis });
   } catch (error) {

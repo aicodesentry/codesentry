@@ -46,5 +46,9 @@ jobs:
             --region '${{ vars.GCP_REGION }}' \
             --project '${{ vars.GCP_PROJECT_ID }}' \
             --platform managed \
+            --update-env-vars "\
+              FRONTEND_URL=${{ vars.CODESENTRY_FRONTEND_URL }}" \
+            --set-secrets "\
+              GEMINI_API_KEY=codesentry-gemini-api-key:latest" \
             --ingress all \
             --allow-unauthenticated

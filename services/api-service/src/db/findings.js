@@ -109,4 +109,16 @@ async function updateStatus(findingId, userId, { status, dismissalReason }) {
   });
 }
 
-module.exports = { listByPullRequest, listAll, getById, updateStatus };
+async function listByAnalysisRun(analysisRunId) {
+  const result = await pool.query(
+    `SELECT * FROM findings
+     WHERE analysis_run_id = $1
+     ORDER BY
+       CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+       confidence DESC`,
+    [analysisRunId]
+  );
+  return result.rows;
+}
+
+module.exports = { listByPullRequest, listAll, getById, updateStatus, listByAnalysisRun };
