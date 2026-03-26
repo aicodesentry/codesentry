@@ -54,7 +54,6 @@ jobs:
             --project '${{ vars.GCP_PROJECT_ID }}' \
             --platform managed \
             --update-env-vars "GITHUB_SERVICE_INTERNAL_SECRET=${{ secrets.CODESENTRY_INTERNAL_SECRET }}" \
-            --update-env-vars "GITHUB_APP_ID=${{ vars.CODESENTRY_APP_ID }}" \
-            --update-env-vars "GITHUB_APP_PRIVATE_KEY=${{ secrets.CODESENTRY_APP_PRIVATE_KEY }}" \
             --update-env-vars "WEBHOOK_SECRET=${{ secrets.CODESENTRY_WEBHOOK_SECRET }}" \
+            --update-secrets "GITHUB_APP_ID=codesentry-github-app-id:latest,GITHUB_APP_PRIVATE_KEY=codesentry-github-app-private-key:latest" \
             --allow-unauthenticated
