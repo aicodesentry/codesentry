@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { installationAPI, reportsAPI, repositoryAPI } from '../services/api';
+import { Pagination } from '../components/ui/pagination';
 
 // Lazy load modal for better performance
 const PRAnalysisModal = lazy(() => import('../components/PRAnalysisModal'));
@@ -413,26 +414,12 @@ const ReportsPage = () => {
 
         {/* Pagination Controls */}
         {totalCount > itemsPerPage && (
-          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Page {currentPage} of {Math.ceil(totalCount / itemsPerPage)}
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalCount / itemsPerPage), prev + 1))}
-                disabled={currentPage >= Math.ceil(totalCount / itemsPerPage)}
-                className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-              </button>
-            </div>
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(totalCount / itemsPerPage)}
+              onPageChange={setCurrentPage}
+            />
           </div>
         )}
       </div>
