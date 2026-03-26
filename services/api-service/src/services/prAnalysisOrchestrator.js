@@ -349,8 +349,8 @@ async function runAnalysisJob(payload) {
       logger.error('Failed to post inline comments', { runId, error: inlineErr.message });
     }
 
+    const counts = summarizeFindings(actionable).counts;
     try {
-      const counts = summarizeFindings(actionable).counts;
       const highOrCritical = (counts.critical || 0) + (counts.high || 0);
       checkRunResp = await githubServiceRequest('/internal/github/check-runs', {
         owner,
