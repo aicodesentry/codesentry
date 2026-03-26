@@ -31,8 +31,8 @@ async function syncRepoPullRequests({ repoFullName, repoId, githubToken }) {
   for (const pr of prs) {
     await pool.query(
       `INSERT INTO pull_requests
-        (repository_id, github_pr_id, pr_number, title, body, state, head_sha, base_sha, head_branch, base_branch, author, html_url, draft)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        (repository_id, github_pr_id, pr_number, title, body, state, head_sha, base_sha, head_branch, base_branch, author, html_url, draft, created_at, updated_at, merged_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        ON CONFLICT (repository_id, pr_number)
        DO UPDATE SET
          title = EXCLUDED.title,
@@ -42,7 +42,8 @@ async function syncRepoPullRequests({ repoFullName, repoId, githubToken }) {
          author = EXCLUDED.author,
          html_url = EXCLUDED.html_url,
          draft = EXCLUDED.draft,
-         updated_at = NOW()`,
+         updated_at = EXCLUDED.updated_at,
+         merged_at = EXCLUDED.merged_at`,
       [
         repoId,
         pr.id,
@@ -57,6 +58,9 @@ async function syncRepoPullRequests({ repoFullName, repoId, githubToken }) {
         pr.user?.login,
         pr.html_url,
         Boolean(pr.draft),
+        pr.created_at,
+        pr.updated_at,
+        pr.merged_at || null,
       ]
     );
   }
