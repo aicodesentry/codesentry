@@ -26,24 +26,15 @@ services:
       context: ./services/api-service
       dockerfile: Dockerfile
     container_name: codesentry-api
+    env_file: [.env]
     ports:
       - "3000:3000"
     environment:
-      NODE_ENV: development
+      # Overrides: docker-internal hostnames and ports
       PORT: 3000
       DATABASE_URL: postgresql://dev:${POSTGRES_PASSWORD:-devpass123}@postgres:5432/codesentry
-      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-in-prod}
       ANALYSIS_SERVICE_URL: http://analysis-service:8001
       GITHUB_SERVICE_URL: http://github-service:3002
-      GITHUB_SERVICE_INTERNAL_SECRET: ${GITHUB_SERVICE_INTERNAL_SECRET:-dev-github-internal-secret}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
-      GITHUB_CALLBACK_URL: ${GITHUB_CALLBACK_URL:-http://localhost:3000/auth/github/callback}
-      GITHUB_APP_ID: ${GITHUB_APP_ID}
-      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY}
-      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev-webhook-secret}
-      GITHUB_APP_SLUG: ${GITHUB_APP_SLUG:-aicodesentry}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,16 +53,15 @@ services:
       context: ./services/github-service
       dockerfile: Dockerfile
     container_name: codesentry-github
+    env_file: [.env]
     ports:
       - "3002:3002"
     environment:
-      NODE_ENV: development
+      # Overrides: docker-internal hostnames, ports, and secret alias
       PORT: 3002
       DATABASE_URL: postgresql://dev:${POSTGRES_PASSWORD:-devpass123}@postgres:5432/codesentry
+      # Alias: github-service expects WEBHOOK_SECRET, root .env uses GITHUB_WEBHOOK_SECRET
       WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-dev-webhook-secret}
-      GITHUB_APP_ID: ${GITHUB_APP_ID}
-      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY}
-      GITHUB_SERVICE_INTERNAL_SECRET: ${GITHUB_SERVICE_INTERNAL_SECRET:-dev-github-internal-secret}
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,11 +76,12 @@ services:
       context: ./services/analysis-service
       dockerfile: Dockerfile
     container_name: codesentry-analysis
+    env_file: [.env]
     ports:
       - "8001:8001"
     environment:
+      # Override: port
       PORT: 8001
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     command: uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload
     volumes:
       - ./services/analysis-service:/app
@@ -102,10 +93,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: codesentry-frontend
+    env_file: [.env]
     ports:
       - "5173:5173"
-    environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
     depends_on:
       api-service:
         condition: service_started

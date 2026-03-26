@@ -5,7 +5,11 @@ const client = require('prom-client');
 const webhookRoutes = require('./routes/webhooks');
 const internalRoutes = require('./routes/internal');
 const githubAppAuth = require('./services/githubAppAuth');
+const path = require('path');
 require('dotenv').config();
+require('dotenv').config({ path: path.resolve(__dirname, '../../../.env'), override: false });
+// Alias: root .env uses GITHUB_WEBHOOK_SECRET; this service expects WEBHOOK_SECRET
+process.env.WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || process.env.GITHUB_WEBHOOK_SECRET;
 
 // Validate required environment variables
 const requiredEnvVars = [

@@ -1,157 +1,101 @@
 # Environment Variables Setup Guide
 
-This document describes all environment variables used across CodeSentry.
+CodeSentry uses a **single root `.env` file** as the source of truth for all services.
 
 ## Quick Start
 
-Each service has an `.env.example` file. Copy it to `.env` and fill in the actual values:
-
 ```bash
-# API Service
-cp services/api-service/.env.example services/api-service/.env
+# 1. Copy the root template
+cp .env.example .env
 
-# GitHub Service
-cp services/github-service/.env.example services/github-service/.env
+# 2. Fill in your GitHub credentials
+#    GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY
 
-# Frontend
-cp frontend/.env.example frontend/.env
+# 3. Generate secrets
+openssl rand -hex 32   # → JWT_SECRET
+openssl rand -hex 32   # → ENCRYPTION_KEY
+openssl rand -hex 20   # → GITHUB_WEBHOOK_SECRET
+openssl rand -hex 20   # → GITHUB_SERVICE_INTERNAL_SECRET
+
+# 4. Validate
+./scripts/validate-env.sh
+
+# 5. Start everything
+docker-compose up
 ```
 
-## Service Configuration
+No per-service `.env` files are needed for docker-compose development.
 
-### API Service (`services/api-service/.env`)
+## How It Works
 
-#### Server Configuration
-- `PORT` - Port for the API service (default: 3000)
+- **docker-compose** reads the root `.env` via `env_file:` and passes all vars to every service.
+- **Service-specific overrides** (ports, docker hostnames) are set in `docker-compose.yml` `environment:` blocks, which take precedence over `env_file`.
+- **Standalone runs** (e.g. `cd services/api-service && npm start`): Node services automatically fall back to the root `.env` via dotenv.
+- **Python analysis-service** standalone: source the root `.env` manually: `export $(grep -v '^#' ../../.env | xargs)`
 
-#### GitHub OAuth
-- `GITHUB_CLIENT_ID` - Your GitHub OAuth App Client ID
-  - Get from: https://github.com/settings/developers
-  - Create a new OAuth App if you don't have one
-- `GITHUB_CLIENT_SECRET` - Your GitHub OAuth App Client Secret
-  - Get from: https://github.com/settings/developers
-- `GITHUB_CALLBACK_URL` - OAuth callback URL (default: http://localhost:3000/auth/github/callback)
-  - Must match the callback URL configured in your GitHub OAuth App
+## Variable Reference
 
-#### JWT Authentication
-- `JWT_SECRET` - Secret key for signing JWT tokens
-  - Generate a secure random string (32+ characters)
-  - Example: `openssl rand -hex 32`
-  - **IMPORTANT**: Keep this secret and never commit to version control
+### Shared (all services via root `.env`)
 
-#### Database
-- `DATABASE_URL` - PostgreSQL connection string
-  - Format: `postgresql://user:password@host:port/database`
-  - Development: `postgresql://dev:devpass123@postgres:5432/codesentry`
-  - Production: Use secure credentials and consider using connection pooling
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `GITHUB_APP_ID` | Yes | GitHub App ID |
+| `GITHUB_APP_PRIVATE_KEY` | Yes | GitHub App private key (PEM, newlines escaped as `\n`) |
+| `GITHUB_WEBHOOK_SECRET` | Yes | Webhook HMAC secret (aliased to `WEBHOOK_SECRET` for github-service) |
+| `GITHUB_SERVICE_INTERNAL_SECRET` | Yes | Service-to-service auth secret |
+| `FRONTEND_URL` | No | Frontend origin for CORS (default: `http://localhost:5173`) |
 
-#### Services
-- `GITHUB_SERVICE_URL` - URL of the GitHub service
-  - Development: `http://github-service:3002`
-  - Production: Use actual service URL
-- `ANALYSIS_SERVICE_URL` - URL of analysis service
-  - Development: `http://analysis-service:8001`
-- `GITHUB_SERVICE_INTERNAL_SECRET` - shared internal auth secret for API -> GitHub service calls
+### API Service
 
-### GitHub Service (`services/github-service/.env`)
+| Variable | Required | Description |
+|---|---|---|
+| `JWT_SECRET` | Yes | JWT signing secret |
+| `GITHUB_CLIENT_ID` | Yes | GitHub OAuth client ID |
+| `GITHUB_CLIENT_SECRET` | Yes | GitHub OAuth client secret |
+| `GITHUB_CALLBACK_URL` | No | OAuth callback URL (default: `http://localhost:3000/auth/github/callback`) |
+| `ENCRYPTION_KEY` | No | Token encryption key |
+| `GITHUB_APP_SLUG` | No | GitHub App slug (default: `aicodesentry`) |
 
-#### Server Configuration
-- `PORT` - Port for the GitHub service (default: 3002)
+### Analysis Service (all optional)
 
-#### Webhook Configuration
-- `WEBHOOK_SECRET` - HMAC secret to validate inbound GitHub webhooks
-- `GITHUB_APP_ID` - GitHub App ID
-- `GITHUB_APP_PRIVATE_KEY` - GitHub App private key PEM
+| Variable | Description |
+|---|---|
+| `REDIS_URL` | Redis cache endpoint (default: `redis://localhost:6379`) |
+| `GEMINI_API_KEY` | Google Gemini API key for AI analysis |
+| `MONGODB_URL` | MongoDB connection string (disabled if unset) |
+| `ANALYSIS_STORE_IN_MONGO` | Enable MongoDB storage (default: `true`) |
 
-### Frontend (`frontend/.env`)
+### GitHub Service (optional)
 
-#### API Configuration
-- `VITE_API_URL` - URL of the API service
-  - Development: `http://localhost:3000`
-  - Production: Use your actual API URL
-  - **Note**: Vite only exposes variables prefixed with `VITE_` to the client
+| Variable | Description |
+|---|---|
+| `EMAIL_USER` | SMTP user for email notifications |
+| `EMAIL_PASSWORD` | SMTP password |
+| `EMAIL_SERVICE` | SMTP provider (default: `gmail`) |
 
-## Security Best Practices
+### Frontend (build-time)
 
-1. **Never commit .env files**
-   - All `.env` files are already in `.gitignore`
-   - Only commit `.env.example` files with placeholder values
+| Variable | Description |
+|---|---|
+| `VITE_API_URL` | API endpoint (default: `http://localhost:3000`) |
 
-2. **Use strong secrets**
-   - Generate cryptographically secure random strings for `JWT_SECRET`
-   - Rotate secrets regularly in production
+## Webhook Secret Alias
 
-3. **Environment-specific configurations**
-   - Use different values for development, staging, and production
-   - Never use development credentials in production
+The root `.env` uses `GITHUB_WEBHOOK_SECRET`. The github-service expects `WEBHOOK_SECRET`. This mapping is handled automatically:
+- **docker-compose**: `WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}` in the environment block
+- **standalone**: `process.env.WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || process.env.GITHUB_WEBHOOK_SECRET` in index.js
 
-4. **GitHub OAuth Setup**
-   - Create separate OAuth Apps for development and production
-   - Use appropriate callback URLs for each environment
+## Production
 
-5. **Database Security**
-   - Use strong passwords for database connections
-   - In production, use environment-specific credentials
-   - Consider using managed database services with built-in security
-
-## Generating Secure Secrets
-
-### JWT Secret
-```bash
-# Generate a secure random hex string (64 characters)
-openssl rand -hex 32
-```
-
-### GitHub OAuth App
-1. Go to https://github.com/settings/developers
-2. Click "New OAuth App"
-3. Fill in:
-   - Application name: "AI Code Review Assistant (Dev/Prod)"
-   - Homepage URL: Your app's URL
-   - Authorization callback URL: `http://localhost:3000/auth/github/callback` (dev) or your production URL
-4. Copy the Client ID and generate a Client Secret
-
-## Docker Compose
-
-When using Docker Compose, environment variables are automatically loaded from `.env` files in each service directory. The `docker-compose.yml` is configured to use these files.
+Production deploys via GitHub Actions + GCP Cloud Run are unaffected by this setup. They inject env vars through `gcloud run deploy --update-env-vars` and GCP Secret Manager via `--set-secrets`. See `docs/DEPLOYMENT.md` for details.
 
 ## Troubleshooting
 
-### "Missing environment variable" errors
-- Ensure you've copied `.env.example` to `.env` in the relevant service
-- Check that all required variables are set in your `.env` file
-
-### GitHub OAuth not working
-- Verify `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are correct
-- Ensure `GITHUB_CALLBACK_URL` matches your GitHub OAuth App settings
-- Check that the callback URL is accessible
-
-### Webhook events not received
-- Ensure `WEBHOOK_URL` in github-service is publicly accessible
-- For local development, use ngrok: `ngrok http 3002`
-- Update the webhook URL in your GitHub repository settings
-
-### Frontend can't connect to API
-- Verify `VITE_API_URL` is set correctly in `frontend/.env`
-- Ensure the API service is running
-- Check CORS settings in the API service
-
-## Production Deployment
-
-For production deployments:
-
-1. Use environment-specific `.env` files (never commit these)
-2. Consider using secrets management services (AWS Secrets Manager, HashiCorp Vault, etc.)
-3. Set environment variables through your deployment platform (Heroku, Vercel, AWS, etc.)
-4. Enable HTTPS for all services
-5. Use production-grade database instances
-6. Implement proper monitoring and logging
-7. Rotate secrets regularly
-
-## Support
-
-If you encounter issues with environment configuration:
-1. Check this documentation
-2. Verify all `.env.example` files are up to date
-3. Review the service-specific README files
-4. Check application logs for specific error messages
+| Problem | Fix |
+|---|---|
+| "Missing required env vars" on startup | Run `./scripts/validate-env.sh` to find what's missing |
+| GitHub OAuth not working | Verify `GITHUB_CLIENT_ID`/`SECRET` match your GitHub OAuth App |
+| Webhooks not received | Ensure `WEBHOOK_URL` is publicly accessible (use ngrok for local dev) |
+| PR comments not posting | Check `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, and `GITHUB_SERVICE_INTERNAL_SECRET` are set |
+| Database connection refused | Verify `DATABASE_URL` uses `postgres` hostname (docker) or `localhost` (standalone) |

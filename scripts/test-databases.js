@@ -69,7 +69,7 @@ async function testMongoDB() {
     await client.connect();
     log(colors.green, '✓ Connected to MongoDB');
 
-    const db = client.db(process.env.MONGODB_DB_NAME || 'code_review_analysis');
+    const db = client.db(process.env.MONGODB_DB_NAME || 'analysis_results');
 
     // List collections
     const collections = await db.listCollections().toArray();

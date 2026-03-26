@@ -28,11 +28,6 @@ jobs:
         with:
           project_id: '${{ vars.GCP_PROJECT_ID }}'
 
-      - name: Validate required config
-        run: |
-          test -n "${{ secrets.CODESENTRY_INTERNAL_SECRET }}" || (echo "Missing repo secret: CODESENTRY_INTERNAL_SECRET" && exit 1)
-          test -n "${{ secrets.CODESENTRY_WEBHOOK_SECRET }}" || (echo "Missing repo secret: CODESENTRY_WEBHOOK_SECRET" && exit 1)
-
       - name: Configure Docker auth
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
@@ -51,6 +46,13 @@ jobs:
             --region '${{ vars.GCP_REGION }}' \
             --project '${{ vars.GCP_PROJECT_ID }}' \
             --platform managed \
-            --set-env-vars "GITHUB_SERVICE_INTERNAL_SECRET=${{ secrets.CODESENTRY_INTERNAL_SECRET }},WEBHOOK_SECRET=${{ secrets.CODESENTRY_WEBHOOK_SECRET }}" \
-            --set-secrets "GITHUB_APP_ID=codesentry-github-app-id:latest,GITHUB_APP_PRIVATE_KEY=codesentry-github-app-private-key:latest" \
+            --update-env-vars "\
+              NODE_ENV=production,\
+              FRONTEND_URL=${{ vars.CODESENTRY_FRONTEND_URL }},\
+              GITHUB_SERVICE_INTERNAL_SECRET=${{ secrets.CODESENTRY_INTERNAL_SECRET }},\
+              WEBHOOK_SECRET=${{ secrets.CODESENTRY_WEBHOOK_SECRET }}" \
+            --set-secrets "\
+              DATABASE_URL=codesentry-database-url:latest,\
+              GITHUB_APP_ID=codesentry-github-app-id:latest,\
+              GITHUB_APP_PRIVATE_KEY=codesentry-github-app-private-key:latest" \
             --allow-unauthenticated

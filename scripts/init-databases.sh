@@ -54,7 +54,7 @@ async function testConnection() {
         await client.connect();
         console.log('✓ Connected to MongoDB');
 
-        const db = client.db(process.env.MONGODB_DB_NAME || 'code_review_analysis');
+        const db = client.db(process.env.MONGODB_DB_NAME || 'analysis_results');
 
         // Create collections
         await db.createCollection('analyses');
