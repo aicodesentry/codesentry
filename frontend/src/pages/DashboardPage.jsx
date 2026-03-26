@@ -46,7 +46,7 @@ const DashboardPage = () => {
         const reposResponse = await repositoryAPI.list()
         const repositories = reposResponse.repositories || []
         const prLists = await Promise.allSettled(
-          repositories.slice(0, 12).map(async (repo) => {
+          repositories.map(async (repo) => {
             const response = await repositoryAPI.listPRs(repo.id)
             return { repo, prs: response.pull_requests || [] }
           })
