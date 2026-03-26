@@ -13,19 +13,10 @@ export default function RepositoriesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const reposPerPage = 8
 
-  const load = async () => {
+  const fetchData = async () => {
     setLoading(true)
     setError(null)
-    setSyncing(true)
     try {
-      try {
-        await installationAPI.sync()
-      } catch (_syncErr) {
-        // sync errors are non-fatal
-      } finally {
-        setSyncing(false)
-      }
-
       const { installations } = await installationAPI.list().catch(() => ({ installations: [] }))
       setInstallationCount((installations || []).length)
       const { repositories: repos } = await repositoryAPI.list()
@@ -33,9 +24,21 @@ export default function RepositoriesPage() {
     } catch (err) {
       setError(err.response?.data?.error || err.message)
     } finally {
-      setSyncing(false)
       setLoading(false)
     }
+  }
+
+  const handleSync = async () => {
+    setSyncing(true)
+    setError(null)
+    try {
+      await installationAPI.sync()
+    } catch (_) {
+      // non-fatal
+    } finally {
+      setSyncing(false)
+    }
+    await fetchData()
   }
 
   const handleConnect = async (repoId) => {
@@ -73,7 +76,7 @@ export default function RepositoriesPage() {
   )
 
   useEffect(() => {
-    load()
+    fetchData()
   }, [])
 
   return (
@@ -85,7 +88,7 @@ export default function RepositoriesPage() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={load}
+            onClick={handleSync}
             disabled={syncing}
             className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
           >

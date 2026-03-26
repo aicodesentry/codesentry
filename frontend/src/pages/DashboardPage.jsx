@@ -26,7 +26,6 @@ const DashboardPage = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        await installationAPI.sync().catch(() => null)
         const repoData = await repositoryAPI.getConnectedCount()
         setConnectedRepoCount(repoData.count)
 
@@ -42,7 +41,6 @@ const DashboardPage = () => {
     const fetchPRInsights = async () => {
       try {
         setInsightsLoading(true)
-        await installationAPI.sync().catch(() => null)
         const reposResponse = await repositoryAPI.list()
         const repositories = reposResponse.repositories || []
         const prLists = await Promise.allSettled(
