@@ -124,7 +124,7 @@ const ProfilePage = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium text-gray-900 dark:text-white">Weekly Reports</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Receive weekly summary of code quality</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Receive weekly security findings summary</p>
             </div>
             <button
               onClick={() => handleSettingChange('weeklyReport')}

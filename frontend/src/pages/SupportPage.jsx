@@ -19,15 +19,15 @@ const SupportPage = () => {
   const faqs = [
     {
       question: 'How do I connect a repository?',
-      answer: 'Go to the Repositories page and click the "Connect" button next to any of your Python repositories. The AI will automatically start analyzing pull requests.'
+      answer: 'Go to the Repositories page and click the "Connect" button next to any of your repositories. The AI will automatically start analyzing pull requests.'
     },
     {
       question: 'What languages are supported?',
-      answer: 'Currently, we support Python repositories. Support for JavaScript, TypeScript, and other languages is coming soon.'
+      answer: 'We support repositories in any language. CodeSentry analyzes pull request diffs for security vulnerabilities regardless of the tech stack.'
     },
     {
       question: 'How does the AI analysis work?',
-      answer: 'Our AI analyzes your code for security vulnerabilities, performance issues, code style violations, and best practices. It provides detailed feedback directly in your pull requests.'
+      answer: 'Our AI analyzes your code for security vulnerabilities including injection, secrets, auth bypass, path traversal, and more. Each finding is mapped to a CWE ID. It provides detailed feedback directly in your pull requests.'
     },
     {
       question: 'Can I customize the analysis rules?',

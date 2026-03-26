@@ -8,7 +8,7 @@ const SubscriptionPage = () => {
           <div>
             <h3 className="text-2xl font-bold text-blue-600 dark:text-blue-400">Free Plan</h3>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Perfect for getting started with AI code reviews
+              Perfect for getting started with PR security reviews
             </p>
           </div>
           <div className="text-right">

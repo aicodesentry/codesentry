@@ -14,7 +14,7 @@ const CodePreview = () => {
         </div>
 
         {/* Code Content */}
-        <div className="p-4 font-mono text-sm" role="img" aria-label="Python code example with quality check">
+        <div className="p-4 font-mono text-sm" role="img" aria-label="Code example with security scan">
           <div className="text-gray-500">1</div>
           <div className="text-purple-400">def <span className="text-blue-400">analyze_code</span>():</div>
           <div className="text-gray-500">2</div>
@@ -34,7 +34,7 @@ const CodePreview = () => {
               >
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              <span className="text-green-400 text-xs">Code quality: Excellent</span>
+              <span className="text-green-400 text-xs">No vulnerabilities detected</span>
             </div>
           </div>
         </div>
