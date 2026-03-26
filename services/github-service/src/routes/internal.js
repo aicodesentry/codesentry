@@ -94,10 +94,10 @@ router.post('/github/pulls/files', async (req, res) => {
   }
 });
 
-router.post('/github/comments/summary-upsert', async (req, res) => {
-  const { owner, repo, pr_number, installation_id, body, marker } = req.body || {};
-  if (!owner || !repo || !pr_number || !installation_id || !body || !marker) {
-    return res.status(400).json({ error: 'owner, repo, pr_number, installation_id, body, marker are required' });
+router.post('/github/reviews/submit', async (req, res) => {
+  const { owner, repo, pr_number, installation_id, commit_sha, body, event, comments } = req.body || {};
+  if (!owner || !repo || !pr_number || !installation_id || !commit_sha || !body || !event) {
+    return res.status(400).json({ error: 'owner, repo, pr_number, installation_id, commit_sha, body, event are required' });
   }
   if (!/^[a-zA-Z0-9_.-]+$/.test(owner) || !/^[a-zA-Z0-9_.-]+$/.test(repo)) {
     return res.status(400).json({ error: 'Invalid owner or repo format' });
@@ -105,77 +105,52 @@ router.post('/github/comments/summary-upsert', async (req, res) => {
 
   try {
     const token = await githubAppAuth.getInstallationToken(installation_id);
-    const existingResp = await githubRequest(
+
+    // Dismiss previous CodeSentry reviews so only the latest is visible
+    const existingReviews = await githubRequest(
       'get',
-      `https://api.github.com/repos/${owner}/${repo}/issues/${pr_number}/comments?per_page=100`,
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${pr_number}/reviews?per_page=100`,
       token
     );
-    const existing = existingResp.data.find((comment) => comment.body?.includes(marker));
-
-    if (existing) {
-      const updated = await githubRequest(
-        'patch',
-        `https://api.github.com/repos/${owner}/${repo}/issues/comments/${existing.id}`,
-        token,
-        { body }
-      );
-      return res.json({ comment_id: updated.data.id, action: 'updated' });
-    }
-
-    const created = await githubRequest(
-      'post',
-      `https://api.github.com/repos/${owner}/${repo}/issues/${pr_number}/comments`,
-      token,
-      { body }
-    );
-    return res.json({ comment_id: created.data.id, action: 'created' });
-  } catch (error) {
-    return res.status(502).json({
-      error: 'Failed to upsert summary comment',
-      detail: error.response?.data || error.message,
-    });
-  }
-});
-
-router.post('/github/comments/inline', async (req, res) => {
-  const { owner, repo, pr_number, installation_id, commit_sha, findings } = req.body || {};
-  if (!owner || !repo || !pr_number || !installation_id || !commit_sha || !Array.isArray(findings)) {
-    return res.status(400).json({ error: 'owner, repo, pr_number, installation_id, commit_sha and findings[] are required' });
-  }
-
-  try {
-    const token = await githubAppAuth.getInstallationToken(installation_id);
-    const posted = [];
-    const failed = [];
-
-    for (const finding of findings) {
-      try {
-        const response = await githubRequest(
-          'post',
-          `https://api.github.com/repos/${owner}/${repo}/pulls/${pr_number}/comments`,
-          token,
-          {
-            body: finding.body,
-            commit_id: commit_sha,
-            path: finding.file_path,
-            line: finding.line_start || 1,
-            side: 'RIGHT',
-          }
-        );
-        posted.push({ finding_id: finding.finding_id, comment_id: response.data.id });
-      } catch (error) {
-        failed.push({
-          finding_id: finding.finding_id,
-          status: error.response?.status || 500,
-          detail: error.response?.data || error.message,
-        });
+    for (const review of existingReviews.data) {
+      if (review.body?.includes('<!-- codesentry-review -->') && review.state === 'CHANGES_REQUESTED') {
+        try {
+          await githubRequest(
+            'put',
+            `https://api.github.com/repos/${owner}/${repo}/pulls/${pr_number}/reviews/${review.id}/dismissals`,
+            token,
+            { message: 'Superseded by new analysis run.' }
+          );
+        } catch (_) { /* best effort */ }
       }
     }
 
-    return res.json({ posted, failed });
+    const reviewPayload = {
+      commit_id: commit_sha,
+      body,
+      event,
+      comments: (comments || []).map((c) => ({
+        path: c.path,
+        line: c.line || 1,
+        side: 'RIGHT',
+        body: c.body,
+      })),
+    };
+
+    const response = await githubRequest(
+      'post',
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${pr_number}/reviews`,
+      token,
+      reviewPayload
+    );
+
+    return res.json({
+      review_id: response.data.id,
+      comments_posted: (comments || []).length,
+    });
   } catch (error) {
     return res.status(502).json({
-      error: 'Failed to post inline comments',
+      error: 'Failed to submit review',
       detail: error.response?.data || error.message,
     });
   }
