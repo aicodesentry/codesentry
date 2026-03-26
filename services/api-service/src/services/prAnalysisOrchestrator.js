@@ -30,7 +30,7 @@ function buildSummaryComment(prNumber, findings, runId) {
     .join(' | ');
 
   return [
-    `<!-- codesentry-summary:${prNumber} -->`,
+    `[codesentry-summary:${prNumber}]`,
     '## CodeSentry Security Review',
     '',
     `Run: \`${runId}\``,
@@ -291,63 +291,79 @@ async function runAnalysisJob(payload) {
     const postSuppression = await applySuppressions(persisted, repositoryId);
     const actionable = postSuppression.filter((f) => f.status === 'open' && !f.is_baseline);
 
-    const summaryBody = buildSummaryComment(prNumber, actionable, runId);
-    const summaryResp = await githubServiceRequest('/internal/github/comments/summary-upsert', {
-      owner,
-      repo,
-      pr_number: prNumber,
-      installation_id: installationId,
-      marker: `<!-- codesentry-summary:${prNumber} -->`,
-      body: summaryBody,
-    });
+    // Post GitHub comments and check runs — failures here should not fail the analysis
+    let summaryResp = {};
+    let checkRunResp = {};
 
-    const inlineCandidates = actionable
-      .filter((finding) => Number(finding.confidence) >= 0.8 && !finding.inline_comment_id)
-      .map((finding) => ({
-        finding_id: finding.id,
-        file_path: finding.file_path,
-        line_start: finding.line_start || 1,
-        body: [
-          `**${finding.title}**`,
-          '',
-          `Severity: **${finding.severity}** | Confidence: **${Math.round(Number(finding.confidence) * 100)}%**`,
-          '',
-          finding.evidence || finding.description,
-          '',
-          `Exploitability: ${finding.exploitability || 'medium'}`,
-          '',
-          `Remediation: ${finding.remediation || 'Apply input validation and secure handling.'}`,
-        ].join('\n'),
-      }));
-
-    if (inlineCandidates.length > 0) {
-      const inlineResp = await githubServiceRequest('/internal/github/comments/inline', {
+    try {
+      const summaryBody = buildSummaryComment(prNumber, actionable, runId);
+      summaryResp = await githubServiceRequest('/internal/github/comments/summary-upsert', {
         owner,
         repo,
         pr_number: prNumber,
         installation_id: installationId,
-        commit_sha: commitSha,
-        findings: inlineCandidates,
+        marker: `[codesentry-summary:${prNumber}]`,
+        body: summaryBody,
       });
-      for (const posted of inlineResp.posted || []) {
-        await pool.query('UPDATE findings SET inline_comment_id = $1 WHERE id = $2', [
-          posted.comment_id,
-          posted.finding_id,
-        ]);
-      }
+    } catch (commentErr) {
+      logger.error('Failed to post summary comment', { runId, error: commentErr.message });
     }
 
-    const counts = summarizeFindings(actionable).counts;
-    const highOrCritical = (counts.critical || 0) + (counts.high || 0);
-    const checkRunResp = await githubServiceRequest('/internal/github/check-runs', {
-      owner,
-      repo,
-      installation_id: installationId,
-      head_sha: commitSha,
-      conclusion: highOrCritical > 0 ? 'failure' : 'success',
-      title: highOrCritical > 0 ? 'Security findings require attention' : 'No blocking security findings',
-      summary: `CodeSentry found ${actionable.length} actionable findings (${counts.critical || 0} critical, ${counts.high || 0} high, ${counts.medium || 0} medium).`,
-    });
+    try {
+      const inlineCandidates = actionable
+        .filter((finding) => Number(finding.confidence) >= 0.8 && !finding.inline_comment_id)
+        .map((finding) => ({
+          finding_id: finding.id,
+          file_path: finding.file_path,
+          line_start: finding.line_start || 1,
+          body: [
+            `**${finding.title}**`,
+            '',
+            `Severity: **${finding.severity}** | Confidence: **${Math.round(Number(finding.confidence) * 100)}%**`,
+            '',
+            finding.evidence || finding.description,
+            '',
+            `Exploitability: ${finding.exploitability || 'medium'}`,
+            '',
+            `Remediation: ${finding.remediation || 'Apply input validation and secure handling.'}`,
+          ].join('\n'),
+        }));
+
+      if (inlineCandidates.length > 0) {
+        const inlineResp = await githubServiceRequest('/internal/github/comments/inline', {
+          owner,
+          repo,
+          pr_number: prNumber,
+          installation_id: installationId,
+          commit_sha: commitSha,
+          findings: inlineCandidates,
+        });
+        for (const posted of inlineResp.posted || []) {
+          await pool.query('UPDATE findings SET inline_comment_id = $1 WHERE id = $2', [
+            posted.comment_id,
+            posted.finding_id,
+          ]);
+        }
+      }
+    } catch (inlineErr) {
+      logger.error('Failed to post inline comments', { runId, error: inlineErr.message });
+    }
+
+    try {
+      const counts = summarizeFindings(actionable).counts;
+      const highOrCritical = (counts.critical || 0) + (counts.high || 0);
+      checkRunResp = await githubServiceRequest('/internal/github/check-runs', {
+        owner,
+        repo,
+        installation_id: installationId,
+        head_sha: commitSha,
+        conclusion: highOrCritical > 0 ? 'failure' : 'success',
+        title: highOrCritical > 0 ? 'Security findings require attention' : 'No blocking security findings',
+        summary: `CodeSentry found ${actionable.length} actionable findings (${counts.critical || 0} critical, ${counts.high || 0} high, ${counts.medium || 0} medium).`,
+      });
+    } catch (checkErr) {
+      logger.error('Failed to create check run', { runId, error: checkErr.message });
+    }
 
     await pool.query(
       `UPDATE analysis_runs
