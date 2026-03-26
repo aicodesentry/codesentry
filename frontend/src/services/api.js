@@ -162,7 +162,8 @@ export const repositoryAPI = {
   },
   getConnectedCount: async () => {
     const { data } = await api.get('/api/repositories')
-    return { count: data.repositories?.length || 0 }
+    const active = (data.repositories || []).filter(r => r.is_active)
+    return { count: active.length }
   },
   getSummary: async () => {
     const { data } = await api.get('/api/reports/summary')
