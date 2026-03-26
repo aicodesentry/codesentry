@@ -43,8 +43,6 @@ const ReportsPage = () => {
     const cacheKey = getCacheKey(currentPage, selectedRepo, selectedStatus);
 
     try {
-      await installationAPI.sync().catch(() => null);
-
       // Fetch analyses with filters and pagination
       const filters = {
         limit: itemsPerPage,
