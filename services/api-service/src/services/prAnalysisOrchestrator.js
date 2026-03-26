@@ -17,40 +17,76 @@ function summarizeFindings(findings) {
   return { counts, categories };
 }
 
+function severityIcon(severity) {
+  return { critical: '🔴', high: '🟠', medium: '🟡', low: '🔵' }[severity] || '⚪';
+}
+
 function buildSummaryComment(prNumber, findings, runId) {
   const { counts, categories } = summarizeFindings(findings);
+  const total = findings.length;
   const topFindings = findings
     .filter((f) => Number(f.confidence) >= 0.55)
     .sort((a, b) => Number(b.confidence) - Number(a.confidence))
     .slice(0, 8);
 
-  const categoryLine = Object.entries(categories)
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, count]) => `${name}: ${count}`)
-    .join(' | ');
+  const hasBlocking = (counts.critical || 0) + (counts.high || 0) > 0;
+  const statusLine = hasBlocking
+    ? '**Action required** — critical or high severity findings detected.'
+    : total > 0
+      ? 'No blocking issues found. Review medium/low findings at your discretion.'
+      : 'No security issues found.';
 
-  return [
-    `[codesentry-summary:${prNumber}]`,
-    '## CodeSentry Security Review',
+  const lines = [
+    `<!-- codesentry-summary:${prNumber} -->`,
+    '## 🛡️ CodeSentry Security Review',
     '',
-    `Run: \`${runId}\``,
-    `Total findings: **${findings.length}**`,
-    `Critical: **${counts.critical || 0}**, High: **${counts.high || 0}**, Medium: **${counts.medium || 0}**, Low: **${counts.low || 0}**`,
+    statusLine,
     '',
-    categoryLine ? `Categories: ${categoryLine}` : null,
+    '| Severity | Count |',
+    '|----------|-------|',
+    `| 🔴 Critical | **${counts.critical || 0}** |`,
+    `| 🟠 High | **${counts.high || 0}** |`,
+    `| 🟡 Medium | **${counts.medium || 0}** |`,
+    `| 🔵 Low | **${counts.low || 0}** |`,
+  ];
+
+  if (topFindings.length > 0) {
+    lines.push(
+      '',
+      '<details>',
+      `<summary><strong>Top findings (${topFindings.length})</strong></summary>`,
+      '',
+      '| Severity | Finding | Location | Confidence |',
+      '|----------|---------|----------|------------|',
+      ...topFindings.map(
+        (f) =>
+          `| ${severityIcon(f.severity)} ${f.severity} | ${markdownEscape(f.title)} | \`${markdownEscape(f.file_path)}:${f.line_start || '?'}\` | ${Math.round(Number(f.confidence) * 100)}% |`
+      ),
+      '',
+      '</details>',
+    );
+  }
+
+  const categoryEntries = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+  if (categoryEntries.length > 0) {
+    lines.push(
+      '',
+      '<details>',
+      '<summary><strong>Categories</strong></summary>',
+      '',
+      ...categoryEntries.map(([name, count]) => `- ${name}: ${count}`),
+      '',
+      '</details>',
+    );
+  }
+
+  lines.push(
     '',
-    '### High-signal findings',
-    ...topFindings.map(
-      (f) =>
-        `- **${markdownEscape(f.title)}** (${f.severity}, confidence ${Math.round(
-          Number(f.confidence) * 100
-        )}%) in \`${markdownEscape(f.file_path)}:${f.line_start || '?'}\``
-    ),
-    '',
-    '_Inline comments are posted only for high-confidence findings._',
-  ]
-    .filter(Boolean)
-    .join('\n');
+    '---',
+    `<sub>Analyzed by <strong>CodeSentry</strong> · Run \`${runId.slice(0, 8)}\` · High-confidence findings have inline comments</sub>`,
+  );
+
+  return lines.filter((l) => l !== null).join('\n');
 }
 
 async function githubServiceRequest(path, payload) {
@@ -304,7 +340,7 @@ async function runAnalysisJob(payload) {
         repo,
         pr_number: prNumber,
         installation_id: installationId,
-        marker: `[codesentry-summary:${prNumber}]`,
+        marker: `<!-- codesentry-summary:${prNumber} -->`,
         body: summaryBody,
       });
     } catch (commentErr) {
@@ -319,15 +355,17 @@ async function runAnalysisJob(payload) {
           file_path: finding.file_path,
           line_start: finding.line_start || 1,
           body: [
-            `**${finding.title}**`,
+            `${severityIcon(finding.severity)} **${finding.title}**`,
             '',
-            `Severity: **${finding.severity}** | Confidence: **${Math.round(Number(finding.confidence) * 100)}%**`,
+            `> ${finding.evidence || finding.description}`,
             '',
-            finding.evidence || finding.description,
+            `| | |`,
+            `|---|---|`,
+            `| Severity | **${finding.severity}** |`,
+            `| Confidence | ${Math.round(Number(finding.confidence) * 100)}% |`,
+            `| Exploitability | ${finding.exploitability || 'medium'} |`,
             '',
-            `Exploitability: ${finding.exploitability || 'medium'}`,
-            '',
-            `Remediation: ${finding.remediation || 'Apply input validation and secure handling.'}`,
+            `**Remediation:** ${finding.remediation || 'Apply input validation and secure handling.'}`,
           ].join('\n'),
         }));
 
