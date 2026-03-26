@@ -1,34 +1,41 @@
 import { useAuth } from '../contexts/AuthContext'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { installationAPI, repositoryAPI } from '../services/api'
-import { Badge } from '../components/ui/badge'
-import { Button } from '../components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Activity, ArrowUpRight, Clock, FileCode, FolderGit2, GitPullRequest, TriangleAlert } from 'lucide-react'
+import { repositoryAPI } from '../services/api'
 import { Pagination } from '../components/ui/pagination'
+import { ArrowUpRight, Clock, GitPullRequest, Shield, ShieldAlert, Server, Search } from 'lucide-react'
+
+const statusConfig = {
+  merged: { label: 'Merged', dot: 'bg-purple-500', text: 'text-purple-600 dark:text-purple-400' },
+  open: { label: 'Open', dot: 'bg-green-500', text: 'text-green-600 dark:text-green-400' },
+  closed: { label: 'Closed', dot: 'bg-red-500', text: 'text-red-600 dark:text-red-400' },
+  draft: { label: 'Draft', dot: 'bg-slate-400', text: 'text-slate-500 dark:text-slate-400' },
+}
+
+const severityConfig = {
+  critical: { label: 'C', bg: 'bg-red-500', text: 'text-white' },
+  high: { label: 'H', bg: 'bg-orange-500', text: 'text-white' },
+  medium: { label: 'M', bg: 'bg-amber-400', text: 'text-amber-900' },
+  low: { label: 'L', bg: 'bg-sky-400', text: 'text-sky-900' },
+}
 
 const DashboardPage = () => {
   const { user } = useAuth()
   const [connectedRepoCount, setConnectedRepoCount] = useState(0)
   const [analysisSummary, setAnalysisSummary] = useState({
-    total_analyses: 0,
-    completed: 0,
-    failed: 0,
-    recent_7_days: 0
+    total_analyses: 0, completed: 0, failed: 0, recent_7_days: 0
   })
   const [loading, setLoading] = useState(true)
   const [prInsights, setPrInsights] = useState([])
   const [insightsLoading, setInsightsLoading] = useState(true)
   const [insightsPage, setInsightsPage] = useState(1)
-  const insightsPerPage = 5
+  const insightsPerPage = 8
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         const repoData = await repositoryAPI.getConnectedCount()
         setConnectedRepoCount(repoData.count)
-
         const summaryData = await repositoryAPI.getSummary()
         setAnalysisSummary(summaryData.summary)
       } catch (error) {
@@ -50,7 +57,6 @@ const DashboardPage = () => {
           })
         )
         const prMap = new Map()
-
         prLists.forEach((result) => {
           if (result.status !== 'fulfilled') return
           const { repo, prs } = result.value
@@ -60,7 +66,6 @@ const DashboardPage = () => {
             const high = Number(prItem.high_count || 0)
             const totalVulns = Number(prItem.open_findings_count || 0)
             const medium = Math.max(0, totalVulns - critical - high)
-
             if (!prMap.has(prKey)) {
               prMap.set(prKey, {
                 repository: repo.full_name,
@@ -70,28 +75,15 @@ const DashboardPage = () => {
                 author: prItem.author,
                 status: prItem.draft ? 'draft' : prItem.merged_at ? 'merged' : prItem.state || 'open',
                 timestamp: prItem.created_at,
-                files_count: 1,
                 total_vulnerabilities: totalVulns,
                 severity_counts: { critical, high, medium, low: 0 }
               })
-              return
-            }
-
-            const existing = prMap.get(prKey)
-            existing.total_vulnerabilities += totalVulns
-            existing.severity_counts.critical += critical
-            existing.severity_counts.high += high
-            existing.severity_counts.medium += medium
-            if (prItem.updated_at && new Date(prItem.updated_at) > new Date(existing.timestamp)) {
-              existing.timestamp = prItem.updated_at
             }
           })
         })
-
-        const groupedPRs = Array.from(prMap.values())
-          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-
-        setPrInsights(groupedPRs)
+        setPrInsights(
+          Array.from(prMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        )
       } catch (error) {
         console.error('Failed to fetch PR insights:', error)
       } finally {
@@ -102,25 +94,6 @@ const DashboardPage = () => {
     fetchDashboardData()
     fetchPRInsights()
   }, [])
-
-  const severityMeta = {
-    critical: {
-      label: 'Critical',
-      className: 'border-rose-200/70 bg-rose-500/10 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/20 dark:text-rose-200'
-    },
-    high: {
-      label: 'High',
-      className: 'border-amber-200/70 bg-amber-500/10 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-200'
-    },
-    medium: {
-      label: 'Medium',
-      className: 'border-orange-200/70 bg-orange-500/10 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/20 dark:text-orange-200'
-    },
-    low: {
-      label: 'Low',
-      className: 'border-sky-200/70 bg-sky-500/10 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/20 dark:text-sky-200'
-    }
-  }
 
   const severityTotals = useMemo(() => {
     return prInsights.reduce(
@@ -136,202 +109,196 @@ const DashboardPage = () => {
     )
   }, [prInsights])
 
-  const formatRelativeTime = (timestamp) => {
+  const formatTime = (timestamp) => {
+    if (!timestamp) return ''
     const date = new Date(timestamp)
     const now = new Date()
     const diffMs = now - date
     const diffMins = Math.floor(diffMs / 60000)
-
-    if (diffMins < 1) return 'Just now'
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })
+    if (diffMins < 1) return 'just now'
+    if (diffMins < 60) return `${diffMins}m`
+    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h`
+    if (diffMins < 43200) return `${Math.floor(diffMins / 1440)}d`
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
-
-  const StatCard = ({ title, value, description, icon: Icon, accent }) => (
-    <Card className="group border-slate-200/80 bg-white/80 shadow-sm shadow-slate-200/60 transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800/80 dark:bg-slate-900/70">
-      <CardContent className="flex items-center gap-4 p-5">
-        <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${accent}`}>
-          <Icon className="h-5 w-5" />
-        </div>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">{title}</p>
-          <p className="text-2xl font-semibold text-slate-900 dark:text-white">{loading ? '—' : value}</p>
-          {description && <p className="text-xs text-slate-500 dark:text-slate-400">{description}</p>}
-        </div>
-      </CardContent>
-    </Card>
-  )
+  const statVal = (v) => (loading ? '-' : v)
 
   return (
-    <div className="space-y-8">
-      <section className="flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Overview</p>
-          <h2 className="text-3xl font-semibold text-slate-900 dark:text-white">
-            Welcome back{user?.github_username ? `, ${user.github_username}` : ''}
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-            Your CodeSentry workspace is tracking security findings across connected repositories.
-          </p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
+            {user?.github_username ? `${user.github_username}'s workspace` : 'Dashboard'}
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Security posture across your repositories</p>
         </div>
-        <Button asChild size="lg">
-          <Link to="/dashboard/analysis">
-            Quick fix
-            <ArrowUpRight className="h-4 w-4" />
-          </Link>
-        </Button>
-      </section>
+        <Link
+          to="/dashboard/analysis"
+          className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+        >
+          Quick fix
+          <ArrowUpRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Repos Connected"
-          value={connectedRepoCount}
-          description="Repos with CodeSentry access"
-          icon={FolderGit2}
-          accent="bg-sky-500/10 text-sky-600 dark:bg-sky-500/20 dark:text-sky-200"
-        />
-        <StatCard
-          title="PRs Tracked"
-          value={prInsights.length}
-          description="Pull requests synced from GitHub"
-          icon={GitPullRequest}
-          accent="bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200"
-        />
-        <StatCard
-          title="Analyses Run"
-          value={analysisSummary.total_analyses}
-          description={`${analysisSummary.completed} completed · ${analysisSummary.failed} failed`}
-          icon={Activity}
-          accent="bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-200"
-        />
-        <StatCard
-          title="Open Findings"
-          value={severityTotals.total}
-          description={severityTotals.critical > 0 ? `${severityTotals.critical} critical` : 'From CodeSentry scans'}
-          icon={TriangleAlert}
-          accent="bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200"
-        />
-      </section>
+      {/* Stats row */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+              <Server className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-slate-900 dark:text-white">{statVal(connectedRepoCount)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Repos</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+              <GitPullRequest className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-slate-900 dark:text-white">{statVal(prInsights.length)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">PRs tracked</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+              <Search className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-slate-900 dark:text-white">{statVal(analysisSummary.total_analyses)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Scans run</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+              <ShieldAlert className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-slate-900 dark:text-white">{statVal(severityTotals.total)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Open findings</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <section className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          <Card className="border-slate-200/80 bg-white/90 dark:border-slate-800/80 dark:bg-slate-900/70">
-            <CardHeader className="flex flex-row items-center justify-between gap-4">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <GitPullRequest className="h-5 w-5 text-slate-600 dark:text-slate-300" />
-                  Pull Request Insights
-                </CardTitle>
-                <CardDescription>Recent pull requests from connected repositories.</CardDescription>
-              </div>
-              <Button asChild variant="secondary" className="hidden sm:inline-flex">
-                <Link to="/dashboard/reports">
-                  View reports
-                  <ArrowUpRight className="h-4 w-4" />
-                </Link>
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {insightsLoading ? (
-                <div className="space-y-4">
-                  {[1, 2, 3].map((item) => (
-                    <div key={item} className="h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
-                  ))}
-                </div>
-              ) : prInsights.length === 0 ? (
-                /* empty state below */
-                <div className="rounded-xl border border-dashed border-slate-200 px-6 py-12 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                  No recent pull request analyses yet. Connect repositories and run a scan to populate insights.
-                </div>
-              ) : (
-                <>
-                  {prInsights
-                    .slice((insightsPage - 1) * insightsPerPage, insightsPage * insightsPerPage)
-                    .map((pr) => (
-                        <div
-                          key={`${pr.repository}-${pr.pr_number}`}
-                          className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm shadow-slate-200/40 transition hover:border-slate-300 dark:border-slate-800/80 dark:bg-slate-950/50"
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-4">
-                            <div className="space-y-2 flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                                #{pr.pr_number} {pr.title || 'Untitled'}
-                              </p>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge variant="secondary" className="text-[11px]">
-                                  {pr.repository}
-                                </Badge>
-                                {pr.author && (
-                                  <span className="text-xs text-slate-500 dark:text-slate-400">{pr.author}</span>
-                                )}
-                                <span className={`text-xs font-medium ${pr.status === 'merged' ? 'text-purple-600 dark:text-purple-400' : pr.status === 'open' ? 'text-green-600 dark:text-green-400' : pr.status === 'closed' ? 'text-red-600 dark:text-red-400' : 'text-slate-400 dark:text-slate-500'}`}>{pr.status}</span>
-                                <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-                                  <Clock className="h-3.5 w-3.5" />
-                                  {formatRelativeTime(pr.timestamp)}
-                                </span>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {pr.total_vulnerabilities > 0 && (
-                                  <span className="inline-flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400">
-                                    <TriangleAlert className="h-3.5 w-3.5" />
-                                    {pr.total_vulnerabilities} findings
-                                  </span>
-                                )}
-                                {Object.entries(pr.severity_counts).map(([level, count]) => {
-                                  if (!count) return null
-                                  return (
-                                    <Badge key={level} className={severityMeta[level].className}>
-                                      {severityMeta[level].label} · {count}
-                                    </Badge>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                            <Button asChild variant="outline" size="sm">
-                              <a href={pr.html_url || `https://github.com/${pr.repository}/pull/${pr.pr_number}`} target="_blank" rel="noreferrer">
-                                View on GitHub
-                                <ArrowUpRight className="h-3.5 w-3.5" />
-                              </a>
-                            </Button>
-                          </div>
-                        </div>
-                    ))}
-                  <Pagination
-                    currentPage={insightsPage}
-                    totalPages={Math.ceil(prInsights.length / insightsPerPage)}
-                    onPageChange={setInsightsPage}
-                    className="pt-2"
-                  />
-                </>
+      {/* Severity bar */}
+      {severityTotals.total > 0 && (
+        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-5 py-3 dark:border-slate-800 dark:bg-slate-900">
+          <Shield className="h-4 w-4 text-slate-400" />
+          <div className="flex flex-1 items-center gap-2">
+            <div className="flex flex-1 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+              {severityTotals.critical > 0 && (
+                <div className="bg-red-500" style={{ width: `${(severityTotals.critical / severityTotals.total) * 100}%` }} />
               )}
-            </CardContent>
-          </Card>
+              {severityTotals.high > 0 && (
+                <div className="bg-orange-500" style={{ width: `${(severityTotals.high / severityTotals.total) * 100}%` }} />
+              )}
+              {severityTotals.medium > 0 && (
+                <div className="bg-amber-400" style={{ width: `${(severityTotals.medium / severityTotals.total) * 100}%` }} />
+              )}
+              {severityTotals.low > 0 && (
+                <div className="bg-sky-400" style={{ width: `${(severityTotals.low / severityTotals.total) * 100}%` }} />
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+            {severityTotals.critical > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" />{severityTotals.critical} critical</span>}
+            {severityTotals.high > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" />{severityTotals.high} high</span>}
+            {severityTotals.medium > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />{severityTotals.medium} medium</span>}
+            {severityTotals.low > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-sky-400" />{severityTotals.low} low</span>}
+          </div>
+        </div>
+      )}
+
+      {/* PR list */}
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Recent Pull Requests</h2>
+          <Link to="/dashboard/reports" className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
+            View reports
+          </Link>
         </div>
 
-        <div className="space-y-6">
-          <Card className="border-slate-200/80 bg-white/90 dark:border-slate-800/80 dark:bg-slate-900/70">
-            <CardHeader>
-              <CardTitle className="text-xl">Severity Breakdown</CardTitle>
-              <CardDescription>High-risk findings spotted in recent activity.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {['critical', 'high', 'medium', 'low'].map((level) => (
-                <div key={level} className="flex items-center justify-between rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-sm dark:border-slate-800/60 dark:bg-slate-950/40">
-                  <span className="font-medium text-slate-700 dark:text-slate-200">{severityMeta[level].label}</span>
-                  <Badge className={severityMeta[level].className}>{severityTotals[level]}</Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+        {insightsLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-16 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
+            ))}
+          </div>
+        ) : prInsights.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 px-6 py-12 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+            No pull requests yet. Connect repositories and sync to see PR activity.
+          </div>
+        ) : (
+          <>
+            <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
+              {prInsights
+                .slice((insightsPage - 1) * insightsPerPage, insightsPage * insightsPerPage)
+                .map((pr) => {
+                  const st = statusConfig[pr.status] || statusConfig.open
+                  return (
+                    <div key={`${pr.repository}-${pr.pr_number}`} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      {/* Status dot */}
+                      <span className={`h-2 w-2 flex-shrink-0 rounded-full ${st.dot}`} title={st.label} />
 
-        </div>
-      </section>
+                      {/* PR info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                          #{pr.pr_number} {pr.title || 'Untitled'}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                          {pr.repository} · {pr.author} · <span className={st.text}>{st.label}</span> · {formatTime(pr.timestamp)}
+                        </p>
+                      </div>
+
+                      {/* Severity pills */}
+                      <div className="hidden sm:flex items-center gap-1">
+                        {Object.entries(pr.severity_counts).map(([level, count]) => {
+                          if (!count) return null
+                          const cfg = severityConfig[level]
+                          return (
+                            <span key={level} className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded px-1.5 text-[10px] font-bold ${cfg.bg} ${cfg.text}`}>
+                              {count}
+                            </span>
+                          )
+                        })}
+                      </div>
+
+                      {/* GitHub link */}
+                      <a
+                        href={pr.html_url || `https://github.com/${pr.repository}/pull/${pr.pr_number}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex-shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        title="Open on GitHub"
+                      >
+                        <ArrowUpRight className="h-4 w-4" />
+                      </a>
+                    </div>
+                  )
+                })}
+            </div>
+            {prInsights.length > insightsPerPage && (
+              <Pagination
+                currentPage={insightsPage}
+                totalPages={Math.ceil(prInsights.length / insightsPerPage)}
+                onPageChange={setInsightsPage}
+                className="pt-3"
+              />
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
