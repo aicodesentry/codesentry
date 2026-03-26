@@ -46,6 +46,7 @@ jobs:
             --region '${{ vars.GCP_REGION }}' \
             --project '${{ vars.GCP_PROJECT_ID }}' \
             --platform managed \
+            --remove-secrets "GITHUB_APP_SLUG" \
             --update-env-vars "\
               NODE_ENV=production,\
               FRONTEND_URL=${{ vars.CODESENTRY_FRONTEND_URL }},\
