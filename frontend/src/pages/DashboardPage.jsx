@@ -62,10 +62,6 @@ const DashboardPage = () => {
           const { repo, prs } = result.value
           prs.forEach((prItem) => {
             const prKey = `${repo.full_name}#${prItem.pr_number}`
-            const critical = Number(prItem.critical_count || 0)
-            const high = Number(prItem.high_count || 0)
-            const totalVulns = Number(prItem.open_findings_count || 0)
-            const medium = Math.max(0, totalVulns - critical - high)
             if (!prMap.has(prKey)) {
               prMap.set(prKey, {
                 repository: repo.full_name,
@@ -75,8 +71,12 @@ const DashboardPage = () => {
                 author: prItem.author,
                 status: prItem.draft ? 'draft' : prItem.merged_at ? 'merged' : prItem.state || 'open',
                 timestamp: prItem.created_at,
-                total_vulnerabilities: totalVulns,
-                severity_counts: { critical, high, medium, low: 0 }
+                severity_counts: {
+                  critical: Number(prItem.critical_count || 0),
+                  high: Number(prItem.high_count || 0),
+                  medium: Number(prItem.medium_count || 0),
+                  low: Number(prItem.low_count || 0),
+                }
               })
             }
           })

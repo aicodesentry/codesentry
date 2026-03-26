@@ -28,7 +28,9 @@ async function listByRepository(repositoryId) {
        ar.completed_at AS latest_run_completed_at,
        COUNT(f.id) FILTER (WHERE f.status = 'open') AS open_findings_count,
        COUNT(f.id) FILTER (WHERE f.severity = 'critical' AND f.status = 'open') AS critical_count,
-       COUNT(f.id) FILTER (WHERE f.severity = 'high' AND f.status = 'open') AS high_count
+       COUNT(f.id) FILTER (WHERE f.severity = 'high' AND f.status = 'open') AS high_count,
+       COUNT(f.id) FILTER (WHERE f.severity = 'medium' AND f.status = 'open') AS medium_count,
+       COUNT(f.id) FILTER (WHERE f.severity = 'low' AND f.status = 'open') AS low_count
      FROM pull_requests pr
      LEFT JOIN LATERAL (
        SELECT id, status, completed_at

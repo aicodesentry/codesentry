@@ -109,6 +109,20 @@ router.post('/github', async (req, res) => {
       }
     }
 
+    if (event === 'pull_request' && ['closed'].includes(payload.action)) {
+      const repository = payload.repository;
+      const pr = payload.pull_request;
+      const newState = pr.merged ? 'merged' : 'closed';
+      const mergedAt = pr.merged_at || null;
+
+      await pool.query(
+        `UPDATE pull_requests SET state = $1, merged_at = $2, updated_at = NOW()
+         WHERE repository_id = (SELECT id FROM repositories WHERE github_id = $3)
+           AND pr_number = $4`,
+        [newState, mergedAt, repository.id, pr.number]
+      );
+    }
+
     if (event === 'pull_request' && ['opened', 'synchronize', 'reopened'].includes(payload.action)) {
       const repository = payload.repository;
       const pr = payload.pull_request;
