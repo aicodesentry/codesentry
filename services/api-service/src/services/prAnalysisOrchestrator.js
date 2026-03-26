@@ -312,8 +312,9 @@ async function runAnalysisJob(payload) {
 
     try {
       const reviewBody = buildReviewBody(actionable, runId);
+      const diffPaths = new Set(files.map((f) => f.path));
       const reviewComments = actionable
-        .filter((f) => Number(f.confidence) >= 0.7)
+        .filter((f) => Number(f.confidence) >= 0.7 && diffPaths.has(f.file_path))
         .map((f) => ({
           path: f.file_path,
           line: f.line_start || 1,
