@@ -51,24 +51,32 @@ async function getInstallationToken(installationIdOverride) {
 
   const url = `https://api.github.com/app/installations/${installationId}/access_tokens`;
 
-  try {
-    const response = await axios.post(
-      url,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-          Accept: 'application/vnd.github+json',
-        },
-      }
-    );
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await axios.post(
+        url,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+            Accept: 'application/vnd.github+json',
+          },
+          timeout: 15000,
+        }
+      );
 
-    return response.data.token;
-  } catch (err) {
-    const status = err.response?.status;
-    const body = err.response?.data;
-    const detail = body ? JSON.stringify(body) : err.message;
-    throw new Error(`GitHub App token request failed (status ${status || 'unknown'}): ${detail}`);
+      return response.data.token;
+    } catch (err) {
+      const status = err.response?.status;
+      const retryable = !status || [429, 500, 502, 503, 504].includes(status);
+      if (!retryable || attempt === maxAttempts) {
+        const body = err.response?.data;
+        const detail = body ? JSON.stringify(body) : err.message;
+        throw new Error(`GitHub App token request failed (status ${status || 'unknown'}): ${detail}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+    }
   }
 }
 

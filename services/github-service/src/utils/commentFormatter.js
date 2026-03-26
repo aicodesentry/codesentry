@@ -188,69 +188,9 @@ class CommentFormatter {
     summary += `- Apply recommended fixes\n`;
     summary += `- Re-run analysis after changes\n\n`;
 
-    summary += `<sub>Powered by **CodeSentry** • Analysis based on OWASP guidelines</sub>`;
+    summary += `<sub>Powered by **CodeSentry**</sub>`;
 
     return summary;
-  }
-
-  /**
-   * Format batched style issues comment (CodeRabbit-style)
-   */
-  formatBatchedStyleComment(styleIssues, fileName) {
-    if (!styleIssues || styleIssues.length === 0) return null;
-
-    // Group by category
-    const grouped = {};
-    styleIssues.forEach(issue => {
-      const category = issue.category || 'other';
-      if (!grouped[category]) {
-        grouped[category] = [];
-      }
-      grouped[category].push(issue);
-    });
-
-    let comment = `## 💎 Code Quality Review\n\n`;
-    comment += `**File:** \`${fileName}\`\n\n`;
-    comment += `![Suggestions](https://img.shields.io/badge/Total_Suggestions-${styleIssues.length}-blue)\n\n`;
-    comment += `> **Quality Improvements:** ${styleIssues.length} ${styleIssues.length > 1 ? 'suggestions' : 'suggestion'} to enhance code maintainability.\n\n`;
-    comment += `---\n\n`;
-
-    // Show each category
-    Object.keys(grouped).forEach(category => {
-      const issues = grouped[category];
-      const categoryName = this.formatCategoryNameHuman(category);
-      const emoji = this.getCategoryEmoji(category);
-
-      comment += `### ${emoji} ${categoryName}\n\n`;
-
-      issues.forEach((issue, index) => {
-        comment += `<details>\n`;
-        comment += `<summary><strong>${index + 1}. Line ${issue.line}</strong>${issue.code ? ` • \`${issue.code}\`` : ''}</summary>\n\n`;
-
-        comment += `**Issue:**\n`;
-        comment += `${issue.message}\n\n`;
-
-        // Suggestion (collapsible)
-        comment += `<details>\n`;
-        comment += `<summary><strong>💡 Suggested Fix</strong></summary>\n\n`;
-        comment += `${issue.recommendation}\n\n`;
-
-        // Add helpful context inside suggestion
-        const context = this.getCategoryContext(category);
-        if (context) {
-          comment += `**Why this matters:**\n`;
-          comment += `${context}\n\n`;
-        }
-        comment += `</details>\n\n`;
-
-        comment += `</details>\n\n`;
-      });
-    });
-
-    comment += `---\n\n`;
-    comment += `<sub>Powered by **CodeSentry** • Based on PEP 8 and best practices</sub>`;
-
-    return comment;
   }
 
   // Helper methods

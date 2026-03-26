@@ -239,6 +239,10 @@ const ALTER_STATEMENTS = [
        ALTER TABLE findings ADD CONSTRAINT findings_fingerprint_key UNIQUE (fingerprint);
      END IF;
    END $$;`,
+  `CREATE INDEX IF NOT EXISTS idx_analysis_runs_repository_id ON analysis_runs (repository_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_findings_repository_id ON findings (repository_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_findings_pull_request_id ON findings (pull_request_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_findings_analysis_run_id ON findings (analysis_run_id);`,
 ];
 
 async function ensureDatabaseSchema() {

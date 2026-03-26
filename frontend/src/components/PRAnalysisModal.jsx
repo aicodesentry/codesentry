@@ -42,20 +42,9 @@ const PRAnalysisModal = ({ analysis, onClose }) => {
       analysis.vulnerabilities.forEach(vuln => {
         const file = vuln.file_path || 'Unknown file';
         if (!fileMap[file]) {
-          fileMap[file] = { vulnerabilities: [], styleIssues: [] };
+          fileMap[file] = { vulnerabilities: [] };
         }
         fileMap[file].vulnerabilities.push(vuln);
-      });
-    }
-
-    // Add style issues
-    if (analysis.style_issues) {
-      analysis.style_issues.forEach(issue => {
-        const file = issue.file_path || 'Unknown file';
-        if (!fileMap[file]) {
-          fileMap[file] = { vulnerabilities: [], styleIssues: [] };
-        }
-        fileMap[file].styleIssues.push(issue);
       });
     }
 
@@ -130,7 +119,7 @@ const PRAnalysisModal = ({ analysis, onClose }) => {
             </div>
           </div>
 
-          {/* Security & Style Summary */}
+          {/* Security Summary */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Severity Breakdown */}
             {analysis.severity_counts && (
@@ -167,40 +156,6 @@ const PRAnalysisModal = ({ analysis, onClose }) => {
               </div>
             )}
 
-            {/* Style Categories */}
-            {analysis.style_categories && analysis.total_style_issues > 0 && (
-              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  Style Issues ({analysis.total_style_issues})
-                </h3>
-                <div className="space-y-2">
-                  {analysis.style_categories.pep8 > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">PEP 8</span>
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{analysis.style_categories.pep8}</span>
-                    </div>
-                  )}
-                  {analysis.style_categories.pylint > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Code Quality</span>
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{analysis.style_categories.pylint}</span>
-                    </div>
-                  )}
-                  {analysis.style_categories.naming > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Naming</span>
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{analysis.style_categories.naming}</span>
-                    </div>
-                  )}
-                  {analysis.style_categories.complexity > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Complexity</span>
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{analysis.style_categories.complexity}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Error Message */}
@@ -237,11 +192,6 @@ const PRAnalysisModal = ({ analysis, onClose }) => {
                         {issues.vulnerabilities.length > 0 && (
                           <span className="text-xs px-2 py-1 bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 rounded">
                             {issues.vulnerabilities.length} Security
-                          </span>
-                        )}
-                        {issues.styleIssues.length > 0 && (
-                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 rounded">
-                            {issues.styleIssues.length} Style
                           </span>
                         )}
                       </div>
@@ -350,91 +300,6 @@ const PRAnalysisModal = ({ analysis, onClose }) => {
                       </div>
                     )}
 
-                    {/* Style Issues - Show only top 2 */}
-                    {issues.styleIssues.slice(0, 2).map((issue, idx) => {
-                      const styleKey = `style-${fileName}-${idx}`;
-                      const isExpanded = expandedItems[styleKey];
-                      const messageNeedsTruncation = issue.message && issue.message.length > 150;
-                      const recommendationNeedsTruncation = issue.recommendation && issue.recommendation.length > 150;
-
-                      return (
-                        <div key={styleKey} className="p-4 bg-white dark:bg-gray-800">
-                          <div className="flex items-start gap-3">
-                            <div className="flex-shrink-0">
-                              <span className="inline-block px-2 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                                STYLE
-                              </span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium text-gray-900 dark:text-white mb-2">
-                                {issue.category?.toUpperCase()}: {issue.code}
-                                {issue.line && (
-                                  <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                                    Line {issue.line}
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Issue Message */}
-                              <div className="mb-3">
-                                <strong className="text-sm text-gray-700 dark:text-gray-300">Issue:</strong>
-                                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                  {isExpanded || !messageNeedsTruncation
-                                    ? issue.message
-                                    : truncateText(issue.message)}
-                                </div>
-                                {messageNeedsTruncation && (
-                                  <button
-                                    onClick={() => toggleExpanded(styleKey)}
-                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
-                                  >
-                                    {isExpanded ? 'Show less' : 'Show more'}
-                                  </button>
-                                )}
-                              </div>
-
-                              {/* Recommendation */}
-                              <div>
-                                <strong className="text-sm text-gray-700 dark:text-gray-300">💡 Recommendation:</strong>
-                                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                  {isExpanded || !recommendationNeedsTruncation
-                                    ? issue.recommendation
-                                    : truncateText(issue.recommendation)}
-                                </div>
-                                {recommendationNeedsTruncation && !messageNeedsTruncation && (
-                                  <button
-                                    onClick={() => toggleExpanded(styleKey)}
-                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
-                                  >
-                                    {isExpanded ? 'Show less' : 'Show more'}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {/* Show "View more" for style issues if there are more than 2 */}
-                    {issues.styleIssues.length > 2 && (
-                      <div className="p-4 bg-gray-50 dark:bg-gray-700/30 text-center">
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                          + {issues.styleIssues.length - 2} more style {issues.styleIssues.length - 2 === 1 ? 'issue' : 'issues'}
-                        </p>
-                        <a
-                          href={analysis.pr_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium"
-                        >
-                          View full analysis on GitHub
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                          </svg>
-                        </a>
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
@@ -448,7 +313,7 @@ const PRAnalysisModal = ({ analysis, onClose }) => {
                 No Issues Found
               </h3>
               <p className="text-green-700 dark:text-green-300 mt-2">
-                Great job! This PR passed all security and style checks.
+                Great job! This PR passed all security checks.
               </p>
             </div>
           )}
