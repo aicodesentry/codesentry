@@ -32,21 +32,20 @@ const HomePage = () => {
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                 <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              AI-Powered Code Analysis
+              Security Vulnerability Reviewer
             </div>
 
             {/* Main heading */}
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-slate-900 mb-6">
-              Elevate Your Code Quality
+              Catch Vulnerabilities Before They Ship
               <span className="block bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mt-2">
-                With AI Precision
+                In Every Pull Request
               </span>
             </h1>
 
             {/* Subheading */}
             <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed">
-              Automated security scans, code quality checks, and intelligent suggestions for Python projects.
-              Ship safer code faster.
+              CWE-mapped vulnerability detection for every pull request. Injection, secrets, auth bypass, and more — caught before merge.
             </p>
 
             {/* CTA Buttons */}
@@ -82,7 +81,7 @@ const HomePage = () => {
                   <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                   </svg>
-                  <span className="text-sm font-medium text-slate-700">10k+ PRs Analyzed</span>
+                  <span className="text-sm font-medium text-slate-700">CWE-Mapped Findings</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
@@ -95,7 +94,7 @@ const HomePage = () => {
                     <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                     <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-sm font-medium text-slate-700">98% Satisfaction</span>
+                  <span className="text-sm font-medium text-slate-700">12 Vulnerability Categories</span>
                 </div>
               </div>
             </div>
@@ -190,7 +189,7 @@ const HomePage = () => {
               Powerful Features
             </h2>
             <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-              Enterprise-grade code analysis powered by AI to keep your codebase secure and maintainable
+              Built for security teams and developers who ship code that matters
             </p>
           </div>
 
@@ -204,7 +203,7 @@ const HomePage = () => {
               </div>
               <h3 className="text-xl font-bold text-slate-900 mb-3">Automated Analysis</h3>
               <p className="text-slate-600 leading-relaxed">
-                Instant feedback on Python code with AI-powered analysis for vulnerabilities and quality issues
+                Every PR is scanned for exploitable vulnerabilities. Findings are mapped to CWE IDs with evidence and remediation.
               </p>
             </div>
 
@@ -228,9 +227,9 @@ const HomePage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">Performance Insights</h3>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Confidence Gating</h3>
               <p className="text-slate-600 leading-relaxed">
-                Identify bottlenecks and get optimization suggestions for faster Python code
+                High-confidence findings get inline PR comments. Medium goes to summary. Low is stored silently. No noise.
               </p>
             </div>
 
@@ -241,9 +240,9 @@ const HomePage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">Smart Suggestions</h3>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Suppression & Baselines</h3>
               <p className="text-slate-600 leading-relaxed">
-                AI-powered recommendations and best practices to improve code quality
+                Mark accepted risks, set baselines, and surface only net-new vulnerabilities across PRs.
               </p>
             </div>
           </div>
@@ -324,10 +323,10 @@ const HomePage = () => {
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 id="cta-heading" className="text-4xl sm:text-5xl font-bold text-white mb-6">
-              Start Improving Your Code Today
+              Stop Shipping Vulnerabilities
             </h2>
             <p className="text-xl text-slate-300 mb-10 max-w-2xl mx-auto">
-              Get instant code analysis on every pull request. No setup required.
+              Security review on every pull request. Install the GitHub App and go.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-10">

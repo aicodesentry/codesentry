@@ -70,8 +70,8 @@ const DashboardPage = () => {
                 title: prItem.title,
                 html_url: prItem.html_url,
                 author: prItem.author,
-                state: prItem.state,
-                timestamp: prItem.updated_at || prItem.created_at,
+                status: prItem.draft ? 'draft' : prItem.merged_at ? 'merged' : prItem.state || 'open',
+                timestamp: prItem.created_at,
                 files_count: 1,
                 total_vulnerabilities: totalVulns,
                 severity_counts: { critical, high, medium, low: 0 }
@@ -179,12 +179,12 @@ const DashboardPage = () => {
             Welcome back{user?.github_username ? `, ${user.github_username}` : ''}
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-            Your CodeSentry workspace is tracking pull request risk, severity trends, and AI guidance for every connected repo.
+            Your CodeSentry workspace is tracking security findings across connected repositories.
           </p>
         </div>
         <Button asChild size="lg">
           <Link to="/dashboard/analysis">
-            Run new analysis
+            Quick fix
             <ArrowUpRight className="h-4 w-4" />
           </Link>
         </Button>
@@ -272,7 +272,7 @@ const DashboardPage = () => {
                                 {pr.author && (
                                   <span className="text-xs text-slate-500 dark:text-slate-400">{pr.author}</span>
                                 )}
-                                <span className="text-xs text-slate-400 dark:text-slate-500">{pr.state}</span>
+                                <span className={`text-xs font-medium ${pr.status === 'merged' ? 'text-purple-600 dark:text-purple-400' : pr.status === 'open' ? 'text-green-600 dark:text-green-400' : pr.status === 'closed' ? 'text-red-600 dark:text-red-400' : 'text-slate-400 dark:text-slate-500'}`}>{pr.status}</span>
                                 <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                                   <Clock className="h-3.5 w-3.5" />
                                   {formatRelativeTime(pr.timestamp)}
