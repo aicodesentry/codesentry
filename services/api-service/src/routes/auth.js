@@ -18,9 +18,8 @@ router.use((_req, res, next) => {
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const DEFAULT_GITHUB_APP_SLUG = 'aicodesentry';
 
-// In-memory store for OAuth state and auth codes (short-lived)
+// In-memory store for OAuth state (short-lived)
 const pendingStates = new Map();
-const pendingAuthCodes = new Map();
 const AUTH_COOKIE_NAME = 'auth_token';
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -29,9 +28,6 @@ setInterval(() => {
   const now = Date.now();
   for (const [key, val] of pendingStates) {
     if (now - val.created > 10 * 60 * 1000) pendingStates.delete(key);
-  }
-  for (const [key, val] of pendingAuthCodes) {
-    if (now - val.created > 60 * 1000) pendingAuthCodes.delete(key);
   }
 }, 5 * 60 * 1000);
 
@@ -174,11 +170,8 @@ router.get('/github/callback', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // Issue a short-lived auth code instead of putting JWT in URL
-    const authCode = crypto.randomBytes(32).toString('hex');
-    pendingAuthCodes.set(authCode, { token: jwtToken, created: Date.now() });
-
-    res.redirect(`${FRONTEND_URL}/auth/callback?code=${authCode}`);
+    res.cookie(AUTH_COOKIE_NAME, jwtToken, cookieOptions(req));
+    res.redirect(`${FRONTEND_URL}/dashboard`);
   } catch (error) {
     const detail = error.response?.data || error.message;
     const status = error.response?.status;
@@ -193,28 +186,11 @@ router.get('/github/callback', async (req, res) => {
   }
 });
 
-// Frontend exchanges the short-lived auth code for a session cookie
+// Legacy compatibility endpoint from the short-lived auth-code flow.
 router.post('/exchange', (req, res) => {
-  const { code } = req.body;
-  if (!code) {
-    return res.status(400).json({ error: 'Auth code is required' });
-  }
-
-  const pending = pendingAuthCodes.get(code);
-  if (!pending) {
-    return res.status(401).json({ error: 'Invalid or expired auth code' });
-  }
-
-  // One-time use
-  pendingAuthCodes.delete(code);
-
-  // Reject if older than 60 seconds
-  if (Date.now() - pending.created > 60 * 1000) {
-    return res.status(401).json({ error: 'Auth code expired' });
-  }
-
-  res.cookie(AUTH_COOKIE_NAME, pending.token, cookieOptions(req));
-  res.status(204).end();
+  return res.status(410).json({
+    error: 'Legacy auth exchange is no longer supported. Restart sign-in from /auth/github.',
+  });
 });
 
 router.get('/me', authenticateToken, async (req, res) => {
