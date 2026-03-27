@@ -1,0 +1,221 @@
+rules:
+  # ── Injection ──────────────────────────────────────────────────────────
+
+  - id: cwe-79.xss-innerhtml
+    patterns:
+      - pattern-either:
+        - pattern: $EL.innerHTML = $INPUT
+        - pattern: document.write($INPUT)
+        - pattern: $EL.insertAdjacentHTML(..., $INPUT)
+    message: "DOM manipulation with unsanitized input — use textContent or sanitize HTML"
+    severity: ERROR
+    languages: [javascript, typescript]
+    metadata:
+      cwe: "CWE-79"
+      owasp: "A03:2021"
+      category: "XSS"
+      confidence: 0.88
+
+  - id: cwe-79.react-dangerously
+    pattern: "dangerouslySetInnerHTML={...}"
+    message: "dangerouslySetInnerHTML with dynamic content — sanitize with DOMPurify"
+    severity: WARNING
+    languages: [javascript, typescript]
+    metadata:
+      cwe: "CWE-79"
+      owasp: "A03:2021"
+      category: "XSS"
+      confidence: 0.85
+
+  - id: cwe-89.sql-template-literal
+    patterns:
+      - pattern-either:
+        - pattern: $DB.query(`...${$INPUT}...`)
+        - pattern: $DB.raw(`...${$INPUT}...`)
+        - pattern: sequelize.query(`...${$INPUT}...`)
+    message: "SQL query built with template literal — use parameterized queries"
+    severity: ERROR
+    languages: [javascript, typescript]
+    metadata:
+      cwe: "CWE-89"
+      owasp: "A03:2021"
+      category: "SQL injection"
+      confidence: 0.90
+
+  - id: cwe-78.child-process-exec
+    patterns:
+      - pattern-either:
+        - pattern: child_process.exec($CMD)
+        - pattern: child_process.exec($CMD, ...)
+        - pattern: require("child_process").exec($CMD)
+        - pattern: exec($CMD)
+    message: "child_process.exec runs commands in a shell — use execFile with argument array"
+    severity: ERROR
+    languages: [javascript, typescript]
+    metadata:
+      cwe: "CWE-78"
+      owasp: "A03:2021"
+      category: "command injection"
+      confidence: 0.88
+
+  - id: cwe-943.nosql-injection
+    patterns:
+      - pattern-either:
+        - pattern: $COLLECTION.find(req.body)
+        - pattern: $COLLECTION.find(req.query)
+        - pattern: $COLLECTION.findOne(req.body)
+        - pattern: $COLLECTION.findOne(req.query)
+        - pattern: $COLLECTION.updateOne(req.body, ...)
+    message: "MongoDB query with unsanitized user input — validate and sanitize input"
+    severity: ERROR
+    languages: [javascript, typescript]
+    metadata:
+      cwe: "CWE-943"
+      owasp: "A03:2021"
+      category: "NoSQL injection"
+      confidence: 0.86
+
+  # ── Authentication & Sessions ──────────────────────────────────────────
+
+  - id: cwe-614.insecure-cookie
+    patterns:
+      - pattern-either:
+        - pattern: |
+            { ..., httpOnly: false, ... }
+        - pattern: |
+            { ..., secure: false, ... }
+    message: "Cookie missing security flags — set httpOnly and secure to true"
+    severity: WARNING
+    languages: [javascript, typescript]
+    metadata:
+      cwe: "CWE-614"
+      owasp: "A07:2021"
+      category: "session management"
+      confidence: 0.80
+
+  - id: cwe-798.hardcoded-secret-js
+    patterns:
+      - pattern-either:
+        - pattern: const $KEY = "..."
+        - pattern: let $KEY = "..."
+        - pattern: var $KEY = "..."
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: .*(apiKey|secretKey|authToken|accessToken|password|privateKey|clientSecret|API_KEY|SECRET).*
+    message: "Hardcoded credential — use environment variables"
+    severity: ERROR
+    languages: [javascript, typescript]
+    metadata:
+      cwe: "CWE-798"
+      owasp: "A07:2021"
+      category: "hardcoded secrets"
+      confidence: 0.85
+
+  # ── Security Misconfiguration ──────────────────────────────────────────
+
+  - id: cwe-295.tls-disabled
+    patterns:
+      - pattern-either:
+        - pattern: rejectUnauthorized = false
+        - pattern: "{ ..., rejectUnauthorized: false, ... }"
+        - pattern: process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
+    message: "TLS certificate verification disabled — enables man-in-the-middle attacks"
+    severity: ERROR
+    languages: [javascript, typescript]
+    metadata:
+      cwe: "CWE-295"
+      owasp: "A05:2021"
+      category: "security misconfiguration"
+      confidence: 0.92
+
+  - id: cwe-942.cors-wildcard
+    patterns:
+      - pattern-either:
+        - pattern: "cors({ origin: '*' })"
+        - pattern: "cors({ origin: true })"
+        - pattern: 'res.setHeader("Access-Control-Allow-Origin", "*")'
+    message: "CORS allows all origins — restrict to trusted domains"
+    severity: WARNING
+    languages: [javascript, typescript]
+    metadata:
+      cwe: "CWE-942"
+      owasp: "A01:2021"
+      category: "security misconfiguration"
+      confidence: 0.85
+
+  # ── SSRF ───────────────────────────────────────────────────────────────
+
+  - id: cwe-918.ssrf-axios
+    patterns:
+      - pattern-either:
+        - pattern: axios.get(req.body.$URL)
+        - pattern: axios.get(req.query.$URL)
+        - pattern: axios.post(req.body.$URL, ...)
+        - pattern: fetch(req.body.$URL)
+        - pattern: fetch(req.query.$URL)
+    message: "HTTP request with user-controlled URL — validate against allowlist"
+    severity: WARNING
+    languages: [javascript, typescript]
+    metadata:
+      cwe: "CWE-918"
+      owasp: "A10:2021"
+      category: "SSRF"
+      confidence: 0.82
+
+  # ── Path Traversal ────────────────────────────────────────────────────
+
+  - id: cwe-22.path-traversal-fs
+    patterns:
+      - pattern-either:
+        - pattern: fs.readFileSync(... + $INPUT)
+        - pattern: fs.readFileSync(`...${$INPUT}...`)
+        - pattern: fs.readFile(... + $INPUT, ...)
+        - pattern: fs.readFile(`...${$INPUT}...`, ...)
+        - pattern: res.sendFile(... + $INPUT)
+        - pattern: res.sendFile(`...${$INPUT}...`)
+    message: "File system access with user-controlled path — normalize and validate paths"
+    severity: WARNING
+    languages: [javascript, typescript]
+    metadata:
+      cwe: "CWE-22"
+      owasp: "A01:2021"
+      category: "path traversal"
+      confidence: 0.85
+
+  # ── Eval ───────────────────────────────────────────────────────────────
+
+  - id: cwe-95.eval-injection
+    patterns:
+      - pattern-either:
+        - pattern: eval($INPUT)
+        - pattern: new Function($INPUT)
+        - pattern: setTimeout($INPUT, ...)
+        - pattern: setInterval($INPUT, ...)
+      - metavariable-regex:
+          metavariable: $INPUT
+          regex: .*(req\.|user|input|param|query|body).*
+    message: "Dynamic code execution with user input — use safe alternatives"
+    severity: ERROR
+    languages: [javascript, typescript]
+    metadata:
+      cwe: "CWE-95"
+      owasp: "A03:2021"
+      category: "code injection"
+      confidence: 0.90
+
+  # ── Open Redirect ─────────────────────────────────────────────────────
+
+  - id: cwe-601.open-redirect
+    patterns:
+      - pattern-either:
+        - pattern: res.redirect(req.query.$URL)
+        - pattern: res.redirect(req.body.$URL)
+        - pattern: res.redirect(req.params.$URL)
+    message: "Redirect destination from user input — validate against trusted domains"
+    severity: WARNING
+    languages: [javascript, typescript]
+    metadata:
+      cwe: "CWE-601"
+      owasp: "A01:2021"
+      category: "open redirect"
+      confidence: 0.85
