@@ -1,6 +1,6 @@
 # CodeSentry
 
-Automated security code review for GitHub pull requests. Installs as a GitHub App, analyzes every PR for vulnerabilities, and posts findings as a PR review with inline annotations.
+A platform to plug into GitHub, analyze every pull request, and deliver actionable security reviews with multi-source context (regex, Semgrep, dependency checks plus LLM-ready BYOK hints).
 
 ## How It Works
 
@@ -9,7 +9,14 @@ Automated security code review for GitHub pull requests. Installs as a GitHub Ap
 3. Posts a PR review: `CHANGES_REQUESTED` if critical/high findings, `COMMENT` otherwise
 4. Each finding is annotated on the exact line with severity, evidence, and remediation
 
-No CI config. No manual scans. Just install and merge safer code.
+No CI config. No manual scans. Just install, invite the CodeSentry App, and merge with confidence.
+
+## Highlights
+
+- **Multi-taxonomy findings** – every issue carries internal typing plus CWE, OWASP, ATT&CK, and CAPEC mappings so compliance reports stay consistent.
+- **Clusters, not noise** – Tier 1 regex hits, dependency detectors, and Semgrep runs now dedupe/cluster into single reviewer-facing findings with stronger evidence snippets.
+- **Federated BYOK roadmap** – we keep user LLM keys encrypted and scoped so you can opt into explanations/remediations without exposing secrets.
+- **Guided onboarding** – empty states and first-run checklist explain how to connect GitHub, trigger the first analysis, and view the review summary.
 
 ## Detection Engine
 
