@@ -23,13 +23,17 @@ const pendingStates = new Map();
 const AUTH_COOKIE_NAME = 'auth_token';
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-// Clean expired entries every 5 minutes
-setInterval(() => {
+// Clean expired entries every 5 minutes without keeping the process alive.
+const cleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, val] of pendingStates) {
     if (now - val.created > 10 * 60 * 1000) pendingStates.delete(key);
   }
 }, 5 * 60 * 1000);
+
+if (typeof cleanupTimer.unref === 'function') {
+  cleanupTimer.unref();
+}
 
 function resolveGithubAppSlug() {
   const raw = (process.env.GITHUB_APP_SLUG || '').trim();
