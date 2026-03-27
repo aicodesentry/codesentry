@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "jest --detectOpenHandles"
+    "test": "jest --detectOpenHandles",
+    "db:migrate": "node src/scripts/runMigrations.js",
+    "db:verify": "node src/scripts/verifyMigrations.js"
   },
   "type": "commonjs",
   "dependencies": {

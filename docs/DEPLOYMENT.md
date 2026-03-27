@@ -16,6 +16,7 @@ Deployments are performed by GitHub Actions only:
 - `.github/workflows/deploy-frontend-firebase.yml`
 
 Cloud Run deploy workflows are serialized with a shared `concurrency` group to avoid quota spikes and race conditions.
+The API deploy workflow now runs database migrations before deploying the new revision.
 
 ## Required GitHub Configuration
 ### Repository secrets
@@ -52,3 +53,4 @@ Set service endpoints and URLs:
 - Keep `/internal/*` endpoints protected with shared secret.
 - Scrape `/metrics` endpoints with `x-internal-secret` using `METRICS_AUTH_TOKEN` or `GITHUB_SERVICE_INTERNAL_SECRET`.
 - Route logs to centralized storage with correlation IDs.
+- Do not rely on service startup to change the database schema in production. Use the migration step in CI/CD.
