@@ -1,81 +1,113 @@
 # CodeSentry
 
-CodeSentry is a GitHub-native AI security reviewer for pull requests.
+Automated security code review for GitHub pull requests. Installs as a GitHub App, analyzes every PR for vulnerabilities, and posts findings as a PR review with inline annotations.
 
-## What Problem It Solves
+## How It Works
 
-Most security vulnerabilities ship because code review can't catch everything — reviewers focus on logic and style, not exploitation patterns. Static analysis tools drown teams in false positives, so real issues get ignored. CodeSentry sits in the PR workflow and flags only likely-exploitable security issues in changed code, with evidence and remediation guidance, so teams can fix vulnerabilities before they merge.
+1. Developer opens a PR
+2. CodeSentry receives the webhook, analyzes changed files
+3. Posts a PR review: `CHANGES_REQUESTED` if critical/high findings, `COMMENT` otherwise
+4. Each finding is annotated on the exact line with severity, evidence, and remediation
 
-## Real Impact
+No CI config. No manual scans. Just install and merge safer code.
 
-- **Catches security issues at the PR stage** — SQL injection, command injection, path traversal, SSRF, XSS, hardcoded secrets, broken auth, insecure crypto, and more, before they reach production.
-- **Reduces false positive noise** — confidence gating ensures only high-confidence findings appear as inline PR comments; medium-confidence issues go to the summary; low-confidence findings are stored but don't interrupt developers.
-- **Zero workflow friction** — installs as a GitHub App, runs automatically on every PR, posts results as check runs and comments. No CI config or separate tool to manage.
-- **Suppression and baseline support** — teams can suppress known/accepted risks and set baselines so only new issues are surfaced.
+## Detection Engine
 
-## System Design
+Two-tier analysis pipeline:
 
-### Services
-- **Frontend** (`frontend/`) — React + Vite SaaS dashboard. OAuth login, repository management, findings browser, and analysis reports.
-- **API Service** (`services/api-service/`) — Node.js/Express control plane. Handles GitHub OAuth, webhook ingestion with signature verification, JWT session auth, and exposes REST APIs for repositories, PRs, findings, suppressions, and reports.
-- **GitHub Service** (`services/github-service/`) — GitHub App adapter. Fetches PR changed files via installation tokens, posts check runs and inline/summary PR comments.
-- **Analysis Service** (`services/analysis-service/`) — Python FastAPI engine. Runs deterministic rules + AST-based heuristics + secret/dependency checks. Optional LLM contextualization. Returns structured, fingerprinted findings.
+**Tier 1 — Static Pattern Matching** (< 100ms, 35 rules)
+Regex-based detection covering CWE Top 25 and OWASP Top 10.
 
-### APIs
-- `GET /auth/github`, `GET /auth/github/callback`, `GET /auth/me` — OAuth flow and session
-- `GET/POST /api/installations` — GitHub App installation management
-- `GET /api/repositories`, `GET /api/repositories/:id/pull-requests` — repo and PR listing
-- `GET /api/findings`, `PATCH /api/findings/:id/status` — finding retrieval and triage
-- `GET/POST/DELETE /api/suppressions` — suppression rules
-- `GET /api/reports/summary`, `GET /api/reports/pr-analyses` — dashboard analytics
-- `POST /analyze/pr` — analysis pipeline trigger (internal)
+**Tier 2 — AST Analysis via Semgrep** (2-5s, 25 rules)
+Language-aware analysis with taint tracking and data flow for Python and JavaScript.
 
-### Database (PostgreSQL)
-Core tables: `installations` → `users` → `repositories` → `pull_requests` → `analysis_runs` → `findings` → `suppressions`, plus `webhook_deliveries` and `audit_logs`. Foreign keys enforce referential integrity across the GitHub App → repo → PR → analysis → finding chain.
+### Coverage (35 CWEs)
 
-### Infrastructure
-- **PostgreSQL** — canonical source of truth for all domain data
-- **Redis** — job queue (BullMQ) and short-lived cache
-- **Cloud Run** — each service deployed independently on Google Cloud Run
-- **Firebase Hosting** — frontend SPA hosting
+| Category | CWEs |
+|----------|------|
+| Injection | SQL (89), Command (78), Code (95), NoSQL (943), LDAP (90), Template (1336) |
+| XSS | DOM-based, innerHTML, dangerouslySetInnerHTML (79) |
+| Broken Access Control | Missing auth (862, 306), Path traversal (22), CORS (942), CSRF (352), Open redirect (601) |
+| Cryptographic Failures | Weak hash (327), Weak password hash (916), Weak random (330), Hardcoded IV (329) |
+| Secrets | Hardcoded credentials (798) |
+| Deserialization | pickle, yaml.load, marshal, ObjectInputStream (502) |
+| SSRF | Untrusted URL fetch (918) |
+| Security Misconfiguration | Debug mode (489), TLS disabled (295), Verbose errors (209), Unsafe upload (434) |
+| Memory Safety | Buffer overflow (120), Format string (134) |
+| Other | XXE (611), Integer overflow (190), Race conditions (362, 367), Sensitive logs (532), Rate limiting (770) |
 
-See docs:
-- `TARGET_ARCHITECTURE.md`
-- `docs/ARCHITECTURE.md`
-- `docs/GITHUB_APP_SETUP.md`
-- `docs/LOCAL_DEV.md`
-- `docs/DEPLOYMENT.md`
-- `docs/KNOWN_LIMITATIONS.md`
+Plus 11 dependency risk patterns for known vulnerable package versions.
+
+## Architecture
+
+```
+GitHub PR webhook
+    |
+    v
+API Service (Node.js) ── orchestrates analysis, persists findings
+    |
+    +── Analysis Service (Python/FastAPI) ── Tier 1 regex + Tier 2 Semgrep
+    |
+    +── GitHub Service (Node.js) ── posts PR reviews, check runs
+    |
+    v
+PostgreSQL ── findings, analysis runs, repositories, users
+```
+
+**Services:**
+- **Frontend** — React + Vite dashboard. OAuth login, repo management, analysis reports.
+- **API Service** — Webhook ingestion, analysis orchestration, REST APIs.
+- **GitHub Service** — GitHub App auth, PR file fetching, review posting.
+- **Analysis Service** — Security rule engine (regex + Semgrep).
+
+**Infrastructure:**
+- PostgreSQL (sole data store)
+- Redis (ephemeral cache)
+- Google Cloud Run (services)
+- Firebase Hosting (frontend)
 
 ## Quick Start
-1. Copy env file:
-   - `cp .env.example .env`
-2. Fill GitHub and secret variables in `.env`.
-3. Start stack:
-   - `docker-compose up --build`
-4. Open:
-   - Frontend: `http://localhost:5173`
-   - API: `http://localhost:3000`
-   - Analysis: `http://localhost:8001`
 
-## Core Security Categories (V1)
-- SQL injection
-- command injection
-- path traversal
-- SSRF
-- XSS
-- insecure deserialization
-- broken access control/auth bypass
-- hardcoded secrets
-- insecure cryptography usage
-- unsafe file upload
-- dependency/package risk
-- unsafe LLM/prompt injection patterns (only when LLM flows are present)
+```bash
+# 1. Copy and fill env
+cp .env.example .env
+# Fill in: GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_APP_ID,
+#          GITHUB_APP_PRIVATE_KEY, JWT_SECRET, GITHUB_WEBHOOK_SECRET,
+#          GITHUB_SERVICE_INTERNAL_SECRET
+
+# 2. Validate
+./scripts/validate-env.sh
+
+# 3. Start
+docker-compose up --build
+```
+
+- Frontend: http://localhost:5173
+- API: http://localhost:3000
+- Analysis: http://localhost:8001
+
+Single root `.env` feeds all services via `docker-compose env_file:`. No per-service env files needed.
 
 ## Testing
-- API tests:
-  - `cd services/api-service && npm test`
-- Analysis pipeline test:
-  - `cd services/analysis-service/src && python -m unittest test_pipeline.py`
-- End-to-end happy path:
-  - `./scripts/e2e-happy-path.sh`
+
+```bash
+# Security rule tests (94 tests)
+cd services/analysis-service/src && python -m pytest tests/ -v
+
+# API tests
+cd services/api-service && npm test
+
+# Env validation
+./scripts/validate-env.sh
+```
+
+## Deployment
+
+Services deploy independently to Google Cloud Run via GitHub Actions on push to `main`. Secrets are managed through GCP Secret Manager. See `docs/DEPLOYMENT.md`.
+
+## Docs
+
+- [Environment Setup](ENV_SETUP.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [GitHub App Setup](docs/GITHUB_APP_SETUP.md)
+- [Deployment](docs/DEPLOYMENT.md)
