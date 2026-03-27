@@ -89,11 +89,22 @@ router.get('/github/callback', async (req, res) => {
 
     let email = ghUser.data.email || null;
     if (!email) {
-      const emailsResp = await axios.get('https://api.github.com/user/emails', {
-        headers: { Authorization: `Bearer ${githubToken}` },
-        timeout: 20000,
-      });
-      email = emailsResp.data.find((entry) => entry.primary)?.email || emailsResp.data[0]?.email || null;
+      try {
+        const emailsResp = await axios.get('https://api.github.com/user/emails', {
+          headers: { Authorization: `Bearer ${githubToken}` },
+          timeout: 20000,
+        });
+        email = emailsResp.data.find((entry) => entry.primary)?.email || emailsResp.data[0]?.email || null;
+      } catch (emailErr) {
+        console.warn(JSON.stringify({
+          level: 'warn',
+          msg: 'Could not fetch user email — user may need to re-authorize with email scope',
+          status: emailErr.response?.status,
+          github_username: ghUser.data.login,
+        }));
+        // Fallback: construct noreply email from GitHub username
+        email = `${ghUser.data.id}+${ghUser.data.login}@users.noreply.github.com`;
+      }
     }
 
     const upsert = await pool.query(
