@@ -5,7 +5,7 @@ const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
   (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? 'http://localhost:3000'
-    : 'https://codesentry-api-bv5j37b5tq-uc.a.run.app')
+    : '')
 
 const AuthCallbackPage = () => {
   const navigate = useNavigate()

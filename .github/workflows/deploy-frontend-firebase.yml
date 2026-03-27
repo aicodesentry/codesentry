@@ -31,8 +31,6 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
-        env:
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
         run: npm run build
 
       - name: Deploy to Firebase Hosting
