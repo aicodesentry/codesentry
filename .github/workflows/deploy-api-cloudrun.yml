@@ -34,6 +34,12 @@ jobs:
         with:
           project_id: '${{ vars.GCP_PROJECT_ID }}'
 
+      - name: Reset Docker auth
+        run: |
+          rm -f "$HOME/.docker/config.json"
+          docker logout docker.io || true
+          docker logout registry-1.docker.io || true
+
       - name: Configure Docker auth
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
