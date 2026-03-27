@@ -11,9 +11,8 @@ const AuthCallbackPage = () => {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const exchangeCode = async () => {
+    const finishCallback = async () => {
       const params = new URLSearchParams(window.location.search)
-      const code = params.get('code')
       const error = params.get('error')
 
       if (error) {
@@ -21,31 +20,14 @@ const AuthCallbackPage = () => {
         return
       }
 
-      if (!code) {
-        navigate('/?error=no_auth_code')
-        return
-      }
-
       try {
-        const response = await fetch(`${API_BASE_URL}/auth/exchange`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code }),
-        })
-
-        if (!response.ok) {
-          navigate('/?error=auth_exchange_failed')
-          return
-        }
-
         navigate('/dashboard', { replace: true })
       } catch (_err) {
-        navigate('/?error=auth_exchange_failed')
+        navigate('/')
       }
     }
 
-    exchangeCode()
+    finishCallback()
   }, [navigate])
 
   return (

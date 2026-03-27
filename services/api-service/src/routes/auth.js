@@ -180,10 +180,8 @@ router.get('/github/callback', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    const authCode = crypto.randomBytes(32).toString('hex');
-    pendingStates.set(`auth:${authCode}`, { token: jwtToken, created: Date.now() });
-
-    res.redirect(`${publicBaseUrl(req)}/auth/callback?code=${authCode}`);
+    res.cookie(AUTH_COOKIE_NAME, jwtToken, cookieOptions(req));
+    res.redirect(`${publicBaseUrl(req)}/dashboard`);
   } catch (error) {
     const detail = error.response?.data || error.message;
     const status = error.response?.status;
@@ -198,26 +196,11 @@ router.get('/github/callback', async (req, res) => {
   }
 });
 
-// Frontend exchanges the short-lived auth code for a session cookie.
+// Legacy compatibility endpoint from the short-lived auth-code flow.
 router.post('/exchange', (req, res) => {
-  const { code } = req.body;
-  if (!code) {
-    return res.status(400).json({ error: 'Auth code is required' });
-  }
-
-  const pending = pendingStates.get(`auth:${code}`);
-  if (!pending) {
-    return res.status(401).json({ error: 'Invalid or expired auth code' });
-  }
-
-  pendingStates.delete(`auth:${code}`);
-
-  if (Date.now() - pending.created > 60 * 1000) {
-    return res.status(401).json({ error: 'Auth code expired' });
-  }
-
-  res.cookie(AUTH_COOKIE_NAME, pending.token, cookieOptions(req));
-  res.status(204).end();
+  return res.status(410).json({
+    error: 'Legacy auth exchange is no longer supported. Restart sign-in from /auth/github.',
+  });
 });
 
 router.get('/me', authenticateToken, async (req, res) => {
