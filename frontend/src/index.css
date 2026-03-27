@@ -30,3 +30,27 @@
     letter-spacing: -0.02em;
   }
 }
+
+@layer components {
+  .hero-grid {
+    background-image:
+      radial-gradient(ellipse 60% 50% at 50% 0%, rgba(14, 165, 233, 0.08) 0%, transparent 60%),
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 100% 100%, 60px 60px, 60px 60px;
+  }
+
+  .animate-in {
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+
+  .animate-in.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .animate-in.is-hidden {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
