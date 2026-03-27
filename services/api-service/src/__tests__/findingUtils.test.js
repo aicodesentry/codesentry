@@ -1,4 +1,8 @@
-const { calculateFingerprint, normalizeFinding } = require('../services/findingUtils');
+const {
+  calculateFingerprint,
+  normalizeFinding,
+  normalizeTaxonomyMappings,
+} = require('../services/findingUtils');
 
 describe('calculateFingerprint', () => {
   const base = {
@@ -58,6 +62,19 @@ describe('normalizeFinding', () => {
     category: 'SQL injection',
     cwe_id: 'CWE-89',
     owasp_category: 'A03:2021',
+    internal_type: 'sql_injection',
+    taxonomy_mappings: {
+      cwe: ['CWE-89'],
+      owasp: ['A03:2021'],
+      attack: ['T1190'],
+      capec: ['CAPEC-66'],
+    },
+    taxonomy_versions: {
+      cwe: '4.18',
+      attack: '17.0',
+      capec: '3.9',
+      owasp: '2021',
+    },
     severity: 'HIGH',
     confidence: 0.86,
     exploitability: 'high',
@@ -77,6 +94,8 @@ describe('normalizeFinding', () => {
     expect(n.title).toBe(raw.title);
     expect(n.category).toBe(raw.category);
     expect(n.cwe_id).toBe(raw.cwe_id);
+    expect(n.internal_type).toBe('sql_injection');
+    expect(n.taxonomy_mappings.attack).toEqual(['T1190']);
     expect(n.file_path).toBe(raw.file_path);
     expect(n.line_start).toBe(10);
     expect(n.line_end).toBe(12);
@@ -126,5 +145,33 @@ describe('normalizeFinding', () => {
     expect(n.line_start).toBe(1);
     expect(n.cwe_id).toBeNull();
     expect(n.owasp_category).toBeNull();
+    expect(n.taxonomy_mappings).toEqual({ cwe: [], owasp: [], attack: [], capec: [] });
+  });
+});
+
+describe('normalizeTaxonomyMappings', () => {
+  it('hydrates mappings from legacy scalar fields', () => {
+    expect(normalizeTaxonomyMappings({ cwe_id: 'CWE-89', owasp_category: 'A03:2021' })).toEqual({
+      cwe: ['CWE-89'],
+      owasp: ['A03:2021'],
+      attack: [],
+      capec: [],
+    });
+  });
+
+  it('deduplicates and stringifies mixed values', () => {
+    expect(normalizeTaxonomyMappings({
+      taxonomy_mappings: {
+        cwe: ['CWE-89', 'CWE-89'],
+        attack: ['T1190', 'T1190'],
+        capec: ['CAPEC-66'],
+        owasp: ['A03:2021'],
+      },
+    })).toEqual({
+      cwe: ['CWE-89'],
+      owasp: ['A03:2021'],
+      attack: ['T1190'],
+      capec: ['CAPEC-66'],
+    });
   });
 });

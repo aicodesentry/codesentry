@@ -8,6 +8,11 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
+if (process.env.CONFIRM_REPOSITORY_ACCESS_BACKFILL !== 'true') {
+  console.error('CONFIRM_REPOSITORY_ACCESS_BACKFILL=true is required');
+  process.exit(1);
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });

@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from taxonomy import build_taxonomy_metadata
 
 RULES_DIR = Path(__file__).parent / "semgrep_rules"
 
@@ -128,14 +129,26 @@ def run_semgrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             line_start = match.get("start", {}).get("line", 1)
             code_snippet = match.get("extra", {}).get("lines", "")[:500]
             semgrep_severity = match.get("extra", {}).get("severity", "WARNING")
+            taxonomy = build_taxonomy_metadata(
+                rule_id=f"semgrep.{check_id}",
+                category=metadata.get("category", "security"),
+                cwe_id=metadata.get("cwe", None),
+                owasp_category=metadata.get("owasp", None),
+                internal_type=metadata.get("internal_type", check_id),
+                attack_techniques=metadata.get("attack", None),
+                capec_ids=metadata.get("capec", None),
+            )
 
             findings.append({
                 "rule_id": f"semgrep.{check_id}",
+                "internal_type": taxonomy["internal_type"],
                 "title": match.get("extra", {}).get("message", check_id),
                 "description": match.get("extra", {}).get("message", ""),
                 "category": metadata.get("category", "security"),
-                "cwe_id": metadata.get("cwe", None),
-                "owasp_category": metadata.get("owasp", None),
+                "cwe_id": taxonomy["primary_cwe_id"],
+                "owasp_category": taxonomy["primary_owasp_category"],
+                "taxonomy_mappings": taxonomy["taxonomy_mappings"],
+                "taxonomy_versions": taxonomy["taxonomy_versions"],
                 "severity": SEVERITY_MAP.get(semgrep_severity, "medium"),
                 "confidence": float(metadata.get("confidence", 0.8)),
                 "exploitability": "medium",
