@@ -137,7 +137,7 @@ def run_semgrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "cwe_id": metadata.get("cwe", None),
                 "owasp_category": metadata.get("owasp", None),
                 "severity": SEVERITY_MAP.get(semgrep_severity, "medium"),
-                "confidence": metadata.get("confidence", 0.8),
+                "confidence": float(metadata.get("confidence", 0.8)),
                 "exploitability": "medium",
                 "file_path": file_path,
                 "line_start": line_start,

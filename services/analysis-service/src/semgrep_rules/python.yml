@@ -14,7 +14,7 @@ rules:
       cwe: "CWE-89"
       owasp: "A03:2021"
       category: "SQL injection"
-      confidence: 0.90
+      confidence: "0.90"
 
   - id: cwe-89.sql-injection-format
     patterns:
@@ -29,7 +29,7 @@ rules:
       cwe: "CWE-89"
       owasp: "A03:2021"
       category: "SQL injection"
-      confidence: 0.90
+      confidence: "0.90"
 
   - id: cwe-78.command-injection-input
     patterns:
@@ -46,7 +46,7 @@ rules:
       cwe: "CWE-78"
       owasp: "A03:2021"
       category: "command injection"
-      confidence: 0.92
+      confidence: "0.92"
 
   - id: cwe-22.path-traversal-open
     patterns:
@@ -61,7 +61,7 @@ rules:
       cwe: "CWE-22"
       owasp: "A01:2021"
       category: "path traversal"
-      confidence: 0.85
+      confidence: "0.85"
 
   # ── Deserialization ────────────────────────────────────────────────────
 
@@ -74,7 +74,7 @@ rules:
       cwe: "CWE-502"
       owasp: "A08:2021"
       category: "insecure deserialization"
-      confidence: 0.95
+      confidence: "0.95"
 
   - id: cwe-502.yaml-unsafe-load
     patterns:
@@ -88,7 +88,7 @@ rules:
       cwe: "CWE-502"
       owasp: "A08:2021"
       category: "insecure deserialization"
-      confidence: 0.92
+      confidence: "0.92"
 
   # ── Cryptography ───────────────────────────────────────────────────────
 
@@ -107,7 +107,7 @@ rules:
       cwe: "CWE-916"
       owasp: "A02:2021"
       category: "weak password hashing"
-      confidence: 0.88
+      confidence: "0.88"
 
   # ── SSRF ───────────────────────────────────────────────────────────────
 
@@ -128,7 +128,7 @@ rules:
       cwe: "CWE-918"
       owasp: "A10:2021"
       category: "SSRF"
-      confidence: 0.82
+      confidence: "0.82"
 
   # ── Flask-specific ─────────────────────────────────────────────────────
 
@@ -141,7 +141,7 @@ rules:
       cwe: "CWE-489"
       owasp: "A05:2021"
       category: "security misconfiguration"
-      confidence: 0.90
+      confidence: "0.90"
 
   - id: cwe-79.flask-render-template-string
     patterns:
@@ -156,7 +156,7 @@ rules:
       cwe: "CWE-1336"
       owasp: "A03:2021"
       category: "template injection"
-      confidence: 0.90
+      confidence: "0.90"
 
   # ── XXE ────────────────────────────────────────────────────────────────
 
@@ -174,7 +174,7 @@ rules:
       cwe: "CWE-611"
       owasp: "A05:2021"
       category: "XXE"
-      confidence: 0.85
+      confidence: "0.85"
 
   # ── Hardcoded secrets ──────────────────────────────────────────────────
 
@@ -196,4 +196,4 @@ rules:
       cwe: "CWE-798"
       owasp: "A07:2021"
       category: "hardcoded secrets"
-      confidence: 0.88
+      confidence: "0.88"
