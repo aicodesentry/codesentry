@@ -89,7 +89,7 @@ SECURITY_RULES: List[SecurityRule] = [
         confidence=0.82,
         exploitability="medium",
         pattern=re.compile(
-            r"(Access-Control-Allow-Origin|allow_origins|cors\()\s*[:=(\[]\s*['\"]?\*['\"]?",
+            r"(Access-Control-Allow-Origin|allow_origins|cors\()\s*[:=({\[]\s*['\"\[]?\s*['\"]?\*['\"]?",
             re.IGNORECASE,
         ),
         description="CORS allows all origins, enabling cross-site request attacks.",
@@ -137,8 +137,7 @@ SECURITY_RULES: List[SecurityRule] = [
         confidence=0.76,
         exploitability="medium",
         pattern=re.compile(
-            r"(Math\.random\(\)|random\.random\(\)|rand\(\)|srand\()"
-            r".*(token|secret|key|password|session|nonce|salt|csrf|otp)",
+            r"(Math\.random\(\)|random\.random\(\)|rand\(\)|srand\()",
             re.IGNORECASE,
         ),
         description="Non-cryptographic random source used for security-sensitive value.",
@@ -173,7 +172,7 @@ SECURITY_RULES: List[SecurityRule] = [
         confidence=0.86,
         exploitability="high",
         pattern=re.compile(
-            r"(SELECT|INSERT|UPDATE|DELETE)\s+.*(\+\s*[a-zA-Z_]|f\"|\.format\(|%s|%\s*\()",
+            r"(f['\"].*(?:SELECT|INSERT|UPDATE|DELETE)\s+|(?:SELECT|INSERT|UPDATE|DELETE)\s+.*(?:\+\s*[a-zA-Z_]|\.format\(|%s|%\s*\())",
             re.IGNORECASE,
         ),
         description="A SQL query appears to be dynamically assembled from variables.",
@@ -321,7 +320,7 @@ SECURITY_RULES: List[SecurityRule] = [
         confidence=0.71,
         exploitability="medium",
         pattern=re.compile(
-            r"(multer|upload|save\(|write_file|saveFile).*(filename|path|originalname).*(req\.|input|user)",
+            r"(multer|upload\(|save\(|write_file|saveFile).*(filename|path|originalname|file\.).*(req\.|input|user)",
             re.IGNORECASE,
         ),
         description="Upload flow appears to trust user-controlled file metadata or path.",
@@ -379,7 +378,7 @@ SECURITY_RULES: List[SecurityRule] = [
         pattern=re.compile(
             r"(api[_-]?key|secret[_-]?key|auth[_-]?token|access[_-]?token|password|passwd|"
             r"private[_-]?key|client[_-]?secret|database[_-]?url|connection[_-]?string)"
-            r"\s*[:=]\s*['\"][A-Za-z0-9_\-/+=\.]{12,}['\"]",
+            r"\s*[:=]\s*['\"][A-Za-z0-9_\-/+=\.:@]{12,}['\"]",
             re.IGNORECASE,
         ),
         description="Credential-like literal appears committed in source.",
@@ -395,7 +394,7 @@ SECURITY_RULES: List[SecurityRule] = [
         confidence=0.8,
         exploitability="high",
         pattern=re.compile(
-            r"(password|passwd)\s*=.*\b(md5|sha1|sha256|base64)\s*\(",
+            r"(password|passwd|password_hash|pass_hash)\s*=\s*\w*\(?\s*\b(md5|sha1|sha256|base64)\s*\(",
             re.IGNORECASE,
         ),
         description="Password hashed with a fast/unsalted algorithm unsuitable for credential storage.",
@@ -648,11 +647,11 @@ SECURITY_RULES: List[SecurityRule] = [
 
 DEPENDENCY_RISK_PATTERNS = [
     # JavaScript
-    (re.compile(r"lodash['\"]?\s*[:@<=>~^]*\s*['\"]?4\.17\.[0-9](?!\d)", re.IGNORECASE),
+    (re.compile(r"lodash.*4\.17\.(?:1\d|20|[0-9])(?!\d)", re.IGNORECASE),
      "lodash < 4.17.21 has prototype pollution (CVE-2021-23337)", "high"),
     (re.compile(r"express['\"]?\s*[:@<=>~^]*\s*['\"]?4\.[0-9]\.", re.IGNORECASE),
      "express < 4.17.3 has open redirect vulnerability", "medium"),
-    (re.compile(r"jsonwebtoken['\"]?\s*[:@<=>~^]*\s*['\"]?[0-7]\.", re.IGNORECASE),
+    (re.compile(r"jsonwebtoken.*['\"]?\^?[0-8]\.\d", re.IGNORECASE),
      "jsonwebtoken < 9.0.0 has insecure defaults (CVE-2022-23529)", "high"),
     (re.compile(r"axios['\"]?\s*[:@<=>~^]*\s*['\"]?0\.", re.IGNORECASE),
      "axios 0.x has SSRF and prototype pollution vulnerabilities", "medium"),
