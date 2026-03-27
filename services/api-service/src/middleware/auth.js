@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 
 function authenticateToken(req, res, next) {
-  const token = req.cookies?.auth_token || req.headers.authorization?.replace('Bearer ', '');
+  const token = req.cookies?.__session || req.headers.authorization?.replace('Bearer ', '');
 
   if (!token) {
     return res.status(401).json({ error: 'Authentication required' });

@@ -20,7 +20,7 @@ const DEFAULT_GITHUB_APP_SLUG = 'aicodesentry';
 
 // In-memory store for OAuth state (short-lived)
 const pendingStates = new Map();
-const AUTH_COOKIE_NAME = 'auth_token';
+const AUTH_COOKIE_NAME = '__session';
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Clean expired entries every 5 minutes without keeping the process alive.

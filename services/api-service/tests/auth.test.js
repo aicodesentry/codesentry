@@ -131,7 +131,7 @@ describe('GET /auth/github/callback', () => {
 
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('http://localhost:5173/dashboard');
-    const authCookie = res.headers['set-cookie']?.find((cookie) => cookie.startsWith('auth_token='));
+    const authCookie = res.headers['set-cookie']?.find((cookie) => cookie.startsWith('__session='));
     expect(authCookie).toBeDefined();
     const cookieToken = decodeURIComponent(authCookie.split(';')[0].split('=')[1]);
     const decoded = jwt.verify(cookieToken, 'test-jwt-secret');
@@ -296,7 +296,7 @@ describe('GET /auth/me', () => {
     const app = createApp();
     const res = await request(app)
       .get('/auth/me')
-      .set('Cookie', [`auth_token=${token}`]);
+      .set('Cookie', [`__session=${token}`]);
 
     expect(res.status).toBe(200);
     expect(res.body.user.github_username).toBe('testuser');

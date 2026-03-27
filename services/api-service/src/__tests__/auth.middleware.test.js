@@ -48,10 +48,10 @@ describe('authenticateToken middleware', () => {
     expect(req.user.id).toBe('user-1');
   });
 
-  it('accepts token from auth_token cookie', () => {
+  it('accepts token from __session cookie', () => {
     const token = jwt.sign(validPayload, TEST_JWT_SECRET);
     const { req, res, next } = mockReqResNext({
-      cookies: { auth_token: token },
+      cookies: { __session: token },
     });
     authenticateToken(req, res, next);
     expect(next).toHaveBeenCalled();

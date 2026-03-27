@@ -103,7 +103,7 @@ function createApp() {
 
   app.use((req, res, next) => {
     const unsafeMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
-    if (!unsafeMethod || !req.cookies?.auth_token || req.path.startsWith('/webhooks')) {
+    if (!unsafeMethod || !req.cookies?.__session || req.path.startsWith('/webhooks')) {
       return next();
     }
 
