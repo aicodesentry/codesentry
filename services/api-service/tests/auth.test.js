@@ -18,6 +18,7 @@ beforeEach(() => {
   process.env.GITHUB_CLIENT_ID = 'test-client-id';
   process.env.GITHUB_CLIENT_SECRET = 'test-client-secret';
   process.env.JWT_SECRET = 'test-jwt-secret';
+  process.env.ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
   process.env.FRONTEND_URL = 'http://localhost:5173';
   process.env.GITHUB_CALLBACK_URL = 'http://localhost:3000/auth/github/callback';
 });
@@ -36,6 +37,8 @@ describe('GET /auth/github', () => {
     expect(res.headers.location).toContain('client_id=test-client-id');
     expect(res.headers.location).toContain('redirect_uri=');
     expect(res.headers.location).toContain('scope=read:user');
+    expect(res.headers.location).toContain('state=');
+    expect(res.headers.location).not.toContain('read:org');
   });
 
   test('returns 500 if GITHUB_CLIENT_ID not set', async () => {
@@ -97,6 +100,13 @@ describe('GET /auth/github/callback', () => {
     });
   }
 
+  async function getValidState(app) {
+    const res = await request(app).get('/auth/github');
+    const location = res.headers.location || '';
+    const match = location.match(/state=([a-f0-9]+)/);
+    return match ? match[1] : null;
+  }
+
   test('redirects with error if no code provided', async () => {
     const app = createApp();
     const res = await request(app).get('/auth/github/callback');
@@ -105,33 +115,35 @@ describe('GET /auth/github/callback', () => {
     expect(res.headers.location).toContain('error=no_oauth_code');
   });
 
-  test('exchanges code for token and redirects with JWT', async () => {
-    setupSuccessfulOAuth();
+  test('rejects callback with missing state', async () => {
     const app = createApp();
     const res = await request(app).get('/auth/github/callback?code=test-code');
 
     expect(res.status).toBe(302);
-    expect(res.headers.location).toContain('/dashboard?token=');
+    expect(res.headers.location).toContain('error=invalid_state');
+  });
 
-    // Verify token exchange was called correctly
+  test('exchanges code for cookie-backed session and redirects', async () => {
+    setupSuccessfulOAuth();
+    const app = createApp();
+    const state = await getValidState(app);
+    const res = await request(app).get(`/auth/github/callback?code=test-code&state=${state}`);
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toContain('/auth/callback?code=');
+    expect(res.headers.location).not.toContain('token=');
+
+    // Verify GitHub token exchange
     expect(axios.post).toHaveBeenCalledWith(
       'https://github.com/login/oauth/access_token',
-      {
-        client_id: 'test-client-id',
-        client_secret: 'test-client-secret',
-        code: 'test-code',
-      },
-      expect.objectContaining({
-        headers: { Accept: 'application/json' },
-      })
+      { client_id: 'test-client-id', client_secret: 'test-client-secret', code: 'test-code' },
+      expect.objectContaining({ headers: { Accept: 'application/json' } })
     );
 
     // Verify user was fetched
     expect(axios.get).toHaveBeenCalledWith(
       'https://api.github.com/user',
-      expect.objectContaining({
-        headers: { Authorization: 'Bearer gho_test_token_123' },
-      })
+      expect.objectContaining({ headers: { Authorization: 'Bearer gho_test_token_123' } })
     );
 
     // Verify DB upsert
@@ -140,11 +152,18 @@ describe('GET /auth/github/callback', () => {
       expect.arrayContaining([12345, 'testuser', 'test@example.com'])
     );
 
-    // Verify JWT is valid
-    const token = new URL(res.headers.location).searchParams.get('token');
-    const decoded = jwt.verify(token, 'test-jwt-secret');
+    // Exchange the auth code for JWT
+    const authCode = new URL(res.headers.location).searchParams.get('code');
+    const exchangeRes = await request(app)
+      .post('/auth/exchange')
+      .send({ code: authCode });
+
+    expect(exchangeRes.status).toBe(204);
+    const authCookie = exchangeRes.headers['set-cookie']?.find((cookie) => cookie.startsWith('auth_token='));
+    expect(authCookie).toBeDefined();
+    const cookieToken = decodeURIComponent(authCookie.split(';')[0].split('=')[1]);
+    const decoded = jwt.verify(cookieToken, 'test-jwt-secret');
     expect(decoded.github_username).toBe('testuser');
-    expect(decoded.github_id).toBe(12345);
   });
 
   test('fetches email from /user/emails if not in profile', async () => {
@@ -164,7 +183,8 @@ describe('GET /auth/github/callback', () => {
     pool.query.mockResolvedValueOnce({ rows: [mockDbUser] });
 
     const app = createApp();
-    await request(app).get('/auth/github/callback?code=test-code');
+    const state = await getValidState(app);
+    await request(app).get(`/auth/github/callback?code=test-code&state=${state}`);
 
     expect(axios.get).toHaveBeenCalledWith(
       'https://api.github.com/user/emails',
@@ -182,7 +202,8 @@ describe('GET /auth/github/callback', () => {
     });
 
     const app = createApp();
-    const res = await request(app).get('/auth/github/callback?code=bad-code');
+    const state = await getValidState(app);
+    const res = await request(app).get(`/auth/github/callback?code=bad-code&state=${state}`);
 
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain('error=oauth_exchange_failed');
@@ -195,7 +216,8 @@ describe('GET /auth/github/callback', () => {
     axios.get.mockRejectedValueOnce(new Error('GitHub API error'));
 
     const app = createApp();
-    const res = await request(app).get('/auth/github/callback?code=test-code');
+    const state = await getValidState(app);
+    const res = await request(app).get(`/auth/github/callback?code=test-code&state=${state}`);
 
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain('error=oauth_callback_failed');
@@ -209,7 +231,8 @@ describe('GET /auth/github/callback', () => {
     pool.query.mockRejectedValueOnce(new Error('DB connection refused'));
 
     const app = createApp();
-    const res = await request(app).get('/auth/github/callback?code=test-code');
+    const state = await getValidState(app);
+    const res = await request(app).get(`/auth/github/callback?code=test-code&state=${state}`);
 
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain('error=oauth_callback_failed');
@@ -245,6 +268,35 @@ describe('GET /auth/me', () => {
     expect(res.status).toBe(200);
     expect(res.body.user.github_username).toBe('testuser');
     expect(res.body.github_app_install_url).toContain('github.com/apps/');
+  });
+
+  test('returns user with valid auth cookie', async () => {
+    const token = jwt.sign(
+      { user_id: 'uuid-123', github_id: 12345, github_username: 'testuser' },
+      'test-jwt-secret',
+      { expiresIn: '7d' }
+    );
+
+    pool.query.mockResolvedValueOnce({
+      rowCount: 1,
+      rows: [{
+        id: 'uuid-123',
+        github_id: 12345,
+        github_username: 'testuser',
+        github_email: 'test@example.com',
+        avatar_url: 'https://avatars.githubusercontent.com/u/12345',
+        name: 'Test User',
+        created_at: '2026-01-01T00:00:00Z',
+      }],
+    });
+
+    const app = createApp();
+    const res = await request(app)
+      .get('/auth/me')
+      .set('Cookie', [`auth_token=${token}`]);
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.github_username).toBe('testuser');
   });
 
   test('returns 401 with no token', async () => {

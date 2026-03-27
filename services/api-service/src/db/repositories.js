@@ -19,7 +19,7 @@ async function list(userId) {
        COUNT(DISTINCT f.id) FILTER (WHERE f.status = 'open') AS open_findings_count,
        COUNT(DISTINCT f.id) FILTER (WHERE f.status = 'accepted_risk') AS accepted_risk_count
      FROM repositories r
-     JOIN user_installations ui ON ui.installation_id = r.installation_id AND ui.user_id = $1
+     JOIN repository_access ra ON ra.repository_id = r.id AND ra.user_id = $1
      LEFT JOIN pull_requests pr ON pr.repository_id = r.id
      LEFT JOIN findings f ON f.repository_id = r.id
      GROUP BY r.id
@@ -33,8 +33,8 @@ async function getById(repoId, userId) {
   const repo = await pool.query(
     `SELECT r.*
      FROM repositories r
-     JOIN user_installations ui ON ui.installation_id = r.installation_id AND ui.user_id = $2
-     WHERE r.id = $1`,
+     JOIN repository_access ra ON ra.repository_id = r.id
+     WHERE r.id = $1 AND ra.user_id = $2`,
     [repoId, userId]
   );
 
@@ -60,7 +60,10 @@ async function updateBaseline(repoId, userId, enabled) {
     `UPDATE repositories
      SET baseline_set = $1, updated_at = NOW()
      WHERE id = $2
-       AND installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $3)
+       AND EXISTS (
+         SELECT 1 FROM repository_access ra
+         WHERE ra.repository_id = repositories.id AND ra.user_id = $3
+       )
      RETURNING id, baseline_set`,
     [Boolean(enabled), repoId, userId]
   );
@@ -72,7 +75,10 @@ async function connect(repoId, userId) {
     `UPDATE repositories
      SET is_active = true, updated_at = NOW()
      WHERE id = $1
-       AND installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $2)
+       AND EXISTS (
+         SELECT 1 FROM repository_access ra
+         WHERE ra.repository_id = repositories.id AND ra.user_id = $2
+       )
      RETURNING id, full_name, is_active`,
     [repoId, userId]
   );
@@ -84,7 +90,10 @@ async function disconnect(repoId, userId) {
     `UPDATE repositories
      SET is_active = false, updated_at = NOW()
      WHERE id = $1
-       AND installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $2)
+       AND EXISTS (
+         SELECT 1 FROM repository_access ra
+         WHERE ra.repository_id = repositories.id AND ra.user_id = $2
+       )
      RETURNING id, full_name, is_active`,
     [repoId, userId]
   );

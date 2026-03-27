@@ -6,16 +6,14 @@ async function listByPullRequest(pullRequestId, userId, { status = 'open', minCo
      FROM findings f
      JOIN pull_requests pr ON pr.id = f.pull_request_id
      JOIN repositories r ON r.id = pr.repository_id
+     JOIN repository_access ra ON ra.repository_id = r.id
      WHERE pr.id = $1
-       AND r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $2)
+       AND ra.user_id = $2
        AND ($3::text = 'all' OR f.status = $3)
        AND f.confidence >= $4::numeric
      ORDER BY
        CASE f.severity
-         WHEN 'critical' THEN 1
-         WHEN 'high' THEN 2
-         WHEN 'medium' THEN 3
-         ELSE 4
+         WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4
        END,
        f.confidence DESC,
        f.created_at DESC`,
@@ -26,7 +24,7 @@ async function listByPullRequest(pullRequestId, userId, { status = 'open', minCo
 
 async function listAll(userId, { repositoryId, status = 'open', severity, category }) {
   const params = [userId];
-  const clauses = ['r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $1)'];
+  const clauses = ['ra.user_id = $1'];
 
   if (repositoryId) {
     params.push(repositoryId);
@@ -45,27 +43,27 @@ async function listAll(userId, { repositoryId, status = 'open', severity, catego
     clauses.push(`f.category = $${params.length}`);
   }
 
-  const query = `
-    SELECT f.*
-    FROM findings f
-    JOIN repositories r ON r.id = f.repository_id
-    WHERE ${clauses.join(' AND ')}
-    ORDER BY f.updated_at DESC
-    LIMIT 200
-  `;
-
-  const result = await pool.query(query, params);
+  const result = await pool.query(
+     `SELECT f.*
+     FROM findings f
+     JOIN repositories r ON r.id = f.repository_id
+     JOIN repository_access ra ON ra.repository_id = r.id
+     WHERE ${clauses.join(' AND ')}
+     ORDER BY f.updated_at DESC
+     LIMIT 200`,
+    params
+  );
   return result.rows;
 }
 
 async function getById(findingId, userId) {
   const result = await pool.query(
-    `SELECT f.*, r.full_name AS repository_full_name, pr.pr_number
+     `SELECT f.*, r.full_name AS repository_full_name, pr.pr_number
      FROM findings f
      JOIN repositories r ON r.id = f.repository_id
+     JOIN repository_access ra ON ra.repository_id = r.id
      LEFT JOIN pull_requests pr ON pr.id = f.pull_request_id
-     WHERE f.id = $1
-       AND r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $2)`,
+     WHERE f.id = $1 AND ra.user_id = $2`,
     [findingId, userId]
   );
   return result.rowCount > 0 ? result.rows[0] : null;
@@ -77,7 +75,8 @@ async function updateStatus(findingId, userId, { status, dismissalReason }) {
       `SELECT f.id, f.repository_id
        FROM findings f
        JOIN repositories r ON r.id = f.repository_id
-       WHERE f.id = $1 AND r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $2)`,
+       JOIN repository_access ra ON ra.repository_id = r.id
+       WHERE f.id = $1 AND ra.user_id = $2`,
       [findingId, userId]
     );
 
@@ -85,10 +84,7 @@ async function updateStatus(findingId, userId, { status, dismissalReason }) {
 
     const statusResult = await client.query(
       `UPDATE findings
-       SET status = $1,
-           dismissal_reason = $2,
-           updated_at = NOW(),
-           last_seen_at = NOW()
+       SET status = $1, dismissal_reason = $2, updated_at = NOW(), last_seen_at = NOW()
        WHERE id = $3
        RETURNING *`,
       [status, dismissalReason || null, findingId]
@@ -97,12 +93,8 @@ async function updateStatus(findingId, userId, { status, dismissalReason }) {
     await client.query(
       `INSERT INTO audit_logs (user_id, repository_id, action, resource_type, resource_id, details)
        VALUES ($1, $2, 'finding.status.updated', 'finding', $3, $4)`,
-      [
-        userId,
-        finding.rows[0].repository_id,
-        findingId,
-        JSON.stringify({ status, dismissal_reason: dismissalReason || null }),
-      ]
+      [userId, finding.rows[0].repository_id, findingId,
+       JSON.stringify({ status, dismissal_reason: dismissalReason || null })]
     );
 
     return statusResult.rows[0];
@@ -121,4 +113,101 @@ async function listByAnalysisRun(analysisRunId) {
   return result.rows;
 }
 
-module.exports = { listByPullRequest, listAll, getById, updateStatus, listByAnalysisRun };
+// --- Internal (used by orchestrator, no user-scoped auth) ---
+
+async function findByFingerprint({ repositoryId, pullRequestId, fingerprint }) {
+  const result = await pool.query(
+    `SELECT id FROM findings
+     WHERE repository_id = $1
+       AND pull_request_id = $2
+       AND fingerprint = $3`,
+    [repositoryId, pullRequestId, fingerprint]
+  );
+  return result.rowCount > 0 ? result.rows[0] : null;
+}
+
+async function upsert(params) {
+  const {
+    id, runId, pullRequestId, prNumber, commitSha, repositoryId, installationId,
+    fingerprint, ruleId, title, description, category, cweId, owaspCategory,
+    severity, confidence, exploitability, filePath, lineStart, lineEnd,
+    codeSnippet, evidence, exploitScenario, remediation, remediationPatch, isBaseline,
+  } = params;
+
+  if (id) {
+    const updated = await pool.query(
+      `UPDATE findings
+       SET analysis_run_id = $1, pull_request_id = $2, pull_request_number = $3,
+           commit_sha = $4, title = $5, description = $6, category = $7,
+           cwe_id = $8, owasp_category = $9, severity = $10, confidence = $11,
+           exploitability = $12, file_path = $13, line_start = $14, line_end = $15,
+           code_snippet = $16, evidence = $17, exploit_scenario = $18,
+           remediation = $19, remediation_patch = $20, is_baseline = $21,
+           last_seen_at = NOW(), updated_at = NOW(),
+           status = CASE WHEN status = 'fixed' THEN 'open' ELSE status END
+       WHERE id = $22
+       RETURNING *`,
+      [runId, pullRequestId, prNumber, commitSha, title, description, category,
+       cweId, owaspCategory, severity, confidence, exploitability,
+       filePath, lineStart, lineEnd, codeSnippet, evidence, exploitScenario,
+       remediation, remediationPatch, isBaseline, id]
+    );
+    return updated.rows[0];
+  }
+
+  const inserted = await pool.query(
+    `INSERT INTO findings (
+       repository_id, installation_id, pull_request_number, pull_request_id,
+       analysis_run_id, commit_sha, fingerprint, rule_id, title, description,
+       category, cwe_id, owasp_category, severity, confidence, exploitability,
+       file_path, line_start, line_end, code_snippet, evidence, exploit_scenario,
+       remediation, remediation_patch, status, is_baseline, first_seen_at, last_seen_at
+     ) VALUES (
+       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,
+       'open',$25,NOW(),NOW()
+     ) RETURNING *`,
+    [repositoryId, installationId, prNumber, pullRequestId, runId, commitSha,
+     fingerprint, ruleId, title, description, category, cweId, owaspCategory,
+     severity, confidence, exploitability, filePath, lineStart, lineEnd,
+     codeSnippet, evidence, exploitScenario, remediation, remediationPatch, isBaseline]
+  );
+  return inserted.rows[0];
+}
+
+async function dismiss(findingId, reason) {
+  await pool.query(
+    `UPDATE findings SET status = 'dismissed', dismissal_reason = $1, updated_at = NOW() WHERE id = $2`,
+    [reason, findingId]
+  );
+}
+
+async function markFixed({ repositoryId, pullRequestId, activeFingerprints }) {
+  if (activeFingerprints.length === 0) {
+    await pool.query(
+      `UPDATE findings SET status = 'fixed', updated_at = NOW()
+       WHERE repository_id = $1 AND pull_request_id = $2 AND status = 'open'`,
+      [repositoryId, pullRequestId]
+    );
+    return;
+  }
+  await pool.query(
+    `UPDATE findings SET status = 'fixed', updated_at = NOW()
+     WHERE repository_id = $1 AND pull_request_id = $2 AND status = 'open'
+       AND fingerprint <> ALL($3::text[])`,
+    [repositoryId, pullRequestId, activeFingerprints]
+  );
+}
+
+async function getActiveSuppressions(repositoryId) {
+  const result = await pool.query(
+    `SELECT fingerprint, reason FROM suppressions
+     WHERE repository_id = $1 AND (expires_at IS NULL OR expires_at > NOW())`,
+    [repositoryId]
+  );
+  return result.rows;
+}
+
+module.exports = {
+  listByPullRequest, listAll, getById, updateStatus, listByAnalysisRun,
+  findByFingerprint, upsert, dismiss, markFixed, getActiveSuppressions,
+};

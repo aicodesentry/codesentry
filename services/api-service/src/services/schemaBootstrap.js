@@ -53,6 +53,14 @@ const CREATE_TABLE_STATEMENTS = [
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   );`,
+  `CREATE TABLE IF NOT EXISTS repository_access (
+    user_id UUID NOT NULL,
+    repository_id UUID NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'admin',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, repository_id)
+  );`,
   `CREATE TABLE IF NOT EXISTS pull_requests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     repository_id UUID,
@@ -149,6 +157,16 @@ const CREATE_TABLE_STATEMENTS = [
     expires_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   );`,
+  `CREATE TABLE IF NOT EXISTS audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID,
+    repository_id UUID,
+    action VARCHAR(100) NOT NULL,
+    resource_type VARCHAR(50) NOT NULL,
+    resource_id UUID,
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );`,
   `CREATE TABLE IF NOT EXISTS webhook_deliveries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     delivery_id VARCHAR(255) NOT NULL UNIQUE,
@@ -179,6 +197,9 @@ const ALTER_STATEMENTS = [
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS github_token TEXT;`,
   `ALTER TABLE user_installations ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();`,
   `ALTER TABLE user_installations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();`,
+  `ALTER TABLE repository_access ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'admin';`,
+  `ALTER TABLE repository_access ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();`,
+  `ALTER TABLE repository_access ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();`,
   `ALTER TABLE repositories ADD COLUMN IF NOT EXISTS owner_id UUID;`,
   `ALTER TABLE repositories ADD COLUMN IF NOT EXISTS installation_id BIGINT;`,
   `ALTER TABLE repositories ADD COLUMN IF NOT EXISTS name VARCHAR(255);`,
@@ -233,16 +254,28 @@ const ALTER_STATEMENTS = [
      END IF;
    END $$;`,
   `DO $$ BEGIN
-     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'findings_fingerprint_key') THEN
-       DELETE FROM findings a USING findings b
-         WHERE a.fingerprint = b.fingerprint AND a.updated_at < b.updated_at;
-       ALTER TABLE findings ADD CONSTRAINT findings_fingerprint_key UNIQUE (fingerprint);
+     IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'findings_fingerprint_key') THEN
+       ALTER TABLE findings DROP CONSTRAINT findings_fingerprint_key;
      END IF;
    END $$;`,
   `CREATE INDEX IF NOT EXISTS idx_analysis_runs_repository_id ON analysis_runs (repository_id);`,
   `CREATE INDEX IF NOT EXISTS idx_findings_repository_id ON findings (repository_id);`,
   `CREATE INDEX IF NOT EXISTS idx_findings_pull_request_id ON findings (pull_request_id);`,
   `CREATE INDEX IF NOT EXISTS idx_findings_analysis_run_id ON findings (analysis_run_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_repository_access_user_id ON repository_access (user_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_repository_access_repository_id ON repository_access (repository_id);`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_repo_pr_fingerprint
+   ON findings (repository_id, pull_request_id, fingerprint);`,
+  `INSERT INTO repository_access (user_id, repository_id, role)
+   SELECT owner_id, id, 'admin'
+   FROM repositories
+   WHERE owner_id IS NOT NULL
+   ON CONFLICT (user_id, repository_id) DO UPDATE SET updated_at = NOW();`,
+  `INSERT INTO repository_access (user_id, repository_id, role)
+   SELECT user_id, id, 'admin'
+   FROM repositories
+   WHERE user_id IS NOT NULL
+   ON CONFLICT (user_id, repository_id) DO UPDATE SET updated_at = NOW();`,
 ];
 
 async function ensureDatabaseSchema() {

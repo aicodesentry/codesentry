@@ -13,7 +13,8 @@ async function querySummaryFromRuns(userId) {
        COUNT(*) FILTER (WHERE COALESCE(ar.started_at, ar.created_at) >= NOW() - INTERVAL '7 days') AS recent
      FROM analysis_runs ar
      JOIN repositories r ON ar.repository_id = r.id
-     WHERE r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $1)`,
+     JOIN repository_access ra ON ra.repository_id = r.id
+     WHERE ra.user_id = $1`,
     [userId]
   );
   return result.rows[0];
@@ -29,7 +30,8 @@ async function querySummaryLegacy(userId) {
          COUNT(*) FILTER (WHERE a.started_at >= NOW() - INTERVAL '7 days') AS recent
        FROM analysis a
        JOIN repositories r ON a.repository_id = r.id
-       WHERE r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $1)`,
+       JOIN repository_access ra ON ra.repository_id = r.id
+       WHERE ra.user_id = $1`,
       [userId]
     );
     return result.rows[0];
@@ -61,7 +63,7 @@ async function querySummary(userId) {
 
 async function queryAnalysesFromRuns(userId, { repositoryId, status, limit, offset }) {
   const params = [userId];
-  const where = ['r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $1)'];
+  const where = ['ra.user_id = $1'];
 
   if (repositoryId) {
     where.push(`r.id = $${params.length + 1}`);
@@ -87,6 +89,7 @@ async function queryAnalysesFromRuns(userId, { repositoryId, status, limit, offs
       r.name AS repo_short_name
     FROM analysis_runs ar
     JOIN repositories r ON ar.repository_id = r.id
+    JOIN repository_access ra ON ra.repository_id = r.id
     LEFT JOIN pull_requests pr ON pr.id = ar.pull_request_id
     WHERE ${where.join(' AND ')}
     ORDER BY COALESCE(ar.started_at, ar.created_at) DESC
@@ -97,6 +100,7 @@ async function queryAnalysesFromRuns(userId, { repositoryId, status, limit, offs
     SELECT COUNT(*) AS total
     FROM analysis_runs ar
     JOIN repositories r ON ar.repository_id = r.id
+    JOIN repository_access ra ON ra.repository_id = r.id
     WHERE ${where.join(' AND ')}
   `;
 
@@ -108,7 +112,7 @@ async function queryAnalysesFromRuns(userId, { repositoryId, status, limit, offs
 async function queryAnalysesLegacy(userId, { repositoryId, status, limit, offset }) {
   const tryOwnerScoped = async () => {
     const params = [userId];
-    const where = ['r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $1)'];
+    const where = ['ra.user_id = $1'];
 
     if (repositoryId) {
       where.push(`r.id = $${params.length + 1}`);
@@ -133,6 +137,7 @@ async function queryAnalysesLegacy(userId, { repositoryId, status, limit, offset
          r.name AS repo_short_name
        FROM analysis a
        JOIN repositories r ON a.repository_id = r.id
+       JOIN repository_access ra ON ra.repository_id = r.id
        WHERE ${where.join(' AND ')}
        ORDER BY a.started_at DESC
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
@@ -143,6 +148,7 @@ async function queryAnalysesLegacy(userId, { repositoryId, status, limit, offset
       `SELECT COUNT(*) AS total
        FROM analysis a
        JOIN repositories r ON a.repository_id = r.id
+       JOIN repository_access ra ON ra.repository_id = r.id
        WHERE ${where.join(' AND ')}`,
       params
     );
@@ -225,8 +231,9 @@ async function getAnalysisById(analysisId, userId) {
          r.github_id AS repository_github_id
        FROM analysis_runs ar
        JOIN repositories r ON ar.repository_id = r.id
+       JOIN repository_access ra ON ra.repository_id = r.id
        LEFT JOIN pull_requests pr ON pr.id = ar.pull_request_id
-       WHERE ar.id = $1 AND r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $2)`,
+       WHERE ar.id = $1 AND ra.user_id = $2`,
       [analysisId, userId]
     );
     return runResult.rows[0] || null;
@@ -247,7 +254,8 @@ async function getAnalysisById(analysisId, userId) {
            r.github_id AS repository_github_id
          FROM analysis a
          JOIN repositories r ON a.repository_id = r.id
-         WHERE a.id = $1 AND r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $2)`,
+         JOIN repository_access ra ON ra.repository_id = r.id
+         WHERE a.id = $1 AND ra.user_id = $2`,
         [analysisId, userId]
       );
       return legacyOwnerResult.rows[0] || null;
@@ -275,4 +283,45 @@ async function getAnalysisById(analysisId, userId) {
   }
 }
 
-module.exports = { querySummary, listAnalyses, getAnalysisById };
+// --- Internal (used by orchestrator) ---
+
+async function countCompletedRuns(repositoryId, excludeRunId) {
+  const result = await pool.query(
+    `SELECT COUNT(*)::int AS count FROM analysis_runs
+     WHERE repository_id = $1 AND id <> $2 AND status = 'completed'`,
+    [repositoryId, excludeRunId]
+  );
+  return Number(result.rows[0].count);
+}
+
+async function markCompleted(runId, { findingsCount, counts, filesAnalyzed, checkRunId, reviewId }) {
+  await pool.query(
+    `UPDATE analysis_runs
+     SET status = 'completed', findings_count = $2, critical_count = $3,
+         high_count = $4, medium_count = $5, low_count = $6,
+         files_analyzed = $7, github_check_run_id = $8, summary_comment_id = $9,
+         completed_at = NOW()
+     WHERE id = $1`,
+    [runId, findingsCount, counts.critical || 0, counts.high || 0,
+     counts.medium || 0, counts.low || 0, filesAnalyzed, checkRunId || null, reviewId || null]
+  );
+}
+
+async function markFailed(runId, errorMessage) {
+  await pool.query(
+    `UPDATE analysis_runs SET status = 'failed', error_message = $2, completed_at = NOW() WHERE id = $1`,
+    [runId, errorMessage]
+  );
+}
+
+async function markBaselineSet(repositoryId) {
+  await pool.query(
+    'UPDATE repositories SET baseline_set = true, updated_at = NOW() WHERE id = $1',
+    [repositoryId]
+  );
+}
+
+module.exports = {
+  querySummary, listAnalyses, getAnalysisById,
+  countCompletedRuns, markCompleted, markFailed, markBaselineSet,
+};

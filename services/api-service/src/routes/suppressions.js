@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/suppressions', authenticateToken, async (req, res) => {
   const { repository_id } = req.query;
   const params = [req.user.user_id];
-  const clauses = ['r.owner_id = $1'];
+  const clauses = ['ra.user_id = $1'];
 
   if (repository_id) {
     params.push(repository_id);
@@ -18,6 +18,7 @@ router.get('/suppressions', authenticateToken, async (req, res) => {
     `SELECT s.*, f.title, f.category, f.severity
      FROM suppressions s
      JOIN repositories r ON r.id = s.repository_id
+     JOIN repository_access ra ON ra.repository_id = r.id
      LEFT JOIN findings f ON f.id = s.finding_id
      WHERE ${clauses.join(' AND ')}
      ORDER BY s.created_at DESC`,
@@ -33,10 +34,13 @@ router.post('/suppressions', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: 'finding_id or fingerprint, repository_id, and reason are required' });
   }
 
-  const repo = await pool.query('SELECT id FROM repositories WHERE id = $1 AND owner_id = $2', [
-    repository_id,
-    req.user.user_id,
-  ]);
+  const repo = await pool.query(
+    `SELECT r.id
+     FROM repositories r
+     JOIN repository_access ra ON ra.repository_id = r.id
+     WHERE r.id = $1 AND ra.user_id = $2`,
+    [repository_id, req.user.user_id]
+  );
 
   if (repo.rowCount === 0) {
     return res.status(404).json({ error: 'Repository not found' });
@@ -86,8 +90,11 @@ router.post('/suppressions', authenticateToken, async (req, res) => {
 router.delete('/suppressions/:id', authenticateToken, async (req, res) => {
   const suppression = await pool.query(
     `DELETE FROM suppressions s
-     USING repositories r
-     WHERE s.id = $1 AND s.repository_id = r.id AND r.owner_id = $2
+     USING repositories r, repository_access ra
+     WHERE s.id = $1
+       AND s.repository_id = r.id
+       AND ra.repository_id = r.id
+       AND ra.user_id = $2
      RETURNING s.*`,
     [req.params.id, req.user.user_id]
   );

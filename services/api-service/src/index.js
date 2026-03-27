@@ -11,6 +11,9 @@ const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
 if (process.env.NODE_ENV === 'production') {
   requiredEnvVars.push('GITHUB_WEBHOOK_SECRET', 'GITHUB_SERVICE_INTERNAL_SECRET');
 }
+if (process.env.GITHUB_CLIENT_ID || process.env.GITHUB_CLIENT_SECRET) {
+  requiredEnvVars.push('ENCRYPTION_KEY');
+}
 const missing = requiredEnvVars.filter((v) => !process.env[v]);
 if (missing.length > 0) {
   console.error(`Missing required env vars: ${missing.join(', ')}`);

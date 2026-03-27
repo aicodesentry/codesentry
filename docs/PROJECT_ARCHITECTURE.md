@@ -77,12 +77,12 @@ Core behaviors:
 ## Security Controls
 - Webhook HMAC validation (`GITHUB_WEBHOOK_SECRET`).
 - Internal API->GitHub service auth (`GITHUB_SERVICE_INTERNAL_SECRET`).
-- JWT-based auth for dashboard APIs.
+- JWT-backed `HttpOnly` cookie auth for dashboard APIs.
 - Confidence-gated GitHub comment strategy to reduce noise.
 
 ## Observability
 - `/health` endpoints across services.
-- `/metrics` endpoints for Prometheus-style scraping.
+- `/metrics` endpoints for Prometheus-style scraping behind `x-internal-secret`.
 - Correlation IDs in API request flow.
 - Structured logging in API/github/analysis paths.
 

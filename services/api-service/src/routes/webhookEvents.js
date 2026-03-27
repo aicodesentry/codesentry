@@ -26,7 +26,8 @@ router.get('/events', authenticateToken, async (req, res) => {
          COALESCE(pr.updated_at, pr.created_at) AS received_at
        FROM pull_requests pr
        JOIN repositories r ON r.id = pr.repository_id
-       WHERE r.owner_id = $1
+       JOIN repository_access ra ON ra.repository_id = r.id
+       WHERE ra.user_id = $1
        ORDER BY COALESCE(pr.updated_at, pr.created_at) DESC
        LIMIT $2 OFFSET $3`,
       [req.user.user_id, limit, offset]
@@ -36,7 +37,8 @@ router.get('/events', authenticateToken, async (req, res) => {
       `SELECT COUNT(*) AS total
        FROM pull_requests pr
        JOIN repositories r ON r.id = pr.repository_id
-       WHERE r.owner_id = $1`,
+       JOIN repository_access ra ON ra.repository_id = r.id
+       WHERE ra.user_id = $1`,
       [req.user.user_id]
     );
 

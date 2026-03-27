@@ -1,4 +1,5 @@
 import unittest
+import os
 from fastapi.testclient import TestClient
 
 from main import app
@@ -6,6 +7,7 @@ from main import app
 
 class AnalysisPipelineTest(unittest.TestCase):
     def setUp(self):
+        os.environ["ANALYSIS_SERVICE_INTERNAL_SECRET"] = "test-analysis-secret"
         self.client = TestClient(app)
 
     def test_detects_hardcoded_secret(self):
@@ -24,7 +26,11 @@ class AnalysisPipelineTest(unittest.TestCase):
             ],
         }
 
-        response = self.client.post("/analyze/pr", json=payload)
+        response = self.client.post(
+            "/analyze/pr",
+            json=payload,
+            headers={"x-internal-secret": "test-analysis-secret"},
+        )
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertGreaterEqual(len(body["findings"]), 1)

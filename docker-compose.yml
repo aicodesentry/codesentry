@@ -54,8 +54,8 @@ services:
       dockerfile: Dockerfile
     container_name: codesentry-github
     env_file: [.env]
-    ports:
-      - "3002:3002"
+    expose:
+      - "3002"
     environment:
       # Overrides: docker-internal hostnames, ports, and secret alias
       PORT: 3002
@@ -77,8 +77,8 @@ services:
       dockerfile: Dockerfile
     container_name: codesentry-analysis
     env_file: [.env]
-    ports:
-      - "8001:8001"
+    expose:
+      - "8001"
     environment:
       # Override: port
       PORT: 8001

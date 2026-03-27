@@ -1,12 +1,14 @@
 const express = require('express');
+const crypto = require('crypto');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/database');
+const { authenticateToken } = require('../middleware/auth');
+const { encrypt } = require('../utils/encryption');
 
 const router = express.Router();
 
 router.use((_req, res, next) => {
-  // Auth responses should never be cached by browsers/CDNs.
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
@@ -16,24 +18,50 @@ router.use((_req, res, next) => {
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const DEFAULT_GITHUB_APP_SLUG = 'aicodesentry';
 
+// In-memory store for OAuth state and auth codes (short-lived)
+const pendingStates = new Map();
+const pendingAuthCodes = new Map();
+const AUTH_COOKIE_NAME = 'auth_token';
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Clean expired entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of pendingStates) {
+    if (now - val.created > 10 * 60 * 1000) pendingStates.delete(key);
+  }
+  for (const [key, val] of pendingAuthCodes) {
+    if (now - val.created > 60 * 1000) pendingAuthCodes.delete(key);
+  }
+}, 5 * 60 * 1000);
+
 function resolveGithubAppSlug() {
   const raw = (process.env.GITHUB_APP_SLUG || '').trim();
   const lowered = raw.toLowerCase();
 
-  if (
-    !raw ||
-    lowered.includes('replace_me') ||
-    lowered.includes('your_') ||
-    lowered === 'github_app_slug'
-  ) {
+  if (!raw || lowered.includes('replace_me') || lowered.includes('your_') || lowered === 'github_app_slug') {
     return DEFAULT_GITHUB_APP_SLUG;
   }
 
-  // Support passing the full GitHub App URL as env value.
   const match = raw.match(/github\.com\/apps\/([^/]+)/i);
   if (match?.[1]) return match[1];
 
   return raw;
+}
+
+function cookieOptions(req) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const forwardedProto = req.get('x-forwarded-proto');
+  const protocol = forwardedProto ? forwardedProto.split(',')[0] : req.protocol;
+  const secure = isProduction || protocol === 'https';
+
+  return {
+    httpOnly: true,
+    secure,
+    sameSite: secure ? 'none' : 'lax',
+    maxAge: SESSION_TTL_MS,
+    path: '/',
+  };
 }
 
 router.get('/github', (req, res) => {
@@ -49,22 +77,33 @@ router.get('/github', (req, res) => {
     return res.status(400).json({ error: 'HTTPS required' });
   }
 
+  // Generate CSRF state parameter
+  const state = crypto.randomBytes(20).toString('hex');
+  pendingStates.set(state, { created: Date.now() });
+
   const callbackUrl =
     process.env.GITHUB_CALLBACK_URL || `${protocol}://${req.get('host')}/auth/github/callback`;
 
   const authUrl =
     `https://github.com/login/oauth/authorize?client_id=${process.env.GITHUB_CLIENT_ID}` +
-    `&scope=read:user,user:email,read:org` +
-    `&redirect_uri=${encodeURIComponent(callbackUrl)}`;
+    `&scope=read:user,user:email` +
+    `&redirect_uri=${encodeURIComponent(callbackUrl)}` +
+    `&state=${state}`;
 
   res.redirect(authUrl);
 });
 
 router.get('/github/callback', async (req, res) => {
-  const { code } = req.query;
+  const { code, state } = req.query;
   if (!code) {
     return res.redirect(`${FRONTEND_URL}/?error=no_oauth_code`);
   }
+
+  // Validate state parameter (CSRF protection)
+  if (!state || !pendingStates.has(state)) {
+    return res.redirect(`${FRONTEND_URL}/?error=invalid_state`);
+  }
+  pendingStates.delete(state);
 
   try {
     const tokenResp = await axios.post(
@@ -98,11 +137,10 @@ router.get('/github/callback', async (req, res) => {
       } catch (emailErr) {
         console.warn(JSON.stringify({
           level: 'warn',
-          msg: 'Could not fetch user email — user may need to re-authorize with email scope',
+          msg: 'Could not fetch user email',
           status: emailErr.response?.status,
           github_username: ghUser.data.login,
         }));
-        // Fallback: construct noreply email from GitHub username
         email = `${ghUser.data.id}+${ghUser.data.login}@users.noreply.github.com`;
       }
     }
@@ -119,21 +157,28 @@ router.get('/github/callback', async (req, res) => {
          github_token = EXCLUDED.github_token,
          updated_at = NOW()
        RETURNING id, github_id, github_username, github_email, avatar_url, name`,
-      [ghUser.data.id, ghUser.data.login, email, ghUser.data.avatar_url, ghUser.data.name, githubToken]
+      [
+        ghUser.data.id,
+        ghUser.data.login,
+        email,
+        ghUser.data.avatar_url,
+        ghUser.data.name,
+        encrypt(githubToken),
+      ]
     );
 
     const user = upsert.rows[0];
-    const token = jwt.sign(
-      {
-        user_id: user.id,
-        github_id: user.github_id,
-        github_username: user.github_username,
-      },
+    const jwtToken = jwt.sign(
+      { user_id: user.id, github_id: user.github_id, github_username: user.github_username },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    res.redirect(`${FRONTEND_URL}/dashboard?token=${encodeURIComponent(token)}`);
+    // Issue a short-lived auth code instead of putting JWT in URL
+    const authCode = crypto.randomBytes(32).toString('hex');
+    pendingAuthCodes.set(authCode, { token: jwtToken, created: Date.now() });
+
+    res.redirect(`${FRONTEND_URL}/auth/callback?code=${authCode}`);
   } catch (error) {
     const detail = error.response?.data || error.message;
     const status = error.response?.status;
@@ -148,19 +193,36 @@ router.get('/github/callback', async (req, res) => {
   }
 });
 
-router.get('/me', async (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({ error: 'No token' });
+// Frontend exchanges the short-lived auth code for a session cookie
+router.post('/exchange', (req, res) => {
+  const { code } = req.body;
+  if (!code) {
+    return res.status(400).json({ error: 'Auth code is required' });
   }
 
+  const pending = pendingAuthCodes.get(code);
+  if (!pending) {
+    return res.status(401).json({ error: 'Invalid or expired auth code' });
+  }
+
+  // One-time use
+  pendingAuthCodes.delete(code);
+
+  // Reject if older than 60 seconds
+  if (Date.now() - pending.created > 60 * 1000) {
+    return res.status(401).json({ error: 'Auth code expired' });
+  }
+
+  res.cookie(AUTH_COOKIE_NAME, pending.token, cookieOptions(req));
+  res.status(204).end();
+});
+
+router.get('/me', authenticateToken, async (req, res) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userResult = await pool.query(
       `SELECT id, github_id, github_username, github_email, avatar_url, name, created_at
-       FROM users
-       WHERE id = $1`,
-      [decoded.user_id]
+       FROM users WHERE id = $1`,
+      [req.user.user_id]
     );
 
     if (userResult.rowCount === 0) {
@@ -178,6 +240,12 @@ router.get('/me', async (req, res) => {
 });
 
 router.post('/logout', (_req, res) => {
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    path: '/',
+  });
   res.json({ success: true });
 });
 

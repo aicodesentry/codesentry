@@ -54,7 +54,7 @@ No per-service `.env` files are needed for docker-compose development.
 | `GITHUB_CLIENT_ID` | Yes | GitHub OAuth client ID |
 | `GITHUB_CLIENT_SECRET` | Yes | GitHub OAuth client secret |
 | `GITHUB_CALLBACK_URL` | No | OAuth callback URL (default: `http://localhost:3000/auth/github/callback`) |
-| `ENCRYPTION_KEY` | No | Token encryption key |
+| `ENCRYPTION_KEY` | Yes | 64-hex-character key used to encrypt stored GitHub OAuth tokens |
 | `GITHUB_APP_SLUG` | No | GitHub App slug (default: `aicodesentry`) |
 
 ### Analysis Service (all optional)
@@ -65,6 +65,12 @@ No per-service `.env` files are needed for docker-compose development.
 | `GEMINI_API_KEY` | Google Gemini API key for AI analysis |
 | `MONGODB_URL` | MongoDB connection string (disabled if unset) |
 | `ANALYSIS_STORE_IN_MONGO` | Enable MongoDB storage (default: `true`) |
+
+### Operational / Internal Auth
+
+| Variable | Required | Description |
+|---|---|---|
+| `METRICS_AUTH_TOKEN` | No | Optional dedicated header token for `/metrics`; falls back to `GITHUB_SERVICE_INTERNAL_SECRET` |
 
 ### GitHub Service (optional)
 
@@ -96,6 +102,8 @@ Production deploys via GitHub Actions + GCP Cloud Run are unaffected by this set
 |---|---|
 | "Missing required env vars" on startup | Run `./scripts/validate-env.sh` to find what's missing |
 | GitHub OAuth not working | Verify `GITHUB_CLIENT_ID`/`SECRET` match your GitHub OAuth App |
+| Startup fails on missing `ENCRYPTION_KEY` | Generate one with `openssl rand -hex 32` and set it in the root `.env` |
 | Webhooks not received | Ensure `WEBHOOK_URL` is publicly accessible (use ngrok for local dev) |
-| PR comments not posting | Check `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, and `GITHUB_SERVICE_INTERNAL_SECRET` are set |
+| PR comments or analysis fail with 401/403 | Check `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, and `GITHUB_SERVICE_INTERNAL_SECRET` are set consistently across services |
+| Metrics return 403 | Send `x-internal-secret: $METRICS_AUTH_TOKEN` or `x-internal-secret: $GITHUB_SERVICE_INTERNAL_SECRET` |
 | Database connection refused | Verify `DATABASE_URL` uses `postgres` hostname (docker) or `localhost` (standalone) |

@@ -50,6 +50,19 @@ app.add_middleware(
 )
 
 
+def require_internal_auth(request: Request) -> None:
+    expected = (
+        os.getenv("ANALYSIS_SERVICE_INTERNAL_SECRET")
+        or os.getenv("GITHUB_SERVICE_INTERNAL_SECRET")
+    )
+    if not expected:
+        raise HTTPException(status_code=503, detail="Internal analysis auth is not configured")
+
+    provided = request.headers.get("x-internal-secret", "")
+    if provided != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
 def code_snippet_from_patch(patch: str, max_lines: int = 12) -> str:
     if not patch:
         return ""
@@ -151,12 +164,14 @@ async def health():
 
 
 @app.get("/metrics")
-async def metrics():
+async def metrics(request: Request):
+    require_internal_auth(request)
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.post("/analyze/pr")
-async def analyze_pr(payload: AnalyzePRRequest):
+async def analyze_pr(payload: AnalyzePRRequest, request: Request):
+    require_internal_auth(request)
     if len(payload.files) > 300:
         raise HTTPException(status_code=413, detail="Too many files in PR payload")
 

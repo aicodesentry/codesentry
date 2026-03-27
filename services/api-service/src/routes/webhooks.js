@@ -11,6 +11,23 @@ function getBodyBuffer(req) {
   return Buffer.from(JSON.stringify(req.body || {}));
 }
 
+async function grantRepositoryAccess(client, repositoryId, installationId) {
+  const accessRows = await client.query(
+    'SELECT user_id FROM user_installations WHERE installation_id = $1',
+    [installationId]
+  );
+
+  for (const row of accessRows.rows) {
+    await client.query(
+      `INSERT INTO repository_access (user_id, repository_id, role, updated_at)
+       VALUES ($1, $2, 'admin', NOW())
+       ON CONFLICT (user_id, repository_id)
+       DO UPDATE SET updated_at = NOW()`,
+      [row.user_id, repositoryId]
+    );
+  }
+}
+
 router.post('/github', async (req, res) => {
   const signature = req.headers['x-hub-signature-256'];
   const event = req.headers['x-github-event'];
@@ -73,14 +90,11 @@ router.post('/github', async (req, res) => {
     }
 
     if (event === 'installation_repositories' && payload.installation?.id && payload.repositories_added) {
-      const ownerLogin = payload.installation.account?.login;
-
       for (const repo of payload.repositories_added) {
-        await pool.query(
+        const repoResult = await pool.query(
           `INSERT INTO repositories
             (github_id, installation_id, name, full_name, private, default_branch, language, html_url, clone_url, is_active, owner_id)
-           SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, true,
-                  (SELECT id FROM users WHERE github_username = $10 LIMIT 1)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, NULL)
            ON CONFLICT (github_id)
            DO UPDATE SET
              installation_id = EXCLUDED.installation_id,
@@ -92,7 +106,8 @@ router.post('/github', async (req, res) => {
              html_url = EXCLUDED.html_url,
              clone_url = EXCLUDED.clone_url,
              is_active = true,
-             updated_at = NOW()`,
+             updated_at = NOW()
+           RETURNING id`,
           [
             repo.id,
             payload.installation.id,
@@ -103,9 +118,9 @@ router.post('/github', async (req, res) => {
             repo.language,
             repo.html_url,
             repo.clone_url,
-            ownerLogin,
           ]
         );
+        await grantRepositoryAccess(pool, repoResult.rows[0].id, payload.installation.id);
       }
     }
 
@@ -133,10 +148,10 @@ router.post('/github', async (req, res) => {
       }
 
       await transaction(async (client) => {
-        await client.query(
+        const repoUpsert = await client.query(
           `INSERT INTO repositories
-            (github_id, installation_id, name, full_name, private, default_branch, language, html_url, clone_url, is_active)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
+            (github_id, installation_id, owner_id, name, full_name, private, default_branch, language, html_url, clone_url, is_active)
+           VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, $8, $9, true)
            ON CONFLICT (github_id)
            DO UPDATE SET
              installation_id = EXCLUDED.installation_id,
@@ -148,7 +163,8 @@ router.post('/github', async (req, res) => {
              html_url = EXCLUDED.html_url,
              clone_url = EXCLUDED.clone_url,
              is_active = true,
-             updated_at = NOW()`,
+             updated_at = NOW()
+           RETURNING id`,
           [
             repository.id,
             installationId,
@@ -161,6 +177,7 @@ router.post('/github', async (req, res) => {
             repository.clone_url,
           ]
         );
+        await grantRepositoryAccess(client, repoUpsert.rows[0].id, installationId);
 
         const repoResult = await client.query('SELECT id, baseline_set FROM repositories WHERE github_id = $1', [
           repository.id,

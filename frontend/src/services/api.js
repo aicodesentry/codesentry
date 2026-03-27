@@ -2,7 +2,6 @@ import axios from 'axios'
 
 const DEFAULT_LOCAL_API_URL = 'http://localhost:3000'
 const DEFAULT_PROD_API_URL = 'https://codesentry-api-bv5j37b5tq-uc.a.run.app'
-const AUTH_TOKEN_KEY = 'codesentry_auth_token'
 const isBrowser = typeof window !== 'undefined'
 const isLocalHost =
   isBrowser && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -54,36 +53,26 @@ const normalizeAnalyzePrResponse = (raw, payload) => {
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
   }
 })
 
-const getStoredAuthToken = () => {
-  if (typeof window === 'undefined') return null
-  return window.localStorage.getItem(AUTH_TOKEN_KEY)
-}
-
 export const setAuthToken = (token) => {
   if (typeof window === 'undefined') return
-  if (!token) {
-    window.localStorage.removeItem(AUTH_TOKEN_KEY)
-    return
-  }
-  window.localStorage.setItem(AUTH_TOKEN_KEY, token)
+  if (!token) return
+  window.localStorage.removeItem('codesentry_auth_token')
 }
 
 export const clearAuthToken = () => {
   if (typeof window === 'undefined') return
-  window.localStorage.removeItem(AUTH_TOKEN_KEY)
+  window.localStorage.removeItem('codesentry_auth_token')
 }
 
 api.interceptors.request.use((config) => {
-  const token = getStoredAuthToken()
-  if (token) {
-    config.headers = config.headers || {}
-    config.headers.Authorization = `Bearer ${token}`
-  }
+  config.headers = config.headers || {}
+  config.headers['X-CSRF-Protection'] = '1'
   return config
 })
 
@@ -116,7 +105,6 @@ export const authAPI = {
   },
   logout: async () => {
     await api.post('/auth/logout')
-    clearAuthToken()
   }
 }
 
@@ -245,23 +233,10 @@ export const analysisAPI = {
       const { data } = await axios.post(`${ANALYSIS_BASE_URL}/api/analysis/analyze`, payload)
       return data
     } catch (error) {
-      if (error?.response?.status !== 404) throw error
-      const mappedPayload = {
-        repository_full_name: payload.repository || 'playground',
-        pull_request_number: Number(payload.pr_number || 0),
-        commit_sha: 'playground',
-        files: [
-          {
-            path: payload.file_path || 'playground.py',
-            patch: payload.code || '',
-            additions: 0,
-            deletions: 0,
-            status: 'modified'
-          }
-        ]
+      if (error?.response?.status === 404) {
+        throw new Error('Interactive analysis endpoint is not available')
       }
-      const fallback = await axios.post(`${ANALYSIS_BASE_URL}/analyze/pr`, mappedPayload)
-      return normalizeAnalyzePrResponse(fallback.data, payload)
+      throw error
     }
   }
 }

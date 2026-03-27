@@ -2,6 +2,17 @@ const axios = require('axios');
 
 const ANALYSIS_SERVICE_URL = process.env.ANALYSIS_SERVICE_URL || 'http://analysis-service:8001';
 
+function analysisHeaders() {
+  const internalSecret =
+    process.env.ANALYSIS_SERVICE_INTERNAL_SECRET || process.env.GITHUB_SERVICE_INTERNAL_SECRET;
+
+  if (!internalSecret) {
+    return {};
+  }
+
+  return { 'x-internal-secret': internalSecret };
+}
+
 class AnalysisClient {
   /**
    * Call analysis-service and return canonical findings payload.
@@ -25,6 +36,7 @@ class AnalysisClient {
     try {
       console.log(`[ANALYZE] Analyzing Python file: ${filePath}`);
       const response = await axios.post(`${ANALYSIS_SERVICE_URL}/analyze/pr`, payload, {
+        headers: analysisHeaders(),
         timeout: 600000,
       });
       const data = response.data;

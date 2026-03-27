@@ -67,8 +67,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// Metrics endpoint (kept open for Grafana Agent scrapes)
-app.get('/metrics', async (_req, res) => {
+// Metrics endpoint (kept open for internal scrapes only)
+app.get('/metrics', async (req, res) => {
+  const metricsSecret = process.env.METRICS_AUTH_TOKEN || process.env.GITHUB_SERVICE_INTERNAL_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    if (!metricsSecret || req.get('x-internal-secret') !== metricsSecret) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  }
+
   try {
     res.set('Content-Type', metricsRegister.contentType);
     res.end(await metricsRegister.metrics());

@@ -50,5 +50,5 @@ Set service endpoints and URLs:
 ## Operational Notes
 - Enable HTTPS everywhere.
 - Keep `/internal/*` endpoints protected with shared secret.
-- Scrape `/metrics` endpoints with Prometheus/Grafana.
+- Scrape `/metrics` endpoints with `x-internal-secret` using `METRICS_AUTH_TOKEN` or `GITHUB_SERVICE_INTERNAL_SECRET`.
 - Route logs to centralized storage with correlation IDs.

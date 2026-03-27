@@ -34,13 +34,6 @@ function createApp() {
     registers: [metricsRegister],
   });
 
-  app.use(
-    helmet({
-      crossOriginEmbedderPolicy: false,
-      contentSecurityPolicy: false,
-    })
-  );
-
   const CORS_ORIGINS = [
     FRONTEND_URL,
     'http://localhost:5173',
@@ -48,15 +41,35 @@ function createApp() {
     ...(process.env.FIREBASE_HOSTING_URL ? [process.env.FIREBASE_HOSTING_URL] : []),
   ].filter(Boolean);
 
+  const isAllowedOrigin = (origin) =>
+    Boolean(
+      origin &&
+      (
+        CORS_ORIGINS.includes(origin) ||
+        (origin.endsWith('.web.app') && origin.includes('codesentry'))
+      )
+    );
+
+  app.use(
+    helmet({
+      crossOriginEmbedderPolicy: false,
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'none'"],
+          baseUri: ["'none'"],
+          frameAncestors: ["'none'"],
+          formAction: ["'self'"],
+        },
+      },
+    })
+  );
+
   app.use(
     cors({
       origin(origin, callback) {
         // Allow requests with no origin (server-to-server, curl, etc.)
         if (!origin) return callback(null, true);
-        if (
-          CORS_ORIGINS.includes(origin) ||
-          origin.endsWith('.web.app') && origin.includes('codesentry')
-        ) {
+        if (isAllowedOrigin(origin)) {
           return callback(null, true);
         }
         callback(new Error('Not allowed by CORS'));
@@ -88,6 +101,24 @@ function createApp() {
   app.use(express.json({ limit: '2mb' }));
   app.use(cookieParser());
 
+  app.use((req, res, next) => {
+    const unsafeMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
+    if (!unsafeMethod || !req.cookies?.auth_token || req.path.startsWith('/webhooks')) {
+      return next();
+    }
+
+    const origin = req.get('origin');
+    if (origin && !isAllowedOrigin(origin)) {
+      return res.status(403).json({ error: 'Invalid request origin' });
+    }
+
+    if (req.get('x-csrf-protection') !== '1') {
+      return res.status(403).json({ error: 'Missing CSRF protection header' });
+    }
+
+    return next();
+  });
+
   app.use(
     '/api',
     rateLimit({
@@ -98,7 +129,17 @@ function createApp() {
     })
   );
 
-  app.use('/auth', authRoutes);
+  app.use(
+    '/auth',
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 20,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Too many auth attempts. Try again in 15 minutes.' },
+    }),
+    authRoutes
+  );
   app.use('/api/installations', installationRoutes);
   app.use('/api/repositories', repositoryRoutes);
   app.use('/api', prRoutes);
@@ -108,7 +149,14 @@ function createApp() {
   app.use('/api/webhooks', webhookEventsRoutes);
   app.use('/health', healthRoutes);
 
-  app.get('/metrics', async (_req, res) => {
+  app.get('/metrics', async (req, res) => {
+    const metricsSecret = process.env.METRICS_AUTH_TOKEN || process.env.GITHUB_SERVICE_INTERNAL_SECRET;
+    if (process.env.NODE_ENV === 'production') {
+      if (!metricsSecret || req.get('x-internal-secret') !== metricsSecret) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    }
+
     res.set('Content-Type', metricsRegister.contentType);
     res.end(await metricsRegister.metrics());
   });

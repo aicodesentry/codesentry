@@ -3,6 +3,7 @@ const axios = require('axios');
 const { pool } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { getInstallationToken } = require('../services/githubApp');
+const { decrypt, isEncrypted } = require('../utils/encryption');
 
 const router = express.Router();
 
@@ -121,6 +122,19 @@ async function fetchInstallationRepositories({ installationId, githubToken }) {
   return repositories;
 }
 
+async function grantRepositoryAccess(client, repositoryId, userIds) {
+  const uniqueUserIds = [...new Set((userIds || []).filter(Boolean))];
+  for (const userId of uniqueUserIds) {
+    await client.query(
+      `INSERT INTO repository_access (user_id, repository_id, role, updated_at)
+       VALUES ($1, $2, 'admin', NOW())
+       ON CONFLICT (user_id, repository_id)
+       DO UPDATE SET updated_at = NOW()`,
+      [userId, repositoryId]
+    );
+  }
+}
+
 router.get('/', authenticateToken, async (req, res) => {
   const result = await pool.query(
     `SELECT
@@ -132,8 +146,10 @@ router.get('/', authenticateToken, async (req, res) => {
        COUNT(r.id) FILTER (WHERE r.is_active = true) AS repository_count
      FROM installations i
      JOIN user_installations ui ON ui.installation_id = i.id
-     LEFT JOIN repositories r ON r.installation_id = i.id AND r.owner_id = $1
+     LEFT JOIN repositories r ON r.installation_id = i.id
+     LEFT JOIN repository_access ra ON ra.repository_id = r.id AND ra.user_id = $1
      WHERE ui.user_id = $1
+       AND (r.id IS NULL OR ra.user_id = $1)
      GROUP BY i.id
      ORDER BY i.updated_at DESC`,
     [req.user.user_id]
@@ -149,10 +165,11 @@ router.post('/sync', authenticateToken, async (req, res) => {
       [req.user.user_id]
     );
 
-    const githubToken = userResult.rows[0]?.github_token;
-    if (!githubToken) {
+    const rawToken = userResult.rows[0]?.github_token;
+    if (!rawToken) {
       return res.status(400).json({ error: 'GitHub account is not connected. Please sign in again.' });
     }
+    const githubToken = isEncrypted(rawToken) ? decrypt(rawToken) : rawToken;
 
     const response = await axios.get('https://api.github.com/user/installations', {
       headers: {
@@ -202,7 +219,11 @@ router.post('/sync', authenticateToken, async (req, res) => {
         await pool.query(
           `UPDATE repositories
            SET is_active = false, updated_at = NOW()
-           WHERE owner_id = $1 AND installation_id = $2`,
+           WHERE installation_id = $2
+             AND EXISTS (
+               SELECT 1 FROM repository_access ra
+               WHERE ra.repository_id = repositories.id AND ra.user_id = $1
+             )`,
           [req.user.user_id, installation.id]
         );
 
@@ -219,7 +240,6 @@ router.post('/sync', authenticateToken, async (req, res) => {
              ON CONFLICT (github_id)
              DO UPDATE SET
                installation_id = EXCLUDED.installation_id,
-               owner_id = EXCLUDED.owner_id,
                name = EXCLUDED.name,
                full_name = EXCLUDED.full_name,
                private = EXCLUDED.private,
@@ -233,7 +253,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
             [
               repo.id,
               installation.id,
-              req.user.user_id,
+              null,
               repo.name,
               repo.full_name,
               repo.private,
@@ -243,6 +263,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
               repo.clone_url,
             ]
           );
+          await grantRepositoryAccess(pool, upserted.rows[0].id, [req.user.user_id]);
           syncedRepos += 1;
         }
 
@@ -250,7 +271,8 @@ router.post('/sync', authenticateToken, async (req, res) => {
         const reposWithPRs = await pool.query(
           `SELECT DISTINCT r.id, r.full_name FROM repositories r
            JOIN pull_requests pr ON pr.repository_id = r.id
-           WHERE r.owner_id = $1 AND r.installation_id = $2 AND r.is_active = true
+           JOIN repository_access ra ON ra.repository_id = r.id
+           WHERE ra.user_id = $1 AND r.installation_id = $2 AND r.is_active = true
            LIMIT 15`,
           [req.user.user_id, installation.id]
         );

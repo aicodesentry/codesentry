@@ -2,7 +2,10 @@ const { pool } = require('../config/database');
 
 async function checkOwnership(repositoryId, userId) {
   const result = await pool.query(
-    'SELECT id FROM repositories WHERE id = $1 AND owner_id = $2',
+    `SELECT r.id
+     FROM repositories r
+     JOIN repository_access ra ON ra.repository_id = r.id
+     WHERE r.id = $1 AND ra.user_id = $2`,
     [repositoryId, userId]
   );
   return result.rowCount > 0;
