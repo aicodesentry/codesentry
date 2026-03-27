@@ -124,7 +124,15 @@ router.get('/github/callback', async (req, res) => {
 
     res.redirect(`${FRONTEND_URL}/dashboard?token=${encodeURIComponent(token)}`);
   } catch (error) {
-    console.error('OAuth callback failed', error.response?.data || error.message);
+    const detail = error.response?.data || error.message;
+    const status = error.response?.status;
+    console.error(JSON.stringify({
+      level: 'error',
+      msg: 'OAuth callback failed',
+      step: error._step || 'unknown',
+      status,
+      detail: typeof detail === 'string' ? detail : JSON.stringify(detail),
+    }));
     res.redirect(`${FRONTEND_URL}/?error=oauth_callback_failed`);
   }
 });
