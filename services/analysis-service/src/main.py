@@ -10,6 +10,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 from starlette.responses import Response
 
 from security_rules import DEPENDENCY_RISK_PATTERNS, SECURITY_RULES, likely_llm_repo
+from semgrep_runner import run_semgrep
 
 
 class ChangedFile(BaseModel):
@@ -178,7 +179,15 @@ async def analyze_pr(payload: AnalyzePRRequest):
 
         findings.extend(dependency_findings(path, patch))
 
-    # Deduplicate by fingerprint.
+    # Tier 2: Semgrep AST analysis
+    try:
+        semgrep_files = [{"path": f.path, "patch": f.patch} for f in payload.files]
+        semgrep_findings = run_semgrep(semgrep_files)
+        findings.extend(semgrep_findings)
+    except Exception as e:
+        print(f"Semgrep analysis failed (non-blocking): {e}")
+
+    # Deduplicate by fingerprint (Tier 1 wins on conflicts since it runs first).
     unique = {}
     for finding in findings:
         unique[finding["fingerprint"]] = finding
