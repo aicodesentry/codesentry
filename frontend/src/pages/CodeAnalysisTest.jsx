@@ -110,8 +110,8 @@ const CodeAnalysisTest = () => {
       critical: 'bg-red-100 text-red-800 border-red-200',
       high: 'bg-orange-100 text-orange-800 border-orange-200',
       medium: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      low: 'bg-blue-100 text-blue-800 border-blue-200',
-      info: 'bg-gray-100 text-gray-800 border-gray-200',
+      low: 'bg-sky-100 text-sky-800 border-sky-200',
+      info: 'bg-slate-100 text-slate-800 border-slate-200',
     };
     return colors[severity] || colors.info;
   };
@@ -132,10 +132,10 @@ const CodeAnalysisTest = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
             Code Analysis Playground
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
+          <p className="text-slate-600 dark:text-slate-400 mt-1">
             Paste your code and get instant AI-powered security analysis
           </p>
         </div>
@@ -178,33 +178,33 @@ const CodeAnalysisTest = () => {
       </div>
 
       {/* Input Section */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow p-6">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
               Code to Analyze
             </label>
             <textarea
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="Paste your code here..."
-              className="w-full h-64 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg 
-                       bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-sm
-                       focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full h-64 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg 
+                       bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-mono text-sm
+                       focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
           </div>
 
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 Programming Language
               </label>
               <select
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg 
-                         bg-white dark:bg-gray-900 text-gray-900 dark:text-white
-                         focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg 
+                         bg-white dark:bg-slate-900 text-slate-900 dark:text-white
+                         focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               >
                 <option value="javascript">JavaScript</option>
                 <option value="typescript">TypeScript</option>
@@ -221,8 +221,8 @@ const CodeAnalysisTest = () => {
                 disabled={analyzing || !code.trim() || remainingUses === 0}
                 className={`px-6 py-2 rounded-lg font-medium transition ${
                   analyzing || !code.trim() || remainingUses === 0
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed dark:bg-slate-700 dark:text-slate-400'
+                    : 'bg-sky-500 text-white hover:bg-sky-600'
                 }`}
               >
                 {analyzing ? (
@@ -254,23 +254,23 @@ const CodeAnalysisTest = () => {
 
       {/* Results Display */}
       {result && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow p-6">
           <div className="mb-4">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
               Analysis Results
             </h2>
             <div className="space-y-2">
-              <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+              <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
                 <span>Analysis ID: {result.analysis_id}</span>
               </div>
-              <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+              <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
                 <span>Security: {result.total_vulnerabilities} vulnerabilities</span>
                 <span>•</span>
                 <span className="flex items-center gap-2">
                   <span className="text-red-600">🔴 {result.critical_count}</span>
                   <span className="text-orange-600">🟠 {result.high_count}</span>
                   <span className="text-yellow-600">🟡 {result.medium_count}</span>
-                  <span className="text-blue-600">🔵 {result.low_count}</span>
+                  <span className="text-sky-500">🔵 {result.low_count}</span>
                 </span>
               </div>
             </div>
@@ -280,10 +280,10 @@ const CodeAnalysisTest = () => {
           {result.vulnerabilities.length === 0 ? (
             <div className="text-center py-8">
               <span className="text-6xl mb-4 block">✅</span>
-              <p className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              <p className="text-lg font-medium text-slate-900 dark:text-white mb-2">
                 No Issues Detected!
               </p>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-slate-600 dark:text-slate-400">
                 Your code looks secure and follows best practices.
               </p>
             </div>
@@ -292,7 +292,7 @@ const CodeAnalysisTest = () => {
               {/* Security Vulnerabilities */}
               {result.vulnerabilities.length > 0 && (
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">
                     Security Vulnerabilities
                   </h3>
                   <div className="space-y-4">
@@ -319,7 +319,7 @@ const CodeAnalysisTest = () => {
                             </p>
 
                             {vuln.code_snippet && (
-                              <div className="bg-white/50 dark:bg-gray-900/50 rounded p-2 mb-2">
+                              <div className="bg-white/50 dark:bg-slate-900/50 rounded p-2 mb-2">
                                 <code className="text-xs font-mono">{vuln.code_snippet}</code>
                               </div>
                             )}
@@ -342,22 +342,22 @@ const CodeAnalysisTest = () => {
 
       {/* Analysis History */}
       {history.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow p-6">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
             Recent Analysis History
           </h2>
           <div className="space-y-3">
             {history.map((item, index) => (
               <div
                 key={index}
-                className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+                className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-gray-900 dark:text-white">
+                    <p className="font-medium text-slate-900 dark:text-white">
                       {item.language} - {item.total_vulnerabilities} vulnerabilities
                     </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
                       {new Date(item.timestamp).toLocaleString()}
                     </p>
                   </div>
@@ -374,7 +374,7 @@ const CodeAnalysisTest = () => {
                           <span className="text-yellow-600">🟡 {item.severity_counts.medium}</span>
                         )}
                         {item.severity_counts.low > 0 && (
-                          <span className="text-blue-600">🔵 {item.severity_counts.low}</span>
+                          <span className="text-sky-500">🔵 {item.severity_counts.low}</span>
                         )}
                       </>
                     )}

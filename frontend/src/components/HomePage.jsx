@@ -70,7 +70,7 @@ const HomePage = () => {
           <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-8">
             <button
               onClick={loginWithGitHub}
-              className="inline-flex items-center gap-2 px-7 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-sky-500 to-indigo-500 rounded-lg hover:from-sky-400 hover:to-indigo-400 shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 transition-all duration-200"
+              className="inline-flex items-center gap-2 px-7 py-3.5 text-sm font-semibold text-white bg-sky-500 rounded-lg hover:bg-sky-400 transition-all duration-200"
               aria-label="Sign in with GitHub"
             >
               <GitHubIcon />
@@ -262,7 +262,7 @@ const HomePage = () => {
               </ul>
               <button
                 onClick={loginWithGitHub}
-                className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-sky-500 to-indigo-500 rounded-lg hover:from-sky-400 hover:to-indigo-400 shadow-lg shadow-sky-500/20 transition-all duration-200"
+                className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-sky-500 rounded-lg hover:bg-sky-400 transition-all duration-200"
               >
                 Get started
               </button>
@@ -270,7 +270,7 @@ const HomePage = () => {
 
             {/* Pro tier */}
             <div className="rounded-xl border border-sky-500/30 bg-sky-500/[0.05] p-6 relative">
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 text-xs font-semibold bg-gradient-to-r from-sky-500 to-indigo-500 text-white rounded-full">Popular</span>
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 text-xs font-semibold bg-sky-500 text-white rounded-full">Popular</span>
               <h3 className="text-lg font-bold mb-1">Pro</h3>
               <p className="text-xs text-slate-500 mb-3">For professional developers</p>
               <p className="text-3xl font-bold mb-4">$29<span className="text-sm text-slate-500 font-normal">/mo</span></p>
@@ -284,7 +284,7 @@ const HomePage = () => {
               </ul>
               <button
                 onClick={loginWithGitHub}
-                className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-sky-500 to-indigo-500 rounded-lg hover:from-sky-400 hover:to-indigo-400 shadow-lg shadow-sky-500/20 transition-all duration-200"
+                className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-sky-500 rounded-lg hover:bg-sky-400 transition-all duration-200"
               >
                 Upgrade to Pro
               </button>
@@ -321,7 +321,7 @@ const HomePage = () => {
           <p className="text-slate-400 mb-6">Security review on every pull request. Install the GitHub App and go.</p>
           <button
             onClick={loginWithGitHub}
-            className="inline-flex items-center gap-2 px-7 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-sky-500 to-indigo-500 rounded-lg hover:from-sky-400 hover:to-indigo-400 shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 transition-all duration-200"
+            className="inline-flex items-center gap-2 px-7 py-3.5 text-sm font-semibold text-white bg-sky-500 rounded-lg hover:bg-sky-400 transition-all duration-200"
           >
             <GitHubIcon />
             Connect with GitHub
