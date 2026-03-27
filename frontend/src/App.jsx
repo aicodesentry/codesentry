@@ -16,6 +16,8 @@ import OnboardingPage from './pages/OnboardingPage'
 import SubscriptionPage from './pages/SubscriptionPage'
 import SupportPage from './pages/SupportPage'
 import ProfilePage from './pages/ProfilePage'
+import PrivacyPage from './pages/PrivacyPage'
+import TermsPage from './pages/TermsPage'
 
 const Protected = ({ children }) => {
   const { user, isLoading } = useAuth()
@@ -35,6 +37,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
       <Route
         path="/dashboard"
         element={
