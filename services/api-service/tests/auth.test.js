@@ -123,19 +123,15 @@ describe('GET /auth/github/callback', () => {
     expect(res.headers.location).toContain('error=invalid_state');
   });
 
-  test('sets cookie-backed session and redirects straight to dashboard', async () => {
+  test('redirects to frontend auth callback with short-lived auth code', async () => {
     setupSuccessfulOAuth();
     const app = createApp();
     const state = await getValidState(app);
     const res = await request(app).get(`/auth/github/callback?code=test-code&state=${state}`);
 
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('http://localhost:5173/dashboard');
-    const authCookie = res.headers['set-cookie']?.find((cookie) => cookie.startsWith('auth_token='));
-    expect(authCookie).toBeDefined();
-    const cookieToken = decodeURIComponent(authCookie.split(';')[0].split('=')[1]);
-    const decoded = jwt.verify(cookieToken, 'test-jwt-secret');
-    expect(decoded.github_username).toBe('testuser');
+    expect(res.headers.location).toContain('http://localhost:5173/auth/callback?code=');
+    expect(res.headers['set-cookie']).toBeUndefined();
 
     // Verify GitHub token exchange
     expect(axios.post).toHaveBeenCalledWith(
@@ -155,6 +151,20 @@ describe('GET /auth/github/callback', () => {
       expect.stringContaining('INSERT INTO users'),
       expect.arrayContaining([12345, 'testuser', 'test@example.com'])
     );
+
+    const authCode = new URL(res.headers.location).searchParams.get('code');
+    expect(authCode).toBeTruthy();
+
+    const exchangeRes = await request(app)
+      .post('/auth/exchange')
+      .send({ code: authCode });
+
+    expect(exchangeRes.status).toBe(204);
+    const authCookie = exchangeRes.headers['set-cookie']?.find((cookie) => cookie.startsWith('auth_token='));
+    expect(authCookie).toBeDefined();
+    const cookieToken = decodeURIComponent(authCookie.split(';')[0].split('=')[1]);
+    const decoded = jwt.verify(cookieToken, 'test-jwt-secret');
+    expect(decoded.github_username).toBe('testuser');
   });
 
   test('fetches email from /user/emails if not in profile', async () => {
@@ -231,14 +241,14 @@ describe('GET /auth/github/callback', () => {
 });
 
 describe('POST /auth/exchange', () => {
-  test('returns 410 for legacy auth-code exchange flow', async () => {
+  test('returns 401 for invalid or expired auth code', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/auth/exchange')
       .send({ code: 'legacy-code' });
 
-    expect(res.status).toBe(410);
-    expect(res.body.error).toContain('Legacy auth exchange');
+    expect(res.status).toBe(401);
+    expect(res.body.error).toContain('Invalid or expired auth code');
   });
 });
 
