@@ -13,7 +13,7 @@ async function querySummaryFromRuns(userId) {
        COUNT(*) FILTER (WHERE COALESCE(ar.started_at, ar.created_at) >= NOW() - INTERVAL '7 days') AS recent
      FROM analysis_runs ar
      JOIN repositories r ON ar.repository_id = r.id
-     WHERE r.owner_id = $1`,
+     WHERE r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $1)`,
     [userId]
   );
   return result.rows[0];
@@ -29,7 +29,7 @@ async function querySummaryLegacy(userId) {
          COUNT(*) FILTER (WHERE a.started_at >= NOW() - INTERVAL '7 days') AS recent
        FROM analysis a
        JOIN repositories r ON a.repository_id = r.id
-       WHERE r.owner_id = $1`,
+       WHERE r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $1)`,
       [userId]
     );
     return result.rows[0];
@@ -61,7 +61,7 @@ async function querySummary(userId) {
 
 async function queryAnalysesFromRuns(userId, { repositoryId, status, limit, offset }) {
   const params = [userId];
-  const where = ['r.owner_id = $1'];
+  const where = ['r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $1)'];
 
   if (repositoryId) {
     where.push(`r.id = $${params.length + 1}`);
@@ -108,7 +108,7 @@ async function queryAnalysesFromRuns(userId, { repositoryId, status, limit, offs
 async function queryAnalysesLegacy(userId, { repositoryId, status, limit, offset }) {
   const tryOwnerScoped = async () => {
     const params = [userId];
-    const where = ['r.owner_id = $1'];
+    const where = ['r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $1)'];
 
     if (repositoryId) {
       where.push(`r.id = $${params.length + 1}`);
@@ -226,7 +226,7 @@ async function getAnalysisById(analysisId, userId) {
        FROM analysis_runs ar
        JOIN repositories r ON ar.repository_id = r.id
        LEFT JOIN pull_requests pr ON pr.id = ar.pull_request_id
-       WHERE ar.id = $1 AND r.owner_id = $2`,
+       WHERE ar.id = $1 AND r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $2)`,
       [analysisId, userId]
     );
     return runResult.rows[0] || null;
@@ -247,7 +247,7 @@ async function getAnalysisById(analysisId, userId) {
            r.github_id AS repository_github_id
          FROM analysis a
          JOIN repositories r ON a.repository_id = r.id
-         WHERE a.id = $1 AND r.owner_id = $2`,
+         WHERE a.id = $1 AND r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $2)`,
         [analysisId, userId]
       );
       return legacyOwnerResult.rows[0] || null;

@@ -19,9 +19,9 @@ async function list(userId) {
        COUNT(DISTINCT f.id) FILTER (WHERE f.status = 'open') AS open_findings_count,
        COUNT(DISTINCT f.id) FILTER (WHERE f.status = 'accepted_risk') AS accepted_risk_count
      FROM repositories r
+     JOIN user_installations ui ON ui.installation_id = r.installation_id AND ui.user_id = $1
      LEFT JOIN pull_requests pr ON pr.repository_id = r.id
      LEFT JOIN findings f ON f.repository_id = r.id
-     WHERE r.owner_id = $1
      GROUP BY r.id
      ORDER BY r.is_active DESC, r.updated_at DESC`,
     [userId]
@@ -31,9 +31,10 @@ async function list(userId) {
 
 async function getById(repoId, userId) {
   const repo = await pool.query(
-    `SELECT *
-     FROM repositories
-     WHERE id = $1 AND owner_id = $2`,
+    `SELECT r.*
+     FROM repositories r
+     JOIN user_installations ui ON ui.installation_id = r.installation_id AND ui.user_id = $2
+     WHERE r.id = $1`,
     [repoId, userId]
   );
 
@@ -57,9 +58,9 @@ async function getById(repoId, userId) {
 async function updateBaseline(repoId, userId, enabled) {
   const updated = await pool.query(
     `UPDATE repositories
-     SET baseline_set = $1,
-         updated_at = NOW()
-     WHERE id = $2 AND owner_id = $3
+     SET baseline_set = $1, updated_at = NOW()
+     WHERE id = $2
+       AND installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $3)
      RETURNING id, baseline_set`,
     [Boolean(enabled), repoId, userId]
   );
@@ -70,7 +71,8 @@ async function connect(repoId, userId) {
   const updated = await pool.query(
     `UPDATE repositories
      SET is_active = true, updated_at = NOW()
-     WHERE id = $1 AND owner_id = $2
+     WHERE id = $1
+       AND installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $2)
      RETURNING id, full_name, is_active`,
     [repoId, userId]
   );
@@ -81,7 +83,8 @@ async function disconnect(repoId, userId) {
   const updated = await pool.query(
     `UPDATE repositories
      SET is_active = false, updated_at = NOW()
-     WHERE id = $1 AND owner_id = $2
+     WHERE id = $1
+       AND installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $2)
      RETURNING id, full_name, is_active`,
     [repoId, userId]
   );

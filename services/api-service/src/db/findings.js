@@ -7,7 +7,7 @@ async function listByPullRequest(pullRequestId, userId, { status = 'open', minCo
      JOIN pull_requests pr ON pr.id = f.pull_request_id
      JOIN repositories r ON r.id = pr.repository_id
      WHERE pr.id = $1
-       AND r.owner_id = $2
+       AND r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $2)
        AND ($3::text = 'all' OR f.status = $3)
        AND f.confidence >= $4::numeric
      ORDER BY
@@ -26,7 +26,7 @@ async function listByPullRequest(pullRequestId, userId, { status = 'open', minCo
 
 async function listAll(userId, { repositoryId, status = 'open', severity, category }) {
   const params = [userId];
-  const clauses = ['r.owner_id = $1'];
+  const clauses = ['r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $1)'];
 
   if (repositoryId) {
     params.push(repositoryId);
@@ -65,7 +65,7 @@ async function getById(findingId, userId) {
      JOIN repositories r ON r.id = f.repository_id
      LEFT JOIN pull_requests pr ON pr.id = f.pull_request_id
      WHERE f.id = $1
-       AND r.owner_id = $2`,
+       AND r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $2)`,
     [findingId, userId]
   );
   return result.rowCount > 0 ? result.rows[0] : null;
@@ -77,7 +77,7 @@ async function updateStatus(findingId, userId, { status, dismissalReason }) {
       `SELECT f.id, f.repository_id
        FROM findings f
        JOIN repositories r ON r.id = f.repository_id
-       WHERE f.id = $1 AND r.owner_id = $2`,
+       WHERE f.id = $1 AND r.installation_id IN (SELECT installation_id FROM user_installations WHERE user_id = $2)`,
       [findingId, userId]
     );
 
