@@ -17,7 +17,7 @@ rules:
       confidence: 0.88
 
   - id: cwe-79.react-dangerously
-    pattern: dangerouslySetInnerHTML={{__html: $INPUT}}
+    pattern: "dangerouslySetInnerHTML={...}"
     message: "dangerouslySetInnerHTML with dynamic content — sanitize with DOMPurify"
     severity: WARNING
     languages: [javascript, typescript]
