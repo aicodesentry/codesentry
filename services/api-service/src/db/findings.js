@@ -165,8 +165,8 @@ async function upsert(params) {
        file_path, line_start, line_end, code_snippet, evidence, exploit_scenario,
        remediation, remediation_patch, status, is_baseline, first_seen_at, last_seen_at
      ) VALUES (
-       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,
-       'open',$27,NOW(),NOW()
+       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,
+       'open',$28,NOW(),NOW()
      ) RETURNING *`,
     [repositoryId, installationId, prNumber, pullRequestId, runId, commitSha,
      fingerprint, ruleId, internalType, title, description, category, cweId, owaspCategory,
