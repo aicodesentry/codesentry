@@ -141,23 +141,25 @@ class TestRuleYAMLValidity:
 # ── Combined pipeline test ───────────────────────────────────────────────
 
 class TestCombinedPipeline:
-    """Test Tier 1 + Tier 2 deduplication and merging."""
+    """Test Tier 1 + Tier 2 clustering and evidence quality."""
 
-    def test_deduplication_by_fingerprint(self):
-        """Simulate both tiers finding the same issue — should deduplicate."""
+    def test_clusters_duplicate_detectors(self):
+        """Semgrep and deterministic detections for the same issue should collapse."""
         from security_rules import SECURITY_RULES
-        from main import generate_finding, make_fingerprint as t1_fingerprint
+        from main import generate_finding
+        from finding_quality import cluster_findings
 
-        # Tier 1: regex match on pickle.loads
         patch = "+import pickle\n+data = pickle.loads(user_input)"
         tier1_findings = []
         for rule in SECURITY_RULES:
             if rule.pattern.search(patch):
                 tier1_findings.append(generate_finding(rule, "app.py", patch))
+        assert tier1_findings
 
         # Tier 2: Semgrep match (simulated)
         tier2_findings = [{
             "rule_id": "semgrep.cwe-502.pickle-loads",
+            "internal_type": tier1_findings[0]["internal_type"],
             "title": "pickle.loads() deserializes arbitrary Python objects",
             "category": "insecure deserialization",
             "cwe_id": "CWE-502",
@@ -177,16 +179,11 @@ class TestCombinedPipeline:
             "remediation_patch": "",
         }]
 
-        # Merge like the pipeline does
-        all_findings = tier1_findings + tier2_findings
-        unique = {}
-        for f in all_findings:
-            unique[f["fingerprint"]] = f
-        merged = list(unique.values())
+        merged = cluster_findings(tier1_findings + tier2_findings)
 
-        # Tier 1 and Tier 2 have different fingerprints (different rule_id),
-        # so both should appear. If same fingerprint, Tier 1 wins.
-        assert len(merged) >= len(tier1_findings)
+        assert len(merged) == 1
+        assert merged[0]["rule_id"].startswith("semgrep.")
+        assert "Supporting detections:" in merged[0]["evidence"]
 
     def test_tier1_findings_present(self):
         """Verify Tier 1 catches pickle.loads via regex."""
@@ -220,3 +217,26 @@ class TestCombinedPipeline:
                 missing = required_keys - set(finding.keys())
                 assert not missing, f"Tier 1 finding missing keys: {missing}"
                 break
+
+    def test_extracts_snippet_from_matching_hunk(self):
+        from security_rules import SECURITY_RULES
+        from main import generate_finding
+
+        rule = next(rule for rule in SECURITY_RULES if rule.rule_id == "sql.injection.raw_query")
+        patch = "\n".join(
+            [
+                "@@ -10,3 +10,6 @@",
+                " def find_user(user_id)",
+                '+  logger.info("querying")',
+                '+  query = "SELECT * FROM users WHERE id=" + user_id',
+                '+  DB.execute(query)',
+                " end",
+            ]
+        )
+
+        finding = generate_finding(rule, "user_service.rb", patch)
+
+        assert finding["line_start"] == 12
+        assert 'query = "SELECT * FROM users WHERE id=" + user_id' in finding["code_snippet"]
+        assert "logger.info" in finding["code_snippet"]
+        assert "Matched deterministic rule" in finding["evidence"]

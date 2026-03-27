@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from starlette.responses import Response
 
+from finding_quality import cluster_findings, extract_match_context
 from security_rules import DEPENDENCY_RISK_PATTERNS, SECURITY_RULES, likely_llm_repo
 from semgrep_runner import run_semgrep
 from taxonomy import build_taxonomy_metadata
@@ -64,34 +65,13 @@ def require_internal_auth(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
-def code_snippet_from_patch(patch: str, max_lines: int = 12) -> str:
-    if not patch:
-        return ""
-    lines = [line for line in patch.split("\n") if line.startswith("+") and not line.startswith("+++")]
-    if not lines:
-        lines = patch.split("\n")[:max_lines]
-    return "\n".join(lines[:max_lines])
-
-
 def make_fingerprint(rule_id: str, path: str, line_start: int, snippet: str) -> str:
     raw = f"{rule_id}|{path}|{line_start}|{snippet.strip()}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def detect_line_number(patch: str, pattern) -> int:
-    if not patch:
-        return 1
-
-    lines = patch.split("\n")
-    for idx, line in enumerate(lines, start=1):
-        if pattern.search(line):
-            return idx
-    return 1
-
-
 def generate_finding(rule, file_path: str, patch: str) -> Dict[str, Any]:
-    snippet = code_snippet_from_patch(patch)
-    line_start = detect_line_number(patch, rule.pattern)
+    context = extract_match_context(patch, rule.pattern)
     taxonomy = build_taxonomy_metadata(
         rule_id=rule.rule_id,
         category=rule.category,
@@ -113,14 +93,23 @@ def generate_finding(rule, file_path: str, patch: str) -> Dict[str, Any]:
         "confidence": round(rule.confidence, 2),
         "exploitability": rule.exploitability,
         "file_path": file_path,
-        "line_start": line_start,
-        "line_end": line_start,
-        "code_snippet": snippet,
-        "evidence": f"Matched deterministic rule `{rule.rule_id}` in changed content.",
+        "line_start": context["line_start"],
+        "line_end": context["line_end"],
+        "code_snippet": context["code_snippet"],
+        "evidence": (
+            f"Matched deterministic rule `{rule.rule_id}` on `{context['matched_text']}`."
+            if context["matched_text"]
+            else f"Matched deterministic rule `{rule.rule_id}` in changed content."
+        ),
         "exploit_scenario": "If attacker-controlled input reaches this code path, they may execute the vulnerable behavior.",
         "remediation": rule.remediation,
         "remediation_patch": "",
-        "fingerprint": make_fingerprint(rule.rule_id, file_path, line_start, snippet),
+        "fingerprint": make_fingerprint(
+            rule.rule_id,
+            file_path,
+            context["line_start"],
+            context["matched_text"] or context["code_snippet"],
+        ),
     }
 
 
@@ -131,8 +120,7 @@ def dependency_findings(path: str, patch: str) -> List[Dict[str, Any]]:
 
     for pattern, message, severity in DEPENDENCY_RISK_PATTERNS:
         if pattern.search(patch):
-            line_start = detect_line_number(patch, pattern)
-            snippet = code_snippet_from_patch(patch)
+            context = extract_match_context(patch, pattern)
             taxonomy = build_taxonomy_metadata(
                 rule_id="dependency.risk.version",
                 category="dependency/package risk",
@@ -155,14 +143,23 @@ def dependency_findings(path: str, patch: str) -> List[Dict[str, Any]]:
                     "confidence": 0.74,
                     "exploitability": "medium",
                     "file_path": path,
-                    "line_start": line_start,
-                    "line_end": line_start,
-                    "code_snippet": snippet,
-                    "evidence": "Dependency declaration matches known risky version pattern.",
+                    "line_start": context["line_start"],
+                    "line_end": context["line_end"],
+                    "code_snippet": context["code_snippet"],
+                    "evidence": (
+                        f"Dependency declaration `{context['matched_text']}` matches a known risky version pattern."
+                        if context["matched_text"]
+                        else "Dependency declaration matches a known risky version pattern."
+                    ),
                     "exploit_scenario": "Exploitation depends on vulnerable code path usage and package exposure.",
                     "remediation": "Upgrade to a patched package version and verify lockfile resolution.",
                     "remediation_patch": "",
-                    "fingerprint": make_fingerprint("dependency.risk.version", path, line_start, snippet),
+                    "fingerprint": make_fingerprint(
+                        "dependency.risk.version",
+                        path,
+                        context["line_start"],
+                        context["matched_text"] or context["code_snippet"],
+                    ),
                 }
             )
 
@@ -222,17 +219,9 @@ async def analyze_pr(payload: AnalyzePRRequest, request: Request):
     except Exception as e:
         print(f"Semgrep analysis failed (non-blocking): {e}")
 
-    # Deduplicate by fingerprint (Tier 1 wins on conflicts since it runs first).
-    unique = {}
-    for finding in findings:
-        unique[finding["fingerprint"]] = finding
-
-    normalized = list(unique.values())
+    normalized = cluster_findings(findings)
     for finding in normalized:
         FINDING_COUNT.labels(finding["category"], finding["severity"]).inc()
-
-    severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
-    normalized.sort(key=lambda f: (severity_order.get(f["severity"], 99), -f["confidence"]))
 
     return {
         "repository_full_name": payload.repository_full_name,
