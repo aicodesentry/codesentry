@@ -1,0 +1,106 @@
+rules:
+  - id: cwe-89.csharp-sql-injection
+    patterns:
+      - pattern-either:
+        - pattern: new SqlCommand("..." + $INPUT + "...", ...)
+        - pattern: $CMD.CommandText = "..." + $INPUT + "..."
+        - pattern: $CMD.CommandText = $"...{$INPUT}..."
+    message: "SQL query with string concatenation — use SqlParameter"
+    severity: ERROR
+    languages: [csharp]
+    metadata:
+      cwe: "CWE-89"
+      owasp: "A03:2021"
+      category: "SQL injection"
+      confidence: "0.90"
+
+  - id: cwe-78.csharp-process-start
+    patterns:
+      - pattern-either:
+        - pattern: Process.Start($CMD)
+        - pattern: new Process { StartInfo = { FileName = $CMD, ... } }
+    message: "Process execution with variable input — validate and sanitize"
+    severity: ERROR
+    languages: [csharp]
+    metadata:
+      cwe: "CWE-78"
+      owasp: "A03:2021"
+      category: "command injection"
+      confidence: "0.85"
+
+  - id: cwe-502.csharp-deserialization
+    patterns:
+      - pattern-either:
+        - pattern: BinaryFormatter().Deserialize(...)
+        - pattern: new JavaScriptSerializer().Deserialize(...)
+        - pattern: JsonConvert.DeserializeObject($INPUT)
+        - pattern: new XmlSerializer(...).Deserialize(...)
+    message: "Deserialization of untrusted data — use allowlist-based type filtering"
+    severity: ERROR
+    languages: [csharp]
+    metadata:
+      cwe: "CWE-502"
+      owasp: "A08:2021"
+      category: "insecure deserialization"
+      confidence: "0.88"
+
+  - id: cwe-79.csharp-xss-raw
+    patterns:
+      - pattern-either:
+        - pattern: Response.Write($INPUT)
+        - pattern: Html.Raw($INPUT)
+        - pattern: "@Html.Raw($INPUT)"
+    message: "Unescaped HTML output — use Html.Encode or Razor auto-escaping"
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe: "CWE-79"
+      owasp: "A03:2021"
+      category: "XSS"
+      confidence: "0.82"
+
+  - id: cwe-295.csharp-tls-disabled
+    patterns:
+      - pattern-either:
+        - pattern: ServicePointManager.ServerCertificateValidationCallback = (...) => true
+        - pattern: ServerCertificateCustomValidationCallback = (...) => true
+    message: "TLS validation bypassed — use proper certificate validation"
+    severity: ERROR
+    languages: [csharp]
+    metadata:
+      cwe: "CWE-295"
+      owasp: "A05:2021"
+      category: "security misconfiguration"
+      confidence: "0.92"
+
+  - id: cwe-327.csharp-weak-crypto
+    patterns:
+      - pattern-either:
+        - pattern: MD5.Create()
+        - pattern: SHA1.Create()
+        - pattern: new DESCryptoServiceProvider()
+        - pattern: new TripleDESCryptoServiceProvider()
+    message: "Weak cryptographic algorithm — use SHA256 and AES"
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe: "CWE-327"
+      owasp: "A02:2021"
+      category: "insecure cryptography"
+      confidence: "0.85"
+
+  - id: cwe-798.csharp-hardcoded-secret
+    patterns:
+      - pattern: |
+          $TYPE $KEY = "...";
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: .*(password|secret|apiKey|api_key|token|connectionString|private_key).*
+    message: "Hardcoded credential — use configuration or secret manager"
+    severity: ERROR
+    languages: [csharp]
+    metadata:
+      cwe: "CWE-798"
+      owasp: "A07:2021"
+      category: "hardcoded secrets"
+      confidence: "0.85"

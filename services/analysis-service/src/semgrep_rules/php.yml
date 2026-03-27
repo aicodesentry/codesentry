@@ -1,0 +1,122 @@
+rules:
+  - id: cwe-89.php-sql-injection
+    patterns:
+      - pattern-either:
+        - pattern: mysqli_query($CONN, "..." . $INPUT . "...")
+        - pattern: $PDO->query("..." . $INPUT . "...")
+        - pattern: mysql_query("..." . $INPUT . "...")
+    message: "SQL query with string concatenation — use prepared statements"
+    severity: ERROR
+    languages: [php]
+    metadata:
+      cwe: "CWE-89"
+      owasp: "A03:2021"
+      category: "SQL injection"
+      confidence: "0.90"
+
+  - id: cwe-78.php-command-injection
+    patterns:
+      - pattern-either:
+        - pattern: system($CMD)
+        - pattern: exec($CMD)
+        - pattern: passthru($CMD)
+        - pattern: shell_exec($CMD)
+        - pattern: popen($CMD, ...)
+    message: "Shell command execution — use escapeshellarg and escapeshellcmd"
+    severity: ERROR
+    languages: [php]
+    metadata:
+      cwe: "CWE-78"
+      owasp: "A03:2021"
+      category: "command injection"
+      confidence: "0.88"
+
+  - id: cwe-502.php-unserialize
+    pattern: unserialize($INPUT)
+    message: "unserialize() on untrusted data — use json_decode instead"
+    severity: ERROR
+    languages: [php]
+    metadata:
+      cwe: "CWE-502"
+      owasp: "A08:2021"
+      category: "insecure deserialization"
+      confidence: "0.92"
+
+  - id: cwe-95.php-eval
+    patterns:
+      - pattern-either:
+        - pattern: eval($INPUT)
+        - pattern: assert($INPUT)
+        - pattern: preg_replace("/.../.../e", $INPUT, ...)
+        - pattern: create_function(..., $INPUT)
+    message: "Dynamic code execution — avoid eval, assert, and /e modifier"
+    severity: ERROR
+    languages: [php]
+    metadata:
+      cwe: "CWE-95"
+      owasp: "A03:2021"
+      category: "code injection"
+      confidence: "0.90"
+
+  - id: cwe-79.php-xss-echo
+    patterns:
+      - pattern-either:
+        - pattern: echo $_GET[$KEY];
+        - pattern: echo $_POST[$KEY];
+        - pattern: echo $_REQUEST[$KEY];
+        - pattern: print($_GET[$KEY]);
+    message: "Outputting user input without escaping — use htmlspecialchars()"
+    severity: ERROR
+    languages: [php]
+    metadata:
+      cwe: "CWE-79"
+      owasp: "A03:2021"
+      category: "XSS"
+      confidence: "0.90"
+
+  - id: cwe-22.php-path-traversal
+    patterns:
+      - pattern-either:
+        - pattern: file_get_contents($INPUT)
+        - pattern: include($INPUT)
+        - pattern: require($INPUT)
+        - pattern: fopen($INPUT, ...)
+    message: "File inclusion/access with user input — validate paths against allowlist"
+    severity: ERROR
+    languages: [php]
+    metadata:
+      cwe: "CWE-22"
+      owasp: "A01:2021"
+      category: "path traversal / file inclusion"
+      confidence: "0.85"
+
+  - id: cwe-611.php-xxe
+    patterns:
+      - pattern-either:
+        - pattern: simplexml_load_string($INPUT)
+        - pattern: new SimpleXMLElement($INPUT)
+        - pattern: DOMDocument::loadXML($INPUT)
+    message: "XML parsing without disabling external entities — set libxml_disable_entity_loader"
+    severity: WARNING
+    languages: [php]
+    metadata:
+      cwe: "CWE-611"
+      owasp: "A05:2021"
+      category: "XXE"
+      confidence: "0.82"
+
+  - id: cwe-798.php-hardcoded-secret
+    patterns:
+      - pattern-either:
+        - pattern: $KEY = "..."
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: .*(password|secret|api_key|token|private_key|db_pass).*
+    message: "Hardcoded credential — use environment variables"
+    severity: ERROR
+    languages: [php]
+    metadata:
+      cwe: "CWE-798"
+      owasp: "A07:2021"
+      category: "hardcoded secrets"
+      confidence: "0.85"

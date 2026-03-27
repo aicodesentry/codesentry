@@ -1,0 +1,109 @@
+rules:
+  - id: cwe-89.go-sql-sprintf
+    patterns:
+      - pattern-either:
+        - pattern: $DB.Query(fmt.Sprintf("...", $INPUT))
+        - pattern: $DB.Exec(fmt.Sprintf("...", $INPUT))
+        - pattern: $DB.QueryRow(fmt.Sprintf("...", $INPUT))
+        - pattern: $DB.Query("..." + $INPUT)
+    message: "SQL query with string formatting — use parameterized queries with $1 placeholders"
+    severity: ERROR
+    languages: [go]
+    metadata:
+      cwe: "CWE-89"
+      owasp: "A03:2021"
+      category: "SQL injection"
+      confidence: "0.90"
+
+  - id: cwe-78.go-exec-command
+    patterns:
+      - pattern-either:
+        - pattern: exec.Command($CMD, ...)
+        - pattern: exec.CommandContext($CTX, $CMD, ...)
+      - metavariable-regex:
+          metavariable: $CMD
+          regex: .*(req\.|r\.|input|param|arg).*
+    message: "Command execution with user input — validate and sanitize arguments"
+    severity: ERROR
+    languages: [go]
+    metadata:
+      cwe: "CWE-78"
+      owasp: "A03:2021"
+      category: "command injection"
+      confidence: "0.85"
+
+  - id: cwe-22.go-path-traversal
+    patterns:
+      - pattern-either:
+        - pattern: os.Open(... + $INPUT)
+        - pattern: os.ReadFile(... + $INPUT)
+        - pattern: http.ServeFile($W, $R, ... + $INPUT)
+        - pattern: filepath.Join(..., $INPUT)
+    message: "File path with user input — use filepath.Clean and validate against base directory"
+    severity: WARNING
+    languages: [go]
+    metadata:
+      cwe: "CWE-22"
+      owasp: "A01:2021"
+      category: "path traversal"
+      confidence: "0.82"
+
+  - id: cwe-295.go-tls-insecure
+    pattern: "tls.Config{..., InsecureSkipVerify: true, ...}"
+    message: "TLS verification disabled — remove InsecureSkipVerify"
+    severity: ERROR
+    languages: [go]
+    metadata:
+      cwe: "CWE-295"
+      owasp: "A05:2021"
+      category: "security misconfiguration"
+      confidence: "0.95"
+
+  - id: cwe-798.go-hardcoded-secret
+    patterns:
+      - pattern-either:
+        - pattern: $KEY := "..."
+        - pattern: "const $KEY = \"...\""
+        - pattern: "var $KEY = \"...\""
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: .*(password|secret|apiKey|api_key|token|privateKey|private_key).*
+    message: "Hardcoded credential — use environment variables"
+    severity: ERROR
+    languages: [go]
+    metadata:
+      cwe: "CWE-798"
+      owasp: "A07:2021"
+      category: "hardcoded secrets"
+      confidence: "0.85"
+
+  - id: cwe-79.go-template-html
+    patterns:
+      - pattern-either:
+        - pattern: fmt.Fprintf($W, "...", $INPUT)
+        - pattern: $W.Write([]byte($INPUT))
+    message: "Writing unsanitized input to HTTP response — use html/template for auto-escaping"
+    severity: WARNING
+    languages: [go]
+    metadata:
+      cwe: "CWE-79"
+      owasp: "A03:2021"
+      category: "XSS"
+      confidence: "0.75"
+
+  - id: cwe-327.go-weak-crypto
+    patterns:
+      - pattern-either:
+        - pattern: md5.New()
+        - pattern: md5.Sum(...)
+        - pattern: sha1.New()
+        - pattern: sha1.Sum(...)
+        - pattern: des.NewCipher(...)
+    message: "Weak cryptographic algorithm — use sha256 and AES-GCM"
+    severity: WARNING
+    languages: [go]
+    metadata:
+      cwe: "CWE-327"
+      owasp: "A02:2021"
+      category: "insecure cryptography"
+      confidence: "0.85"
