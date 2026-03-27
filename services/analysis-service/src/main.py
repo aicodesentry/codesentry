@@ -11,6 +11,7 @@ from starlette.responses import Response
 
 from security_rules import DEPENDENCY_RISK_PATTERNS, SECURITY_RULES, likely_llm_repo
 from semgrep_runner import run_semgrep
+from taxonomy import build_taxonomy_metadata
 
 
 class ChangedFile(BaseModel):
@@ -91,14 +92,23 @@ def detect_line_number(patch: str, pattern) -> int:
 def generate_finding(rule, file_path: str, patch: str) -> Dict[str, Any]:
     snippet = code_snippet_from_patch(patch)
     line_start = detect_line_number(patch, rule.pattern)
+    taxonomy = build_taxonomy_metadata(
+        rule_id=rule.rule_id,
+        category=rule.category,
+        cwe_id=rule.cwe_id,
+        owasp_category=rule.owasp_category,
+    )
 
     return {
         "rule_id": rule.rule_id,
+        "internal_type": taxonomy["internal_type"],
         "title": rule.title,
         "description": rule.description,
         "category": rule.category,
-        "cwe_id": rule.cwe_id,
-        "owasp_category": rule.owasp_category,
+        "cwe_id": taxonomy["primary_cwe_id"],
+        "owasp_category": taxonomy["primary_owasp_category"],
+        "taxonomy_mappings": taxonomy["taxonomy_mappings"],
+        "taxonomy_versions": taxonomy["taxonomy_versions"],
         "severity": rule.severity,
         "confidence": round(rule.confidence, 2),
         "exploitability": rule.exploitability,
@@ -123,14 +133,24 @@ def dependency_findings(path: str, patch: str) -> List[Dict[str, Any]]:
         if pattern.search(patch):
             line_start = detect_line_number(patch, pattern)
             snippet = code_snippet_from_patch(patch)
+            taxonomy = build_taxonomy_metadata(
+                rule_id="dependency.risk.version",
+                category="dependency/package risk",
+                cwe_id="CWE-1104",
+                owasp_category="A06:2021",
+                internal_type="dependency_version_risk",
+            )
             findings.append(
                 {
                     "rule_id": "dependency.risk.version",
+                    "internal_type": taxonomy["internal_type"],
                     "title": "Potential vulnerable dependency version",
                     "description": message,
                     "category": "dependency/package risk",
-                    "cwe_id": "CWE-1104",
-                    "owasp_category": "A06:2021",
+                    "cwe_id": taxonomy["primary_cwe_id"],
+                    "owasp_category": taxonomy["primary_owasp_category"],
+                    "taxonomy_mappings": taxonomy["taxonomy_mappings"],
+                    "taxonomy_versions": taxonomy["taxonomy_versions"],
                     "severity": severity,
                     "confidence": 0.74,
                     "exploitability": "medium",

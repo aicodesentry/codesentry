@@ -31,7 +31,6 @@ async function migrate() {
     const encryptedToken = encrypt(user.github_token);
     await pool.query('UPDATE users SET github_token = $1 WHERE id = $2', [encryptedToken, user.id]);
     encrypted++;
-    console.log(`Encrypted token for ${user.github_username}`);
   }
 
   console.log(`Done. Encrypted: ${encrypted}, Already encrypted: ${skipped}`);

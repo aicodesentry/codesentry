@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Initialize databases for production
-# Sets up PostgreSQL and Redis
+# Initialize databases deliberately.
+# This script is admin-only and may mutate the target database.
 
 set -e
 
@@ -20,11 +20,25 @@ if [ -z "$DATABASE_URL" ]; then
     exit 1
 fi
 
+if [ "${ALLOW_SCHEMA_INIT:-}" != "true" ]; then
+    echo -e "${RED}Refusing to run without ALLOW_SCHEMA_INIT=true${NC}"
+    echo "This guard exists to prevent accidental execution against the wrong database."
+    exit 1
+fi
+
+if [ -z "${REDIS_URL:-}" ]; then
+    echo -e "${RED}Error: REDIS_URL not set${NC}"
+    exit 1
+fi
+
+echo -e "${YELLOW}Target database:${NC} ${DATABASE_URL}"
+echo -e "${YELLOW}Target redis:${NC} ${REDIS_URL}"
+
 echo -e "${YELLOW}1. Initializing PostgreSQL...${NC}"
 
 if [ -f "infrastructure/docker/postgres/init.sql" ]; then
     echo "Executing schema..."
-    psql "$DATABASE_URL" < infrastructure/docker/postgres/init.sql
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 < infrastructure/docker/postgres/init.sql
     echo -e "${GREEN}✓ PostgreSQL schema created${NC}"
 else
     echo -e "${RED}Warning: init.sql not found${NC}"

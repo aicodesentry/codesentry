@@ -129,7 +129,8 @@ async function findByFingerprint({ repositoryId, pullRequestId, fingerprint }) {
 async function upsert(params) {
   const {
     id, runId, pullRequestId, prNumber, commitSha, repositoryId, installationId,
-    fingerprint, ruleId, title, description, category, cweId, owaspCategory,
+    fingerprint, ruleId, internalType, title, description, category, cweId, owaspCategory,
+    taxonomyMappings, taxonomyVersions,
     severity, confidence, exploitability, filePath, lineStart, lineEnd,
     codeSnippet, evidence, exploitScenario, remediation, remediationPatch, isBaseline,
   } = params;
@@ -138,17 +139,18 @@ async function upsert(params) {
     const updated = await pool.query(
       `UPDATE findings
        SET analysis_run_id = $1, pull_request_id = $2, pull_request_number = $3,
-           commit_sha = $4, title = $5, description = $6, category = $7,
-           cwe_id = $8, owasp_category = $9, severity = $10, confidence = $11,
-           exploitability = $12, file_path = $13, line_start = $14, line_end = $15,
-           code_snippet = $16, evidence = $17, exploit_scenario = $18,
-           remediation = $19, remediation_patch = $20, is_baseline = $21,
+           commit_sha = $4, internal_type = $5, title = $6, description = $7, category = $8,
+           cwe_id = $9, owasp_category = $10, taxonomy_mappings = $11, taxonomy_versions = $12,
+           severity = $13, confidence = $14, exploitability = $15, file_path = $16, line_start = $17, line_end = $18,
+           code_snippet = $19, evidence = $20, exploit_scenario = $21,
+           remediation = $22, remediation_patch = $23, is_baseline = $24,
            last_seen_at = NOW(), updated_at = NOW(),
            status = CASE WHEN status = 'fixed' THEN 'open' ELSE status END
-       WHERE id = $22
+       WHERE id = $25
        RETURNING *`,
-      [runId, pullRequestId, prNumber, commitSha, title, description, category,
-       cweId, owaspCategory, severity, confidence, exploitability,
+      [runId, pullRequestId, prNumber, commitSha, internalType, title, description, category,
+       cweId, owaspCategory, JSON.stringify(taxonomyMappings || {}), JSON.stringify(taxonomyVersions || {}),
+       severity, confidence, exploitability,
        filePath, lineStart, lineEnd, codeSnippet, evidence, exploitScenario,
        remediation, remediationPatch, isBaseline, id]
     );
@@ -158,18 +160,18 @@ async function upsert(params) {
   const inserted = await pool.query(
     `INSERT INTO findings (
        repository_id, installation_id, pull_request_number, pull_request_id,
-       analysis_run_id, commit_sha, fingerprint, rule_id, title, description,
-       category, cwe_id, owasp_category, severity, confidence, exploitability,
+       analysis_run_id, commit_sha, fingerprint, rule_id, internal_type, title, description,
+       category, cwe_id, owasp_category, taxonomy_mappings, taxonomy_versions, severity, confidence, exploitability,
        file_path, line_start, line_end, code_snippet, evidence, exploit_scenario,
        remediation, remediation_patch, status, is_baseline, first_seen_at, last_seen_at
      ) VALUES (
-       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,
-       'open',$25,NOW(),NOW()
+       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,
+       'open',$27,NOW(),NOW()
      ) RETURNING *`,
     [repositoryId, installationId, prNumber, pullRequestId, runId, commitSha,
-     fingerprint, ruleId, title, description, category, cweId, owaspCategory,
-     severity, confidence, exploitability, filePath, lineStart, lineEnd,
-     codeSnippet, evidence, exploitScenario, remediation, remediationPatch, isBaseline]
+     fingerprint, ruleId, internalType, title, description, category, cweId, owaspCategory,
+     JSON.stringify(taxonomyMappings || {}), JSON.stringify(taxonomyVersions || {}), severity, confidence, exploitability,
+     filePath, lineStart, lineEnd, codeSnippet, evidence, exploitScenario, remediation, remediationPatch, isBaseline]
   );
   return inserted.rows[0];
 }
