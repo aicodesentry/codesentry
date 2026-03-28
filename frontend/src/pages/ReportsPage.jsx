@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { ArrowUpRight, ClipboardList, Clock3, Filter, ShieldAlert, Sparkles } from 'lucide-react';
 import { installationAPI, reportsAPI, repositoryAPI } from '../services/api';
+import { EmptyPanel, PageHeader, PagePanel, PageStats } from '../components/PageSection';
 import { Pagination } from '../components/ui/pagination';
 
 // Lazy load modal for better performance
@@ -168,85 +170,75 @@ const ReportsPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="text-sm font-medium text-red-800 dark:text-red-400">{error}</p>
-          </div>
-        </div>
-      )}
+      <PageHeader
+        eyebrow="Run History"
+        title="See every PR analysis in one place"
+        description="Reports should look like the dashboard control room, not a separate analytics product. Keep the pipeline visible, but make the interface feel like the rest of CodeSentry."
+        actions={
+          <a
+            href="/dashboard/onboarding"
+            className="inline-flex items-center gap-2 rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
+          >
+            Trigger first PR
+            <ArrowUpRight className="h-4 w-4" />
+          </a>
+        }
+      />
 
-      {/* Summary Stats */}
       {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 transition-all hover:shadow-lg">
-            <div className="flex items-center gap-4">
-              <div className="flex-shrink-0 w-12 h-12 bg-sky-50 dark:bg-sky-900/20 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-sky-500 dark:text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Total Analyses</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">{summary.total_analyses}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 transition-all hover:shadow-lg">
-            <div className="flex items-center gap-4">
-              <div className="flex-shrink-0 w-12 h-12 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Completed</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">{summary.completed}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 transition-all hover:shadow-lg">
-            <div className="flex items-center gap-4">
-              <div className="flex-shrink-0 w-12 h-12 bg-red-50 dark:bg-red-900/20 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Failed</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">{summary.failed}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 transition-all hover:shadow-lg">
-            <div className="flex items-center gap-4">
-              <div className="flex-shrink-0 w-12 h-12 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Last 7 Days</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">{summary.recent_7_days}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <PageStats
+          items={[
+            {
+              label: 'Total Analyses',
+              value: summary.total_analyses,
+              meta: `${totalCount} visible in this view`,
+              icon: <ClipboardList className="h-5 w-5 text-sky-300" />,
+              iconWrapClassName: 'bg-sky-500/10',
+            },
+            {
+              label: 'Completed',
+              value: summary.completed,
+              meta: 'healthy pipeline',
+              icon: <Sparkles className="h-5 w-5 text-emerald-300" />,
+              iconWrapClassName: 'bg-emerald-500/10',
+            },
+            {
+              label: 'Failed',
+              value: summary.failed,
+              meta: 'needs review',
+              icon: <ShieldAlert className="h-5 w-5 text-rose-300" />,
+              iconWrapClassName: 'bg-rose-500/10',
+            },
+            {
+              label: 'Last 7 Days',
+              value: summary.recent_7_days,
+              meta: 'recent workload',
+              icon: <Clock3 className="h-5 w-5 text-violet-300" />,
+              iconWrapClassName: 'bg-violet-500/10',
+            },
+          ]}
+        />
       )}
 
-      {/* Filters */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 transition-colors">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Filters</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {error && (
+        <PagePanel className="border-rose-500/40 bg-rose-950/30" contentClassName="p-5">
+          <p className="text-sm font-medium text-rose-100">{error}</p>
+        </PagePanel>
+      )}
+
+      <PagePanel
+        title="Filters"
+        description="Keep the controls visible, but make them feel like part of the same cockpit."
+        action={
+          <div className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+            <Filter className="h-3.5 w-3.5" />
+            Live filter
+          </div>
+        }
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            <label className="mb-2 block text-sm font-medium text-slate-300">
               Repository
             </label>
             <select
@@ -255,7 +247,7 @@ const ReportsPage = () => {
                 setSelectedRepo(e.target.value);
                 setCurrentPage(1); // Reset to page 1 when filter changes
               }}
-              className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent dark:bg-slate-700 dark:text-white transition-colors"
+              className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-slate-100 transition-colors focus:border-sky-400 focus:outline-none"
             >
               <option value="">All Repositories</option>
               {repositories.filter((r) => r.is_active !== false).map(repo => (
@@ -267,7 +259,7 @@ const ReportsPage = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            <label className="mb-2 block text-sm font-medium text-slate-300">
               Status
             </label>
             <select
@@ -276,7 +268,7 @@ const ReportsPage = () => {
                 setSelectedStatus(e.target.value);
                 setCurrentPage(1); // Reset to page 1 when filter changes
               }}
-              className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent dark:bg-slate-700 dark:text-white transition-colors"
+              className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-slate-100 transition-colors focus:border-sky-400 focus:outline-none"
             >
               <option value="">All Statuses</option>
               <option value="completed">Completed</option>
@@ -293,23 +285,25 @@ const ReportsPage = () => {
                 setSelectedStatus('');
                 setCurrentPage(1);
               }}
-              className="w-full px-5 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+              className="w-full rounded-xl border border-slate-700 px-5 py-2.5 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-900"
             >
               Clear Filters
             </button>
           </div>
         </div>
-      </div>
+      </PagePanel>
 
-      {/* Analyses Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden transition-colors">
-        <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-700">
+      <PagePanel
+        title="Pull request analyses"
+        description="Chronological analysis history with direct links back to GitHub."
+        className="overflow-hidden"
+        contentClassName="p-0"
+      >
+        <div className="border-b border-slate-800 px-6 py-5">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-              Pull Request Analyses
-            </h2>
+            <h2 className="text-lg font-semibold text-white">Pull Request Analyses</h2>
             {totalCount > 0 && (
-              <p className="text-sm text-slate-500 dark:text-slate-400">
+              <p className="text-sm text-slate-400">
                 Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount}
               </p>
             )}
@@ -317,53 +311,54 @@ const ReportsPage = () => {
         </div>
 
         {analyses.length === 0 ? (
-          <div className="p-16 text-center">
-            <div className="max-w-md mx-auto">
-              <div className="w-20 h-20 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-10 h-10 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">No analyses found</h3>
-              <p className="text-slate-600 dark:text-slate-400">
-                Connect a repository and create a pull request to see results here.
-              </p>
-            </div>
+          <div className="p-6">
+            <EmptyPanel
+              title="No analyses found"
+              description="Connect a repository and open a pull request. This page becomes the operating log once the first scan lands."
+              action={
+                <a
+                  href="/dashboard/repositories"
+                  className="rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
+                >
+                  Open repositories
+                </a>
+              }
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-              <thead className="bg-slate-50 dark:bg-slate-900/50">
+            <table className="min-w-full divide-y divide-slate-800">
+              <thead className="bg-slate-950/50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
                     Repository
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
                     PR Number
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
                     Started
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
                     Duration
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
+              <tbody className="divide-y divide-slate-800 bg-slate-950/20">
                 {loading ? (
                   // Show skeleton rows while loading
                   Array.from({ length: itemsPerPage }).map((_, idx) => <SkeletonRow key={idx} />)
                 ) : (
                   analyses.map((analysis) => (
-                  <tr key={analysis.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                  <tr key={analysis.id} className="transition-colors hover:bg-slate-900/55">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-slate-900 dark:text-white">
+                      <div className="text-sm font-medium text-white">
                         {analysis.repository_name}
                       </div>
                     </td>
@@ -372,7 +367,7 @@ const ReportsPage = () => {
                         href={analysis.pr_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm text-sky-500 dark:text-sky-400 hover:underline"
+                        className="inline-flex items-center gap-1 text-sm text-sky-300 hover:text-sky-200 hover:underline"
                       >
                         #{analysis.pr_number}
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -385,16 +380,16 @@ const ReportsPage = () => {
                         {analysis.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
                       {formatDate(analysis.started_at)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
                       {formatDuration(analysis.processing_time_seconds)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <button
                         onClick={() => handleViewDetails(analysis)}
-                        className="inline-flex items-center gap-1.5 text-sky-500 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 font-medium transition-colors"
+                        className="inline-flex items-center gap-1.5 font-medium text-sky-300 transition-colors hover:text-sky-200"
                       >
                         View Details
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -412,7 +407,7 @@ const ReportsPage = () => {
 
         {/* Pagination Controls */}
         {totalCount > itemsPerPage && (
-          <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700">
+          <div className="border-t border-slate-800 px-6 py-4">
             <Pagination
               currentPage={currentPage}
               totalPages={Math.ceil(totalCount / itemsPerPage)}
@@ -420,7 +415,7 @@ const ReportsPage = () => {
             />
           </div>
         )}
-      </div>
+      </PagePanel>
 
       {/* Analysis Details Modal */}
       {showModal && selectedAnalysis && (
