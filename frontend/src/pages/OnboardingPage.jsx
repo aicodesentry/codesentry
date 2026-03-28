@@ -238,7 +238,7 @@ export default function OnboardingPage() {
             </a>
           }
         >
-          <div className="rounded-[26px] border border-slate-800 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(2,6,23,0.85))] p-5">
+          <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Sample PR</p>
