@@ -98,7 +98,7 @@ export default function RepositoriesPage() {
             </button>
             <Link
               to="/dashboard/onboarding"
-              className="rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
+              className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
             >
               Install Flow
             </Link>
@@ -112,29 +112,29 @@ export default function RepositoriesPage() {
             label: 'Visible Repos',
             value: loading ? '...' : repositories.length,
             meta: installationCount > 0 ? `${installationCount} install${installationCount === 1 ? '' : 's'}` : 'no installs',
-            icon: <Compass className="h-5 w-5 text-sky-300" />,
-            iconWrapClassName: 'bg-sky-500/10',
+            icon: <Compass className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
           },
           {
             label: 'Connected',
             value: loading ? '...' : repositories.filter((repo) => repo.is_active).length,
             meta: 'actively scanning',
-            icon: <GitFork className="h-5 w-5 text-emerald-300" />,
-            iconWrapClassName: 'bg-emerald-500/10',
+            icon: <GitFork className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
           },
           {
             label: 'Open Findings',
             value: loading ? '...' : repositories.reduce((sum, repo) => sum + Number(repo.open_findings_count || 0), 0),
             meta: 'across visible repos',
-            icon: <ShieldAlert className="h-5 w-5 text-rose-300" />,
-            iconWrapClassName: 'bg-rose-500/10',
+            icon: <ShieldAlert className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
           },
           {
             label: 'Next Move',
             value: installationCount > 0 ? 'PR' : 'Install',
             meta: installationCount > 0 ? 'open a test pull request' : 'grant GitHub access',
-            icon: <Sparkles className="h-5 w-5 text-amber-300" />,
-            iconWrapClassName: 'bg-amber-500/10',
+            icon: <Sparkles className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
           },
         ]}
       />
@@ -151,16 +151,16 @@ export default function RepositoriesPage() {
       )}
 
       {!loading && !error && repositories.length === 0 && installationCount > 0 && (
-        <PagePanel className="border-amber-500/35 bg-amber-950/25">
-          <p className="text-sm font-semibold text-amber-100">App installed, but the repo list is still empty.</p>
-          <p className="mt-1 text-sm text-amber-200/80">
+        <PagePanel className="border-slate-700 bg-slate-950">
+          <p className="text-sm font-semibold text-white">App installed, but the repo list is still empty.</p>
+          <p className="mt-1 text-sm text-slate-400">
             That usually means GitHub App permissions are scoped too tightly. Fix access, then re-sync.
           </p>
           <a
             href="https://github.com/settings/installations"
             target="_blank"
             rel="noreferrer"
-            className="mt-3 inline-flex rounded-xl bg-amber-300 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-950"
+            className="mt-3 inline-flex rounded-xl bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-950"
           >
             Fix GitHub App Access
           </a>
@@ -191,7 +191,7 @@ export default function RepositoriesPage() {
               action={
                 <Link
                   to="/dashboard/onboarding"
-                  className="rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
+                  className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
                 >
                   Open onboarding
                 </Link>
@@ -218,7 +218,7 @@ export default function RepositoriesPage() {
                     <button
                       onClick={() => handleDisconnect(repo.id)}
                       disabled={connecting === repo.id}
-                      className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-50"
                     >
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -229,7 +229,7 @@ export default function RepositoriesPage() {
                     <button
                       onClick={() => handleConnect(repo.id)}
                       disabled={connecting === repo.id}
-                      className="inline-flex items-center gap-2 rounded-xl bg-sky-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-sky-400 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-950 hover:bg-slate-200 disabled:opacity-50"
                     >
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />

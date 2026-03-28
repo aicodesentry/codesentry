@@ -13,9 +13,9 @@ const samplePullRequest = {
   title: 'Tighten checkout redirect handling',
   summary: 'See how CodeSentry turns one PR into inline findings, a summary review, and taxonomy-backed remediation.',
   findings: [
-    { label: 'Critical', count: 2, tint: 'bg-rose-500/15 text-rose-200 border-rose-500/30' },
-    { label: 'High', count: 1, tint: 'bg-orange-500/15 text-orange-200 border-orange-500/30' },
-    { label: 'Medium', count: 1, tint: 'bg-amber-500/15 text-amber-200 border-amber-500/30' },
+    { label: 'Critical', count: 2, tint: 'bg-slate-900 text-slate-200 border-slate-700' },
+    { label: 'High', count: 1, tint: 'bg-slate-900 text-slate-200 border-slate-700' },
+    { label: 'Medium', count: 1, tint: 'bg-slate-900 text-slate-200 border-slate-700' },
   ],
 }
 
@@ -119,7 +119,7 @@ export default function OnboardingPage() {
           <>
             <button
               onClick={loadStatus}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/50 px-4 py-2.5 text-sm font-semibold text-slate-100 transition hover:border-sky-400/50 hover:bg-slate-900"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/50 px-4 py-2.5 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-900"
             >
               <RefreshCcw className="h-4 w-4" />
               {loading ? 'Syncing...' : 'Re-sync'}
@@ -128,7 +128,7 @@ export default function OnboardingPage() {
               href={githubAppInstallUrl || GITHUB_APP_URL}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
             >
               <GitFork className="h-4 w-4" />
               Install GitHub App
@@ -143,29 +143,29 @@ export default function OnboardingPage() {
             label: 'Installations',
             value: loading ? '...' : status.installationCount,
             meta: status.hasInstall ? 'connected' : 'not yet',
-            icon: <ShieldCheck className="h-5 w-5 text-sky-300" />,
-            iconWrapClassName: 'bg-sky-500/10',
+            icon: <ShieldCheck className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
           },
           {
             label: 'Repos Ready',
             value: loading ? '...' : status.repositoryCount,
             meta: status.hasRepoAccess ? 'analysis ready' : 'needs access',
-            icon: <Compass className="h-5 w-5 text-emerald-300" />,
-            iconWrapClassName: 'bg-emerald-500/10',
+            icon: <Compass className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
           },
           {
             label: 'Last Sync',
             value: loading ? '...' : (lastSyncedAt ? 'Live' : 'Pending'),
             meta: formatSyncTime(),
-            icon: <RefreshCcw className="h-5 w-5 text-violet-300" />,
-            iconWrapClassName: 'bg-violet-500/10',
+            icon: <RefreshCcw className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
           },
           {
             label: 'AI Add-on',
             value: 'BYOK',
             meta: 'optional next step',
-            icon: <KeyRound className="h-5 w-5 text-amber-300" />,
-            iconWrapClassName: 'bg-amber-500/10',
+            icon: <KeyRound className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
           },
         ]}
       />
@@ -197,13 +197,13 @@ export default function OnboardingPage() {
                 key={item.id}
                 className={`flex items-start gap-4 rounded-2xl border px-4 py-4 ${
                   item.done
-                    ? 'border-emerald-500/30 bg-emerald-500/10'
+                    ? 'border-slate-700 bg-slate-900/90'
                     : 'border-slate-800 bg-slate-900/60'
                 }`}
               >
-                <div className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-full ${item.done ? 'bg-emerald-400/20' : 'bg-slate-800'}`}>
+                <div className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-full ${item.done ? 'bg-slate-700' : 'bg-slate-800'}`}>
                   {item.done ? (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+                    <CheckCircle2 className="h-5 w-5 text-white" />
                   ) : (
                     <span className="text-sm font-semibold text-slate-300">{index + 1}</span>
                   )}
@@ -217,9 +217,9 @@ export default function OnboardingPage() {
           </div>
 
           {status.needsPermissionFix ? (
-            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-4">
-              <p className="text-sm font-semibold text-amber-100">Installation found, but GitHub access is too narrow.</p>
-              <p className="mt-1 text-sm text-amber-200/80">
+            <div className="rounded-2xl border border-slate-700 bg-slate-900 px-4 py-4">
+              <p className="text-sm font-semibold text-white">Installation found, but GitHub access is too narrow.</p>
+              <p className="mt-1 text-sm text-slate-400">
                 Grant repository access in GitHub settings, then re-sync. Until then, the dashboard will stay empty even though the app is installed.
               </p>
             </div>
@@ -247,7 +247,7 @@ export default function OnboardingPage() {
                 </h3>
                 <p className="mt-2 text-sm text-slate-400">{samplePullRequest.repo}</p>
               </div>
-              <div className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">
+              <div className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
                 Review ready
               </div>
             </div>
@@ -269,7 +269,7 @@ export default function OnboardingPage() {
                 'Optional AI explanation layer once BYOK is enabled.',
               ].map((line) => (
                 <div key={line} className="flex items-start gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3">
-                  <Sparkles className="mt-0.5 h-4 w-4 text-sky-300" />
+                  <Sparkles className="mt-0.5 h-4 w-4 text-slate-300" />
                   <p className="text-sm text-slate-300">{line}</p>
                 </div>
               ))}
@@ -287,7 +287,7 @@ export default function OnboardingPage() {
               href={githubAppInstallUrl || GITHUB_APP_URL}
               target="_blank"
               rel="noreferrer"
-              className="rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
+              className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
             >
               Install CodeSentry
             </a>

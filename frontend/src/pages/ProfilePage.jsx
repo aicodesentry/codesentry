@@ -5,7 +5,7 @@ import { PageHeader, PagePanel, PageStats } from '../components/PageSection'
 
 const toggleClassName = (enabled) =>
   `relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-    enabled ? 'bg-sky-500' : 'bg-slate-700'
+    enabled ? 'bg-white' : 'bg-slate-700'
   }`
 
 const ProfilePage = () => {
@@ -70,22 +70,22 @@ const ProfilePage = () => {
             label: 'Active Toggles',
             value: activeSettings,
             meta: `${rows.length} available`,
-            icon: <Bell className="h-5 w-5 text-sky-300" />,
-            iconWrapClassName: 'bg-sky-500/10',
+            icon: <Bell className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
           },
           {
             label: 'Plan Mode',
             value: 'Beta',
             meta: 'pricing hidden for now',
-            icon: <ShieldAlert className="h-5 w-5 text-amber-300" />,
-            iconWrapClassName: 'bg-amber-500/10',
+            icon: <ShieldAlert className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
           },
           {
             label: 'AI Setup',
             value: 'BYOK',
             meta: 'next P2 slice',
-            icon: <Bot className="h-5 w-5 text-violet-300" />,
-            iconWrapClassName: 'bg-violet-500/10',
+            icon: <Bot className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
           },
         ]}
       />
@@ -147,7 +147,7 @@ const ProfilePage = () => {
                 <button onClick={() => handleSettingChange(row.key)} className={toggleClassName(settings[row.key])}>
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      settings[row.key] ? 'translate-x-6' : 'translate-x-1'
+                      settings[row.key] ? 'translate-x-6 bg-slate-950' : 'translate-x-1'
                     }`}
                   />
                 </button>

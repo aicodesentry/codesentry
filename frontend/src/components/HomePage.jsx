@@ -5,10 +5,8 @@ import {
   Bot,
   CheckCircle2,
   GitPullRequest,
-  Shield,
   ShieldAlert,
   Sparkles,
-  Users,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import Header from './Header'
@@ -97,7 +95,7 @@ const HomePage = () => {
         <section className="border-b border-slate-800">
           <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-8 lg:py-16">
             <div className="max-w-2xl">
-              <p className="text-xs font-medium uppercase tracking-[0.25em] text-sky-400">
+              <p className="text-xs font-medium uppercase tracking-[0.25em] text-slate-500">
                 AI security review for pull requests
               </p>
               <h1 className="mt-4 text-3xl font-bold leading-tight tracking-tight sm:text-4xl lg:text-[2.75rem]">
@@ -110,7 +108,7 @@ const HomePage = () => {
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <button
                   onClick={loginWithGitHub}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
                 >
                   <GitHubIcon />
                   Start with GitHub
@@ -125,15 +123,15 @@ const HomePage = () => {
               </div>
               <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-slate-500">
                 <span className="inline-flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-slate-300" />
                   GitHub-native comments
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <Shield className="h-3.5 w-3.5 text-sky-400" />
+                  <Sparkles className="h-3.5 w-3.5 text-slate-300" />
                   Security-focused findings
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+                  <ShieldAlert className="h-3.5 w-3.5 text-slate-300" />
                   BYOK-ready AI
                 </span>
               </div>
@@ -146,7 +144,7 @@ const HomePage = () => {
                     <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500">Sample output</p>
                     <h2 className="mt-1.5 text-base font-semibold">PR #48 Harden checkout redirect</h2>
                   </div>
-                  <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-rose-300">
+                  <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-300">
                     3 issues
                   </span>
                 </div>
@@ -170,7 +168,7 @@ const HomePage = () => {
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 rounded-lg border border-sky-500/20 bg-sky-500/5 px-4 py-3 text-sm text-sky-200">
+                <div className="mt-4 rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-300">
                   Summary check: 1 critical, 1 high, 1 medium. Review requested before merge.
                 </div>
               </div>
@@ -188,8 +186,8 @@ const HomePage = () => {
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {pillars.map((pillar) => (
                 <div key={pillar.title} className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/10">
-                    <pillar.icon className="h-5 w-5 text-sky-400" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-800">
+                    <pillar.icon className="h-5 w-5 text-slate-300" />
                   </div>
                   <h3 className="mt-3 text-sm font-semibold">{pillar.title}</h3>
                   <p className="mt-1.5 text-sm leading-relaxed text-slate-400">{pillar.desc}</p>
@@ -213,7 +211,7 @@ const HomePage = () => {
               <div className="space-y-3">
                 {workflow.map((item, index) => (
                   <div key={item.title} className="flex gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-sm font-semibold text-sky-400">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-sm font-semibold text-white">
                       {index + 1}
                     </div>
                     <div>
@@ -264,7 +262,7 @@ const HomePage = () => {
               <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
                 <button
                   onClick={loginWithGitHub}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
                 >
                   <GitHubIcon />
                   Start with GitHub

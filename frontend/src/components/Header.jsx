@@ -19,7 +19,7 @@ const Header = () => {
           </div>
           <button
             onClick={loginWithGitHub}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-white/10 border border-white/10 rounded-lg hover:bg-white/20 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-white px-4 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-slate-200"
             aria-label="Sign in with GitHub"
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
