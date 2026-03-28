@@ -201,7 +201,7 @@ export default function RepositoriesPage() {
           {paginatedRepos.map((repo) => (
             <div
               key={repo.id}
-              className="rounded-[24px] border border-slate-800 bg-slate-900/70 p-5 transition hover:border-slate-600"
+              className="rounded-xl border border-slate-800 bg-slate-900/70 p-5 transition hover:border-slate-600"
             >
               <div className="flex items-center justify-between gap-4">
                 <Link to={`/dashboard/repositories/${repo.id}`} className="flex-1 min-w-0">

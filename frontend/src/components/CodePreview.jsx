@@ -2,26 +2,26 @@ const CodePreview = () => {
   return (
     <div className="relative w-full max-w-md">
       {/* Code Editor Mockup */}
-      <div className="bg-gray-900 rounded-lg shadow-2xl overflow-hidden">
+      <div className="bg-slate-900 rounded-lg shadow-lg overflow-hidden">
         {/* Window Controls */}
-        <div className="flex items-center gap-2 px-4 py-3 bg-gray-800 border-b border-gray-700">
+        <div className="flex items-center gap-2 px-4 py-3 bg-slate-800 border-b border-slate-700">
           <div className="flex gap-2">
             <div className="w-3 h-3 rounded-full bg-red-500" aria-hidden="true"></div>
             <div className="w-3 h-3 rounded-full bg-yellow-500" aria-hidden="true"></div>
             <div className="w-3 h-3 rounded-full bg-green-500" aria-hidden="true"></div>
           </div>
-          <span className="text-gray-400 text-sm ml-2">app.py</span>
+          <span className="text-slate-400 text-sm ml-2">app.py</span>
         </div>
 
         {/* Code Content */}
         <div className="p-4 font-mono text-sm" role="img" aria-label="Code example with security scan">
-          <div className="text-gray-500">1</div>
+          <div className="text-slate-500">1</div>
           <div className="text-purple-400">def <span className="text-blue-400">analyze_code</span>():</div>
-          <div className="text-gray-500">2</div>
-          <div className="ml-4 text-gray-300">result = <span className="text-green-400">{'"Clean"'}</span></div>
-          <div className="text-gray-500">3</div>
-          <div className="ml-4 text-purple-400">return <span className="text-gray-300">result</span></div>
-          <div className="text-gray-500 mt-2">4</div>
+          <div className="text-slate-500">2</div>
+          <div className="ml-4 text-slate-300">result = <span className="text-green-400">{'"Clean"'}</span></div>
+          <div className="text-slate-500">3</div>
+          <div className="ml-4 text-purple-400">return <span className="text-slate-300">result</span></div>
+          <div className="text-slate-500 mt-2">4</div>
 
           {/* Success Badge */}
           <div className="mt-2 p-2 bg-green-900/30 border-l-4 border-green-500 rounded">
@@ -42,7 +42,7 @@ const CodePreview = () => {
 
       {/* Floating Success Badge */}
       <div className="absolute -bottom-4 -right-4 bg-white rounded-full p-3 shadow-xl" aria-hidden="true">
-        <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-8 h-8 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </div>

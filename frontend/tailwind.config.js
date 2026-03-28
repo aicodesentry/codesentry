@@ -11,6 +11,9 @@ export default {
         sans: ['var(--font-sans)'],
         display: ['var(--font-display)']
       },
+      boxShadow: {
+        'card-dark': '0 2px 8px 0 rgb(0 0 0 / 0.3)',
+      },
       colors: {
         primary: {
           50: '#f0f9ff',

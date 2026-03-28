@@ -25,7 +25,6 @@ const DashboardLayout = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(148,163,184,0.18),_transparent_55%)] dark:bg-[radial-gradient(circle_at_top,_rgba(30,41,59,0.6),_transparent_55%)]" />
       <div className="relative flex">
         <aside className="hidden lg:flex fixed inset-y-0 left-0 w-72 flex-col border-r border-slate-200/70 bg-slate-950 text-slate-100 dark:border-slate-800/80 dark:bg-slate-950">
           <a href="/" className="flex items-center gap-3 px-6 py-6 border-b border-slate-800/80">

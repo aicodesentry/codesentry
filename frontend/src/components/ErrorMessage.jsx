@@ -38,7 +38,7 @@ const ErrorMessage = ({ message, onRetry, variant = 'default' }) => {
 
   // Full page error
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <div className="text-center">
         <div className="flex justify-center mb-4">
           <svg
@@ -56,12 +56,12 @@ const ErrorMessage = ({ message, onRetry, variant = 'default' }) => {
             />
           </svg>
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Something went wrong</h2>
-        <p className="text-gray-600 mb-6">{message || 'An unexpected error occurred. Please try again.'}</p>
+        <h2 className="text-2xl font-bold text-slate-900 mb-2">Something went wrong</h2>
+        <p className="text-slate-600 mb-6">{message || 'An unexpected error occurred. Please try again.'}</p>
         {onRetry && (
           <button
             onClick={onRetry}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-lg text-white bg-sky-500 hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500"
           >
             Try Again
           </button>
