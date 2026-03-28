@@ -33,8 +33,8 @@ const Footer = ({ variant = 'landing' }) => {
             <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Product</h4>
             <ul className="space-y-2 text-xs text-slate-600">
               <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
-              <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
-              <li><a href="https://www.youtube.com/watch?v=ygxZAEhTOJc" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Demo</a></li>
+              <li><a href="/examples" className="hover:text-white transition-colors">Examples</a></li>
+              <li><a href="/benchmarks" className="hover:text-white transition-colors">Benchmarks</a></li>
             </ul>
           </div>
 
@@ -42,6 +42,8 @@ const Footer = ({ variant = 'landing' }) => {
           <div>
             <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Company</h4>
             <ul className="space-y-2 text-xs text-slate-600">
+              <li><a href="/customers" className="hover:text-white transition-colors">Customers</a></li>
+              <li><a href="/security" className="hover:text-white transition-colors">Security</a></li>
               <li><a href="/privacy" className="hover:text-white transition-colors">Privacy</a></li>
               <li><a href="/terms" className="hover:text-white transition-colors">Terms</a></li>
               <li><a href="mailto:support@codesentry.dev" className="hover:text-white transition-colors">Contact</a></li>

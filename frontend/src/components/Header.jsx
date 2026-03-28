@@ -11,6 +11,12 @@ const Header = () => {
           <a href="/" aria-label="CodeSentry home">
             <Logo variant="dark" />
           </a>
+          <div className="hidden items-center gap-5 text-sm text-slate-400 md:flex">
+            <a href="/examples" className="hover:text-white transition-colors">Examples</a>
+            <a href="/benchmarks" className="hover:text-white transition-colors">Benchmarks</a>
+            <a href="/customers" className="hover:text-white transition-colors">Customers</a>
+            <a href="/security" className="hover:text-white transition-colors">Security</a>
+          </div>
           <button
             onClick={loginWithGitHub}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-white/10 border border-white/10 rounded-lg hover:bg-white/20 transition-colors"
