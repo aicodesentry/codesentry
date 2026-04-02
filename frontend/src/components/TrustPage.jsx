@@ -43,7 +43,7 @@ const TrustPage = ({ eyebrow, title, intro, sections, ctaTitle, ctaText, ctaLink
               <div className="mt-5 flex justify-center">
                 <Link
                   to={ctaLink}
-                  className="rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+                  className="rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
                 >
                   {ctaLabel}
                 </Link>
