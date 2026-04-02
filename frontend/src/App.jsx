@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { useOnboarding } from './contexts/OnboardingContext'
 import HomePage from './components/HomePage'
 import AuthCallbackPage from './pages/AuthCallbackPage'
 import DashboardLayout from './components/DashboardLayout'
@@ -38,7 +39,21 @@ const Protected = ({ children }) => {
   return children
 }
 
-function AppRoutes() {
+const DashboardIndexRoute = () => {
+  const { loading, status } = useOnboarding()
+
+  if (loading) {
+    return <div className="flex min-h-[40vh] items-center justify-center text-slate-500">Loading workspace...</div>
+  }
+
+  if (status.needsOnboarding) {
+    return <Navigate to="/dashboard/onboarding" replace />
+  }
+
+  return <Navigate to="/dashboard/home" replace />
+}
+
+export function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
@@ -57,7 +72,8 @@ function AppRoutes() {
           </Protected>
         }
       >
-        <Route index element={<DashboardPage />} />
+        <Route index element={<DashboardIndexRoute />} />
+        <Route path="home" element={<DashboardPage />} />
         <Route path="analysis" element={<CodeAnalysisTest />} />
         <Route path="onboarding" element={<OnboardingPage />} />
         <Route path="repositories" element={<RepositoriesPage />} />
@@ -71,7 +87,7 @@ function AppRoutes() {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
-      <Route path="/app/*" element={<Navigate to="/dashboard/repositories" replace />} />
+      <Route path="/app/*" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

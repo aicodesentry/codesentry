@@ -8,7 +8,6 @@ import {
   Shield,
   ShieldAlert,
   Sparkles,
-  Users,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import Header from './Header'
@@ -86,91 +85,101 @@ const trustLinks = [
 ]
 
 const HomePage = () => {
-  const { loginWithGitHub } = useAuth()
+  const { loginWithGitHub, user } = useAuth()
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <Header />
 
       <main className="overflow-hidden">
-        <section className="relative border-b border-white/5">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_30%),radial-gradient(circle_at_80%_20%,_rgba(14,165,233,0.12),_transparent_30%)]" />
-          <div className="relative mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-24">
+        {/* Hero */}
+        <section className="border-b border-slate-800">
+          <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-8 lg:py-16">
             <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-sky-300/80">
+              <p className="text-xs font-medium uppercase tracking-[0.25em] text-sky-400">
                 AI security review for pull requests
               </p>
-              <h1 className="mt-6 text-4xl font-semibold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
+              <h1 className="mt-4 text-3xl font-bold leading-tight tracking-tight sm:text-4xl lg:text-[2.75rem]">
                 Code review that understands your repo
-                <span className="block text-slate-400">and catches security bugs before merge.</span>
+                <span className="block text-slate-500">and catches security bugs before merge.</span>
               </h1>
-              <p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">
+              <p className="mt-4 max-w-xl text-[15px] leading-7 text-slate-400">
                 CodeSentry reviews pull requests with repository context, explains what is risky, and shows engineers exactly where to fix it in GitHub.
               </p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <button
-                  onClick={loginWithGitHub}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-500 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
-                >
-                  <GitHubIcon />
-                  Start with GitHub
-                </button>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                {user ? (
+                  <Link
+                    to="/dashboard"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
+                  >
+                    Open workspace
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                ) : (
+                  <button
+                    onClick={loginWithGitHub}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+                  >
+                    <GitHubIcon />
+                    Start with GitHub
+                  </button>
+                )}
                 <Link
                   to="/examples"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-6 py-3.5 text-sm font-semibold text-slate-200 transition hover:border-white/20 hover:bg-white/5"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-5 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 hover:text-white"
                 >
                   See a sample PR review
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
-              <div className="mt-8 flex flex-wrap gap-4 text-sm text-slate-400">
-                <span className="inline-flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-                  GitHub-native comments and checks
+              <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-slate-500">
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                  GitHub-native comments
                 </span>
-                <span className="inline-flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-sky-300" />
-                  Security-focused findings only
+                <span className="inline-flex items-center gap-1.5">
+                  <Shield className="h-3.5 w-3.5 text-sky-400" />
+                  Security-focused findings
                 </span>
-                <span className="inline-flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-violet-300" />
-                  BYOK-ready AI enrichment
+                <span className="inline-flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+                  BYOK-ready AI
                 </span>
               </div>
             </div>
 
             <div className="relative">
-              <div className="rounded-[28px] border border-white/10 bg-gradient-to-br from-slate-900/95 to-slate-950/80 p-5 shadow-[0_35px_80px_rgba(2,6,23,0.75)]">
-                <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Sample output</p>
-                    <h2 className="mt-2 text-lg font-semibold">PR #48 Harden checkout redirect</h2>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500">Sample output</p>
+                    <h2 className="mt-1.5 text-base font-semibold">PR #48 Harden checkout redirect</h2>
                   </div>
-                  <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-rose-200">
+                  <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-rose-300">
                     3 issues
                   </span>
                 </div>
-                <div className="mt-5 space-y-3">
+                <div className="mt-4 space-y-2.5">
                   {[
                     ['Critical', 'Open redirect with user-controlled URL', 'CWE-601'],
                     ['High', 'Unescaped HTML render in confirmation page', 'CWE-79'],
                     ['Medium', 'Weak cookie attribute on session helper', 'CWE-614'],
                   ].map(([severity, title, tag]) => (
-                    <div key={title} className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                    <div key={title} className="rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3">
                       <div className="flex items-center justify-between gap-4">
                         <div>
-                          <p className="text-sm font-semibold text-white">{title}</p>
-                          <p className="mt-1 text-sm text-slate-400">Inline review comment + remediation + taxonomy context</p>
+                          <p className="text-sm font-medium text-slate-200">{title}</p>
+                          <p className="mt-0.5 text-xs text-slate-500">Inline review comment + remediation + taxonomy context</p>
                         </div>
-                        <div className="text-right">
-                          <span className="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">{severity}</span>
-                          <span className="mt-1 block text-xs text-slate-500">{tag}</span>
+                        <div className="shrink-0 text-right">
+                          <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">{severity}</span>
+                          <span className="mt-0.5 block text-[11px] text-slate-600">{tag}</span>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="mt-5 rounded-2xl border border-sky-500/20 bg-sky-500/10 px-4 py-4 text-sm text-sky-100">
+                <div className="mt-4 rounded-lg border border-sky-500/20 bg-sky-500/5 px-4 py-3 text-sm text-sky-200">
                   Summary check: 1 critical, 1 high, 1 medium. Review requested before merge.
                 </div>
               </div>
@@ -178,45 +187,47 @@ const HomePage = () => {
           </div>
         </section>
 
-        <section className="border-b border-white/5 py-16">
+        {/* Pillars */}
+        <section className="border-b border-slate-800 py-12">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-            <div className="mb-8 max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Product pillars</p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight">What the product actually gives a team</h2>
+            <div className="mb-6 max-w-2xl">
+              <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-slate-500">Product pillars</p>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight">What the product actually gives a team</h2>
             </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {pillars.map((pillar) => (
-                <div key={pillar.title} className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-500/10">
-                    <pillar.icon className="h-5 w-5 text-sky-300" />
+                <div key={pillar.title} className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/10">
+                    <pillar.icon className="h-5 w-5 text-sky-400" />
                   </div>
-                  <h3 className="mt-4 text-lg font-semibold">{pillar.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">{pillar.desc}</p>
+                  <h3 className="mt-3 text-sm font-semibold">{pillar.title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-slate-400">{pillar.desc}</p>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="border-b border-white/5 py-16">
+        {/* Workflow */}
+        <section className="border-b border-slate-800 py-12">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-            <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Workflow</p>
-                <h2 className="mt-3 text-3xl font-semibold tracking-tight">Show the path from install to value</h2>
-                <p className="mt-4 text-sm leading-7 text-slate-400">
+                <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-slate-500">Workflow</p>
+                <h2 className="mt-2 text-xl font-semibold tracking-tight">Show the path from install to value</h2>
+                <p className="mt-3 text-sm leading-relaxed text-slate-400">
                   New users should understand the sequence instantly: install, open a PR, review findings, tune rules, then optionally turn on BYOK AI.
                 </p>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {workflow.map((item, index) => (
-                  <div key={item.title} className="flex gap-4 rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-sky-300">
+                  <div key={item.title} className="flex gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-sm font-semibold text-sky-400">
                       {index + 1}
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold">{item.title}</h3>
-                      <p className="mt-2 text-sm leading-6 text-slate-400">{item.desc}</p>
+                      <h3 className="text-sm font-semibold">{item.title}</h3>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-400">{item.desc}</p>
                     </div>
                   </div>
                 ))}
@@ -225,49 +236,61 @@ const HomePage = () => {
           </div>
         </section>
 
-        <section className="border-b border-white/5 py-16">
+        {/* Trust */}
+        <section className="border-b border-slate-800 py-12">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-            <div className="mb-8 max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Trust and proof</p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight">The pages a serious buyer expects</h2>
+            <div className="mb-6 max-w-2xl">
+              <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-slate-500">Trust and proof</p>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight">The pages a serious buyer expects</h2>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-2">
               {trustLinks.map((item) => (
                 <Link
                   key={item.to}
                   to={item.to}
-                  className="group rounded-[24px] border border-white/10 bg-white/[0.03] p-5 transition hover:border-sky-400/30 hover:bg-white/[0.05]"
+                  className="group flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900 p-5 transition hover:border-slate-700 hover:bg-slate-800/80"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-lg font-semibold">{item.title}</h3>
-                    <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:text-sky-300" />
+                  <div>
+                    <h3 className="text-sm font-semibold">{item.title}</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-400">{item.desc}</p>
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">{item.desc}</p>
+                  <ArrowRight className="ml-4 h-4 w-4 shrink-0 text-slate-600 transition group-hover:text-slate-400" />
                 </Link>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="py-16">
+        {/* CTA */}
+        <section className="py-12">
           <div className="mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
-            <div className="rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.05] to-sky-500/[0.06] px-8 py-10">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Start now</p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight">Install on one repo and watch the first review land in GitHub</h2>
-              <p className="mt-4 text-sm leading-7 text-slate-400">
+            <div className="rounded-xl border border-slate-800 bg-slate-900 px-6 py-8">
+              <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-slate-500">Start now</p>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight">Install on one repo and watch the first review land in GitHub</h2>
+              <p className="mt-3 text-sm leading-relaxed text-slate-400">
                 The product should make sense from the first PR. That is the bar.
               </p>
-              <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-                <button
-                  onClick={loginWithGitHub}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-500 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
-                >
-                  <GitHubIcon />
-                  Start with GitHub
-                </button>
+              <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+                {user ? (
+                  <Link
+                    to="/dashboard"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
+                  >
+                    Open workspace
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                ) : (
+                  <button
+                    onClick={loginWithGitHub}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
+                  >
+                    <GitHubIcon />
+                    Start with GitHub
+                  </button>
+                )}
                 <Link
                   to="/examples"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-6 py-3.5 text-sm font-semibold text-slate-200 transition hover:border-white/20 hover:bg-white/5"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-5 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 hover:text-white"
                 >
                   Review sample output
                   <ArrowRight className="h-4 w-4" />

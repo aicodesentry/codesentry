@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Compass, GitFork, KeyRound, RefreshCcw, ShieldCheck, Sparkles } from 'lucide-react'
+import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
+import { ArrowRight, CheckCircle2, Compass, GitFork, KeyRound, RefreshCcw, ShieldCheck, Sparkles } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { installationAPI, repositoryAPI } from '../services/api'
+import { useOnboarding } from '../contexts/OnboardingContext'
 import { EmptyPanel, PageHeader, PagePanel, PageStats } from '../components/PageSection'
 
 const INSTALLATIONS_SETTINGS_URL = 'https://github.com/settings/installations'
@@ -13,96 +14,89 @@ const samplePullRequest = {
   title: 'Tighten checkout redirect handling',
   summary: 'See how CodeSentry turns one PR into inline findings, a summary review, and taxonomy-backed remediation.',
   findings: [
-    { label: 'Critical', count: 2, tint: 'bg-rose-500/15 text-rose-200 border-rose-500/30' },
-    { label: 'High', count: 1, tint: 'bg-orange-500/15 text-orange-200 border-orange-500/30' },
-    { label: 'Medium', count: 1, tint: 'bg-amber-500/15 text-amber-200 border-amber-500/30' },
+    { label: 'Critical', count: 2, tint: 'bg-slate-900 text-slate-200 border-slate-700' },
+    { label: 'High', count: 1, tint: 'bg-slate-900 text-slate-200 border-slate-700' },
+    { label: 'Medium', count: 1, tint: 'bg-slate-900 text-slate-200 border-slate-700' },
   ],
 }
 
 export default function OnboardingPage() {
   const { githubAppInstallUrl } = useAuth()
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [lastSyncedAt, setLastSyncedAt] = useState(null)
-  const [installations, setInstallations] = useState([])
-  const [repositories, setRepositories] = useState([])
-  const [syncSummary, setSyncSummary] = useState({ synced_installations: 0, synced_repositories: 0 })
+  const { error, lastSyncedAt, refresh, status, syncing } = useOnboarding()
 
-  const loadStatus = async () => {
-    setLoading(true)
-    setError(null)
-
-    let syncData = { synced_installations: 0, synced_repositories: 0 }
-    try {
-      syncData = await installationAPI.sync()
-    } catch (syncError) {
-      setError(syncError.response?.data?.error || syncError.message)
-    }
-
-    try {
-      const [installationsData, repositoriesData] = await Promise.all([
-        installationAPI.list().catch(() => ({ installations: [] })),
-        repositoryAPI.list().catch(() => ({ repositories: [] }))
-      ])
-      setInstallations(installationsData.installations || [])
-      setRepositories(repositoriesData.repositories || [])
-      setSyncSummary({
-        synced_installations: Number(syncData?.synced_installations || 0),
-        synced_repositories: Number(syncData?.synced_repositories || 0)
-      })
-      setLastSyncedAt(new Date().toISOString())
-    } catch (listError) {
-      setError(listError.response?.data?.error || listError.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadStatus()
-  }, [])
-
-  const status = useMemo(() => {
-    const installationCount = installations.length
-    const repositoryCount = repositories.length
-    const hasInstall = installationCount > 0
-    const hasRepoAccess = repositoryCount > 0
-    const needsPermissionFix = hasInstall && !hasRepoAccess
-    const checklist = [
+  const checklist = useMemo(
+    () => [
       {
         id: 'install',
         title: 'Install the GitHub App',
-        detail: hasInstall
-          ? `${installationCount} installation${installationCount === 1 ? '' : 's'} detected`
-          : 'Connect CodeSentry to an org or repository first',
-        done: hasInstall,
+        detail: status.hasInstall
+          ? `${status.installationCount} installation${status.installationCount === 1 ? '' : 's'} detected`
+          : 'Connect CodeSentry to one repository or one organization first',
+        done: status.hasInstall,
       },
       {
         id: 'access',
         title: 'Grant repository access',
-        detail: hasRepoAccess
-          ? `${repositoryCount} repos available for scanning`
-          : 'Grant repo permissions in GitHub installation settings',
-        done: hasRepoAccess,
+        detail: status.hasRepoAccess
+          ? `${status.repositoryCount} repos visible to CodeSentry`
+          : 'Grant repo permissions in GitHub installation settings and sync again',
+        done: status.hasRepoAccess,
+      },
+      {
+        id: 'connect',
+        title: 'Activate one repository',
+        detail: status.hasActiveRepo
+          ? `${status.activeRepositoryCount} repo${status.activeRepositoryCount === 1 ? '' : 's'} connected to the review pipeline`
+          : 'Choose the first repo that should receive PR reviews',
+        done: status.hasActiveRepo,
       },
       {
         id: 'review',
-        title: 'Open or sync a PR',
-        detail: hasRepoAccess
-          ? 'Push a test PR and CodeSentry will review it automatically'
-          : 'Repo access unlocks automatic PR analysis',
-        done: false,
+        title: 'Open a test pull request',
+        detail: status.hasFirstReview
+          ? `${status.analysisCount} analysis run${status.analysisCount === 1 ? '' : 's'} recorded`
+          : status.hasFirstPullRequest
+            ? 'PR detected. Waiting for the first review to land.'
+            : 'Open or update a PR in the connected repo to trigger the first review',
+        done: status.hasFirstReview,
       },
       {
         id: 'byok',
-        title: 'Optional: connect your LLM key',
-        detail: 'Bring your own model key later for richer explanations and remediation',
+        title: 'Optional: bring your own model key',
+        detail: 'Treat AI explanations as an upgrade after the core GitHub review loop is working.',
         done: false,
+        optional: true,
       },
-    ]
+    ],
+    [status]
+  )
 
-    return { installationCount, repositoryCount, hasInstall, hasRepoAccess, needsPermissionFix, checklist }
-  }, [installations, repositories])
+  const nextAction = !status.hasInstall
+    ? {
+        label: 'Install GitHub App',
+        href: githubAppInstallUrl || GITHUB_APP_URL,
+        external: true,
+      }
+    : !status.hasRepoAccess
+      ? {
+          label: 'Fix GitHub access',
+          href: INSTALLATIONS_SETTINGS_URL,
+          external: true,
+        }
+      : !status.hasActiveRepo
+        ? {
+            label: 'Choose first repository',
+            href: '/dashboard/repositories',
+          }
+        : !status.hasFirstReview
+          ? {
+              label: 'Watch reports',
+              href: '/dashboard/reports',
+            }
+          : {
+              label: 'Open dashboard',
+              href: '/dashboard/home',
+            }
 
   const formatSyncTime = () => {
     if (!lastSyncedAt) return 'Not synced yet'
@@ -114,25 +108,35 @@ export default function OnboardingPage() {
       <PageHeader
         eyebrow="First Value"
         title="Get from install to first security review in one pass"
-        description="Connect GitHub, sync repository access, open a test PR, and then decide whether you want AI-assisted remediation with your own model key."
+        description="The only job here is to connect GitHub, activate one repository, and confirm that one pull request receives a review."
         actions={
           <>
             <button
-              onClick={loadStatus}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/50 px-4 py-2.5 text-sm font-semibold text-slate-100 transition hover:border-sky-400/50 hover:bg-slate-900"
+              onClick={() => refresh({ sync: true })}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/50 px-4 py-2.5 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-900"
             >
               <RefreshCcw className="h-4 w-4" />
-              {loading ? 'Syncing...' : 'Re-sync'}
+              {syncing ? 'Syncing...' : 'Sync GitHub'}
             </button>
-            <a
-              href={githubAppInstallUrl || GITHUB_APP_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
-            >
-              <GitFork className="h-4 w-4" />
-              Install GitHub App
-            </a>
+            {nextAction.external ? (
+              <a
+                href={nextAction.href}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+              >
+                <GitFork className="h-4 w-4" />
+                {nextAction.label}
+              </a>
+            ) : (
+              <Link
+                to={nextAction.href}
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+              >
+                <ArrowRight className="h-4 w-4" />
+                {nextAction.label}
+              </Link>
+            )}
           </>
         }
       />
@@ -141,31 +145,31 @@ export default function OnboardingPage() {
         items={[
           {
             label: 'Installations',
-            value: loading ? '...' : status.installationCount,
+            value: status.installationCount,
             meta: status.hasInstall ? 'connected' : 'not yet',
-            icon: <ShieldCheck className="h-5 w-5 text-sky-300" />,
-            iconWrapClassName: 'bg-sky-500/10',
+            icon: <ShieldCheck className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
           },
           {
-            label: 'Repos Ready',
-            value: loading ? '...' : status.repositoryCount,
-            meta: status.hasRepoAccess ? 'analysis ready' : 'needs access',
-            icon: <Compass className="h-5 w-5 text-emerald-300" />,
-            iconWrapClassName: 'bg-emerald-500/10',
+            label: 'Repos Visible',
+            value: status.repositoryCount,
+            meta: status.hasRepoAccess ? `${status.activeRepositoryCount} active` : 'needs access',
+            icon: <Compass className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
+          },
+          {
+            label: 'PR Reviews',
+            value: status.analysisCount,
+            meta: status.hasFirstReview ? 'first value reached' : 'waiting for first run',
+            icon: <Sparkles className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
           },
           {
             label: 'Last Sync',
-            value: loading ? '...' : (lastSyncedAt ? 'Live' : 'Pending'),
+            value: lastSyncedAt ? 'Live' : 'Pending',
             meta: formatSyncTime(),
-            icon: <RefreshCcw className="h-5 w-5 text-violet-300" />,
-            iconWrapClassName: 'bg-violet-500/10',
-          },
-          {
-            label: 'AI Add-on',
-            value: 'BYOK',
-            meta: 'optional next step',
-            icon: <KeyRound className="h-5 w-5 text-amber-300" />,
-            iconWrapClassName: 'bg-amber-500/10',
+            icon: <KeyRound className="h-5 w-5 text-slate-300" />,
+            iconWrapClassName: 'bg-slate-800',
           },
         ]}
       />
@@ -179,7 +183,7 @@ export default function OnboardingPage() {
       <div className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
         <PagePanel
           title="Launch checklist"
-          description="The product should explain what happens next, not leave the user staring at a dashboard."
+          description="Each step should move the user toward a visible GitHub review, not toward another settings page."
           action={
             <a
               href={INSTALLATIONS_SETTINGS_URL}
@@ -192,24 +196,33 @@ export default function OnboardingPage() {
           }
         >
           <div className="space-y-3">
-            {status.checklist.map((item, index) => (
+            {checklist.map((item, index) => (
               <div
                 key={item.id}
                 className={`flex items-start gap-4 rounded-2xl border px-4 py-4 ${
                   item.done
-                    ? 'border-emerald-500/30 bg-emerald-500/10'
-                    : 'border-slate-800 bg-slate-900/60'
+                    ? 'border-slate-700 bg-slate-900/90'
+                    : item.optional
+                      ? 'border-slate-800 bg-slate-950/70'
+                      : 'border-slate-800 bg-slate-900/60'
                 }`}
               >
-                <div className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-full ${item.done ? 'bg-emerald-400/20' : 'bg-slate-800'}`}>
+                <div className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-full ${item.done ? 'bg-slate-700' : 'bg-slate-800'}`}>
                   {item.done ? (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+                    <CheckCircle2 className="h-5 w-5 text-white" />
                   ) : (
                     <span className="text-sm font-semibold text-slate-300">{index + 1}</span>
                   )}
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-white">{item.title}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-white">{item.title}</p>
+                    {item.optional ? (
+                      <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Optional
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="mt-1 text-sm text-slate-400">{item.detail}</p>
                 </div>
               </div>
@@ -217,28 +230,44 @@ export default function OnboardingPage() {
           </div>
 
           {status.needsPermissionFix ? (
-            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-4">
-              <p className="text-sm font-semibold text-amber-100">Installation found, but GitHub access is too narrow.</p>
-              <p className="mt-1 text-sm text-amber-200/80">
-                Grant repository access in GitHub settings, then re-sync. Until then, the dashboard will stay empty even though the app is installed.
+            <div className="rounded-2xl border border-slate-700 bg-slate-900 px-4 py-4">
+              <p className="text-sm font-semibold text-white">The app is installed, but GitHub access is still too narrow.</p>
+              <p className="mt-1 text-sm text-slate-400">
+                Expand repository access in GitHub installation settings, then sync again. Until then the rest of the product will look empty.
               </p>
+            </div>
+          ) : null}
+
+          {status.hasFirstReview ? (
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 px-4 py-4">
+              <p className="text-sm font-semibold text-emerald-100">The first review has landed.</p>
+              <p className="mt-1 text-sm text-emerald-200/80">
+                The activation loop is complete. You can move into the live dashboard and reports now.
+              </p>
+              <Link
+                to="/dashboard/home"
+                className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-950"
+              >
+                Open workspace
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
             </div>
           ) : null}
         </PagePanel>
 
         <PagePanel
-          title="See the finished experience"
-          description="A sample PR preview so users immediately understand what CodeSentry produces."
+          title="What users should expect"
+          description="A sample PR preview so the value is obvious before the first real review shows up."
           action={
-            <a
-              href="/dashboard/reports"
+            <Link
+              to="/examples"
               className="rounded-xl bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-950 transition hover:bg-slate-200"
             >
-              View live reports
-            </a>
+              See examples
+            </Link>
           }
         >
-          <div className="rounded-[26px] border border-slate-800 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(2,6,23,0.85))] p-5">
+          <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Sample PR</p>
@@ -247,7 +276,7 @@ export default function OnboardingPage() {
                 </h3>
                 <p className="mt-2 text-sm text-slate-400">{samplePullRequest.repo}</p>
               </div>
-              <div className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">
+              <div className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
                 Review ready
               </div>
             </div>
@@ -264,12 +293,12 @@ export default function OnboardingPage() {
             </div>
             <div className="mt-5 space-y-3">
               {[
-                'Inline comment with exact vulnerable line and remediation.',
-                'Check run summary with critical/high counts and taxonomy metadata.',
-                'Optional AI explanation layer once BYOK is enabled.',
+                'Inline comments point to the risky line and the recommended fix.',
+                'A GitHub check summary rolls up severity and taxonomy context.',
+                'Reports becomes the operating log once the first scan lands.',
               ].map((line) => (
                 <div key={line} className="flex items-start gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3">
-                  <Sparkles className="mt-0.5 h-4 w-4 text-sky-300" />
+                  <Sparkles className="mt-0.5 h-4 w-4 text-slate-300" />
                   <p className="text-sm text-slate-300">{line}</p>
                 </div>
               ))}
@@ -278,16 +307,16 @@ export default function OnboardingPage() {
         </PagePanel>
       </div>
 
-      {!status.hasInstall && !loading ? (
+      {!status.hasInstall ? (
         <EmptyPanel
           title="CodeSentry starts after the GitHub App is installed"
-          description="Install the app on one repo, open a test PR, and the rest of the product becomes obvious. Until then, every other page is guesswork."
+          description="Install the app on one repo, then sync here. Everything else stays hidden until the first review loop is working."
           action={
             <a
               href={githubAppInstallUrl || GITHUB_APP_URL}
               target="_blank"
               rel="noreferrer"
-              className="rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
+              className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
             >
               Install CodeSentry
             </a>

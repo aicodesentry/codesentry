@@ -1,12 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL ||
-  (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:3000'
-    : '')
-
 const AuthCallbackPage = () => {
   const navigate = useNavigate()
 
@@ -21,7 +15,7 @@ const AuthCallbackPage = () => {
       }
 
       try {
-        navigate('/dashboard', { replace: true })
+        navigate('/dashboard/onboarding', { replace: true })
       } catch (_err) {
         navigate('/')
       }
