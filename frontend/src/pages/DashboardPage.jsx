@@ -1,9 +1,11 @@
 import { useAuth } from '../contexts/AuthContext'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useOnboarding } from '../contexts/OnboardingContext'
 import { repositoryAPI } from '../services/api'
+import { EmptyPanel, PageHeader } from '../components/PageSection'
 import { Pagination } from '../components/ui/pagination'
-import { ArrowUpRight, Clock, GitPullRequest, Shield, ShieldAlert, Server, Search } from 'lucide-react'
+import { ArrowUpRight, GitPullRequest, Shield, ShieldAlert, Server, Search } from 'lucide-react'
 
 const statusConfig = {
   merged: { label: 'Merged', dot: 'bg-purple-500', text: 'text-purple-600 dark:text-purple-400' },
@@ -21,6 +23,7 @@ const severityConfig = {
 
 const DashboardPage = () => {
   const { user } = useAuth()
+  const { status: onboardingStatus } = useOnboarding()
   const [connectedRepoCount, setConnectedRepoCount] = useState(0)
   const [analysisSummary, setAnalysisSummary] = useState({
     total_analyses: 0, completed: 0, failed: 0, recent_7_days: 0
@@ -76,7 +79,7 @@ const DashboardPage = () => {
                   high: Number(prItem.high_count || 0),
                   medium: Number(prItem.medium_count || 0),
                   low: Number(prItem.low_count || 0),
-                }
+                },
               })
             }
           })
@@ -102,7 +105,11 @@ const DashboardPage = () => {
         acc.high += pr.severity_counts.high
         acc.medium += pr.severity_counts.medium
         acc.low += pr.severity_counts.low
-        acc.total += pr.total_vulnerabilities
+        acc.total +=
+          pr.severity_counts.critical +
+          pr.severity_counts.high +
+          pr.severity_counts.medium +
+          pr.severity_counts.low
         return acc
       },
       { critical: 0, high: 0, medium: 0, low: 0, total: 0 }
@@ -124,6 +131,40 @@ const DashboardPage = () => {
 
   const statVal = (v) => (loading ? '-' : v)
 
+  if (onboardingStatus.needsOnboarding) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow="First Value"
+          title="Finish setup before you use the workspace"
+          description="The dashboard is only useful after one repo is active and the first PR analysis has landed."
+          actions={
+            <Link
+              to="/dashboard/onboarding"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+            >
+              Continue onboarding
+              <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          }
+        />
+
+        <EmptyPanel
+          title="This workspace is not live yet"
+          description="Connect one repository, open one pull request, and come back once CodeSentry has produced the first review."
+          action={
+            <Link
+              to={onboardingStatus.hasActiveRepo ? '/dashboard/reports' : '/dashboard/repositories'}
+              className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-900"
+            >
+              {onboardingStatus.hasActiveRepo ? 'Check reports' : 'Choose a repository'}
+            </Link>
+          }
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -135,10 +176,10 @@ const DashboardPage = () => {
           <p className="text-sm text-slate-500 dark:text-slate-400">Security posture across your repositories</p>
         </div>
         <Link
-          to="/dashboard/analysis"
+          to="/dashboard/reports"
           className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
         >
-          Quick fix
+          View reports
           <ArrowUpRight className="h-3.5 w-3.5" />
         </Link>
       </div>

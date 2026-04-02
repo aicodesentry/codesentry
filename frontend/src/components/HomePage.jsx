@@ -84,7 +84,7 @@ const trustLinks = [
 ]
 
 const HomePage = () => {
-  const { loginWithGitHub } = useAuth()
+  const { loginWithGitHub, user } = useAuth()
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -106,13 +106,23 @@ const HomePage = () => {
                 CodeSentry reviews pull requests with repository context, explains what is risky, and shows engineers exactly where to fix it in GitHub.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <button
-                  onClick={loginWithGitHub}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
-                >
-                  <GitHubIcon />
-                  Start with GitHub
-                </button>
+                {user ? (
+                  <Link
+                    to="/dashboard"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+                  >
+                    Open workspace
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                ) : (
+                  <button
+                    onClick={loginWithGitHub}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+                  >
+                    <GitHubIcon />
+                    Start with GitHub
+                  </button>
+                )}
                 <Link
                   to="/examples"
                   className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-5 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 hover:text-white"

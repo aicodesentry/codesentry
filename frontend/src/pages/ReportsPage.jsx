@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { ArrowUpRight, ClipboardList, Clock3, Filter, ShieldAlert, Sparkles } from 'lucide-react';
-import { installationAPI, reportsAPI, repositoryAPI } from '../services/api';
+import { reportsAPI, repositoryAPI } from '../services/api';
 import { EmptyPanel, PageHeader, PagePanel, PageStats } from '../components/PageSection';
 import { Pagination } from '../components/ui/pagination';
 

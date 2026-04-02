@@ -8,48 +8,6 @@ const API_BASE_URL =
   import.meta.env.VITE_API_URL || (isLocalHost ? DEFAULT_LOCAL_API_URL : '')
 const ANALYSIS_BASE_URL = import.meta.env.VITE_ANALYSIS_SERVICE_URL || API_BASE_URL
 
-const mapFindingToLegacyVulnerability = (finding) => ({
-  type: finding.category || 'security',
-  severity: finding.severity || 'low',
-  title: finding.title || finding.rule_id || 'Security finding',
-  description: finding.description || finding.evidence || '',
-  line: finding.line_start || 1,
-  code_snippet: finding.code_snippet || '',
-  recommendation: finding.remediation || '',
-  confidence: finding.confidence || 0
-})
-
-const normalizeAnalyzePrResponse = (raw, payload) => {
-  const findings = raw.findings || []
-  const severityCounts = findings.reduce(
-    (acc, finding) => {
-      const severity = String(finding.severity || '').toLowerCase()
-      if (severity === 'critical') acc.critical += 1
-      else if (severity === 'high') acc.high += 1
-      else if (severity === 'medium') acc.medium += 1
-      else acc.low += 1
-      return acc
-    },
-    { critical: 0, high: 0, medium: 0, low: 0 }
-  )
-
-  return {
-    analysis_id: `${raw.commit_sha || 'playground'}:${raw.pull_request_number || 0}`,
-    timestamp: new Date().toISOString(),
-    vulnerabilities: findings.map(mapFindingToLegacyVulnerability),
-    total_vulnerabilities: findings.length,
-    critical_count: severityCounts.critical,
-    high_count: severityCounts.high,
-    medium_count: severityCounts.medium,
-    low_count: severityCounts.low,
-    style_issues: [],
-    total_style_issues: 0,
-    style_categories: {},
-    status: 'completed',
-    language: payload.language || 'unknown'
-  }
-}
-
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
