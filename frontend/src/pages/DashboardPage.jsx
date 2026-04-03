@@ -23,8 +23,7 @@ const severityConfig = {
 
 const DashboardPage = () => {
   const { user } = useAuth()
-  const { status: onboardingStatus } = useOnboarding()
-  const [connectedRepoCount, setConnectedRepoCount] = useState(0)
+  const { loading: onboardingLoading, status: onboardingStatus } = useOnboarding()
   const [analysisSummary, setAnalysisSummary] = useState({
     total_analyses: 0, completed: 0, failed: 0, recent_7_days: 0
   })
@@ -37,8 +36,6 @@ const DashboardPage = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const repoData = await repositoryAPI.getConnectedCount()
-        setConnectedRepoCount(repoData.count)
         const summaryData = await repositoryAPI.getSummary()
         setAnalysisSummary(summaryData.summary)
       } catch (error) {
@@ -129,7 +126,7 @@ const DashboardPage = () => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
-  const statVal = (v) => (loading ? '-' : v)
+  const statVal = (v) => (loading || onboardingLoading ? '-' : v)
 
   if (onboardingStatus.needsOnboarding) {
     return (
@@ -167,6 +164,12 @@ const DashboardPage = () => {
 
   return (
     <div className="space-y-6">
+      {onboardingStatus.needsFirstReview ? (
+        <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-100">
+          Your workspace is connected. Open or update a pull request in an active repository to generate the first review.
+        </div>
+      ) : null}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -192,8 +195,8 @@ const DashboardPage = () => {
               <Server className="h-4 w-4 text-slate-600 dark:text-slate-300" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-slate-900 dark:text-white">{statVal(connectedRepoCount)}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Repos</p>
+              <p className="text-2xl font-semibold text-slate-900 dark:text-white">{statVal(onboardingStatus.activeRepositoryCount)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active repos</p>
             </div>
           </div>
         </div>
