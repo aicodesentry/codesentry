@@ -3,6 +3,7 @@ const { pool, transaction } = require('../config/database');
 const { verifyWebhookSignature } = require('../services/githubApp');
 const { triggerAnalysisJob } = require('../services/prAnalysisOrchestrator');
 const logger = require('../utils/logger');
+const installationsDb = require('../db/installations');
 
 const router = express.Router();
 
@@ -63,29 +64,10 @@ router.post('/github', async (req, res) => {
     );
 
     if (event === 'installation' && payload.installation) {
-      await pool.query(
-        `INSERT INTO installations (id, account_login, account_type, target_type, html_url, permissions, events, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT (id)
-         DO UPDATE SET
-           account_login = EXCLUDED.account_login,
-           account_type = EXCLUDED.account_type,
-           target_type = EXCLUDED.target_type,
-           html_url = EXCLUDED.html_url,
-           permissions = EXCLUDED.permissions,
-           events = EXCLUDED.events,
-           status = EXCLUDED.status,
-           updated_at = NOW()`,
-        [
-          payload.installation.id,
-          payload.installation.account?.login,
-          payload.installation.account?.type,
-          payload.installation.target_type,
-          payload.installation.html_url,
-          JSON.stringify(payload.installation.permissions || {}),
-          payload.installation.events || [],
-          payload.action === 'deleted' ? 'deleted' : 'active',
-        ]
+      await installationsDb.upsertInstallation(
+        pool,
+        payload.installation,
+        payload.action === 'deleted' ? 'deleted' : 'active'
       );
     }
 
@@ -94,7 +76,7 @@ router.post('/github', async (req, res) => {
         const repoResult = await pool.query(
           `INSERT INTO repositories
             (github_id, installation_id, name, full_name, private, default_branch, language, html_url, clone_url, is_active, owner_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, NULL)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, NULL)
            ON CONFLICT (github_id)
            DO UPDATE SET
              installation_id = EXCLUDED.installation_id,
@@ -105,7 +87,6 @@ router.post('/github', async (req, res) => {
              language = EXCLUDED.language,
              html_url = EXCLUDED.html_url,
              clone_url = EXCLUDED.clone_url,
-             is_active = true,
              updated_at = NOW()
            RETURNING id`,
           [
@@ -151,7 +132,7 @@ router.post('/github', async (req, res) => {
         const repoUpsert = await client.query(
           `INSERT INTO repositories
             (github_id, installation_id, owner_id, name, full_name, private, default_branch, language, html_url, clone_url, is_active)
-           VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, $8, $9, true)
+           VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, $8, $9, false)
            ON CONFLICT (github_id)
            DO UPDATE SET
              installation_id = EXCLUDED.installation_id,
@@ -162,7 +143,6 @@ router.post('/github', async (req, res) => {
              language = EXCLUDED.language,
              html_url = EXCLUDED.html_url,
              clone_url = EXCLUDED.clone_url,
-             is_active = true,
              updated_at = NOW()
            RETURNING id`,
           [
@@ -179,7 +159,7 @@ router.post('/github', async (req, res) => {
         );
         await grantRepositoryAccess(client, repoUpsert.rows[0].id, installationId);
 
-        const repoResult = await client.query('SELECT id, baseline_set FROM repositories WHERE github_id = $1', [
+        const repoResult = await client.query('SELECT id, baseline_set, is_active FROM repositories WHERE github_id = $1', [
           repository.id,
         ]);
         const repoId = repoResult.rows[0].id;
@@ -219,28 +199,30 @@ router.post('/github', async (req, res) => {
           ]
         );
 
-        const run = await client.query(
-          `INSERT INTO analysis_runs
-            (repository_id, pull_request_id, pr_number, commit_sha, status, triggered_by, started_at)
-           VALUES ($1, $2, $3, $4, 'pending', 'webhook', NOW())
-           RETURNING id`,
-          [repoId, prResult.rows[0].id, pr.number, pr.head.sha]
-        );
+        if (repoResult.rows[0].is_active) {
+          const run = await client.query(
+            `INSERT INTO analysis_runs
+              (repository_id, pull_request_id, pr_number, commit_sha, status, triggered_by, started_at)
+             VALUES ($1, $2, $3, $4, 'pending', 'webhook', NOW())
+             RETURNING id`,
+            [repoId, prResult.rows[0].id, pr.number, pr.head.sha]
+          );
 
-        analysisPayload = {
-          correlation_id: correlationId,
-          delivery_id: deliveryId,
-          analysis_run_id: run.rows[0].id,
-          repository_id: repoId,
-          repository_github_id: repository.id,
-          repository_full_name: repository.full_name,
-          installation_id: installationId,
-          pull_request_id: prResult.rows[0].id,
-          pull_request_number: pr.number,
-          commit_sha: pr.head.sha,
-          base_sha: pr.base.sha,
-          baseline_set: repoResult.rows[0].baseline_set,
-        };
+          analysisPayload = {
+            correlation_id: correlationId,
+            delivery_id: deliveryId,
+            analysis_run_id: run.rows[0].id,
+            repository_id: repoId,
+            repository_github_id: repository.id,
+            repository_full_name: repository.full_name,
+            installation_id: installationId,
+            pull_request_id: prResult.rows[0].id,
+            pull_request_number: pr.number,
+            commit_sha: pr.head.sha,
+            base_sha: pr.base.sha,
+            baseline_set: repoResult.rows[0].baseline_set,
+          };
+        }
       });
     }
 
