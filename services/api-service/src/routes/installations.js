@@ -5,6 +5,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { getInstallationToken } = require('../services/githubApp');
 const { decrypt, isEncrypted } = require('../utils/encryption');
 const installationsDb = require('../db/installations');
+const repositoriesDb = require('../db/repositories');
 
 const router = express.Router();
 
@@ -178,6 +179,13 @@ router.post('/sync', authenticateToken, async (req, res) => {
           installationId: installation.id,
           githubToken,
         });
+        const visibleGithubIds = repositories.map((repo) => repo.id).filter(Boolean);
+
+        await repositoriesDb.revokeMissingAccessForInstallation(
+          req.user.user_id,
+          installation.id,
+          visibleGithubIds
+        );
 
         for (const repo of repositories) {
           const upserted = await pool.query(

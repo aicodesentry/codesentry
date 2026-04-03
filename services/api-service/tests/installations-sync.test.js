@@ -44,6 +44,7 @@ describe('installation sync reconciliation', () => {
       .mockResolvedValueOnce({
         rows: [{ github_token: 'plain-github-token' }],
       })
+      .mockResolvedValueOnce({})
       .mockResolvedValueOnce({
         rows: [{ id: 'repo-1' }],
       })
@@ -108,6 +109,14 @@ describe('installation sync reconciliation', () => {
 
     const executedSql = pool.query.mock.calls.map(([sql]) => sql);
     expect(executedSql.some((sql) => sql.includes('SET is_active = false'))).toBe(false);
+    expect(
+      executedSql.some(
+        (sql) =>
+          sql.includes('DELETE FROM repository_access ra') &&
+          sql.includes('r.installation_id = $2') &&
+          sql.includes('r.github_id <> ALL($3::bigint[])')
+      )
+    ).toBe(true);
 
     const repoUpsertSql = executedSql.find((sql) => sql.includes('INSERT INTO repositories'));
     expect(repoUpsertSql).toContain('VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false)');
