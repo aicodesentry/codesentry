@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { installationAPI, repositoryAPI, reportsAPI } from '../services/api'
 
 const OnboardingContext = createContext(null)
@@ -10,6 +10,46 @@ const EMPTY_SUMMARY = {
   recent_7_days: 0,
 }
 
+function getRepositoryKey(repo) {
+  return repo.id || repo.github_id || repo.full_name
+}
+
+function mergeRepositoryRecord(current, next) {
+  if (!current) return next
+
+  return {
+    ...current,
+    ...next,
+    is_active: Boolean(current.is_active || next.is_active),
+    pull_request_count: Math.max(
+      Number(current.pull_request_count || 0),
+      Number(next.pull_request_count || 0)
+    ),
+    open_findings_count: Math.max(
+      Number(current.open_findings_count || 0),
+      Number(next.open_findings_count || 0)
+    ),
+    accepted_risk_count: Math.max(
+      Number(current.accepted_risk_count || 0),
+      Number(next.accepted_risk_count || 0)
+    ),
+    updated_at: next.updated_at || current.updated_at,
+  }
+}
+
+function normalizeRepositories(items = []) {
+  const repositoriesById = new Map()
+
+  items.forEach((repo) => {
+    const key = getRepositoryKey(repo)
+    if (!key) return
+
+    repositoriesById.set(key, mergeRepositoryRecord(repositoriesById.get(key), repo))
+  })
+
+  return Array.from(repositoriesById.values())
+}
+
 export function OnboardingProvider({ children }) {
   const [installations, setInstallations] = useState([])
   const [repositories, setRepositories] = useState([])
@@ -18,11 +58,15 @@ export function OnboardingProvider({ children }) {
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState(null)
   const [lastSyncedAt, setLastSyncedAt] = useState(null)
+  const didAttemptBackgroundSyncRef = useRef(false)
 
-  const refresh = useCallback(async ({ sync = false } = {}) => {
+  const refresh = useCallback(async ({ sync = false, background = false } = {}) => {
     setError(null)
     if (sync) {
       setSyncing(true)
+      if (!background) {
+        setLoading(true)
+      }
     } else {
       setLoading(true)
     }
@@ -45,7 +89,7 @@ export function OnboardingProvider({ children }) {
       ])
 
       setInstallations(installationsData.installations || [])
-      setRepositories(repositoriesData.repositories || [])
+      setRepositories(normalizeRepositories(repositoriesData.repositories || []))
       setSummary(summaryData.summary || EMPTY_SUMMARY)
 
       if (syncError) {
@@ -60,7 +104,7 @@ export function OnboardingProvider({ children }) {
   }, [])
 
   useEffect(() => {
-    refresh({ sync: true })
+    refresh()
   }, [refresh])
 
   const value = useMemo(() => {
@@ -77,8 +121,10 @@ export function OnboardingProvider({ children }) {
     const hasActiveRepo = activeRepositoryCount > 0
     const hasFirstPullRequest = openPullRequestCount > 0
     const hasFirstReview = analysisCount > 0
+    const hasWorkspaceAccess = hasInstall && hasRepoAccess && hasActiveRepo
     const needsPermissionFix = hasInstall && !hasRepoAccess
-    const needsOnboarding = !hasInstall || !hasRepoAccess || !hasActiveRepo || !hasFirstReview
+    const needsOnboarding = !hasWorkspaceAccess
+    const needsFirstReview = hasWorkspaceAccess && !hasFirstReview
     const nextStep = !hasInstall
       ? 'install'
       : !hasRepoAccess
@@ -111,12 +157,23 @@ export function OnboardingProvider({ children }) {
         hasActiveRepo,
         hasFirstPullRequest,
         hasFirstReview,
+        hasWorkspaceAccess,
         needsPermissionFix,
         needsOnboarding,
+        needsFirstReview,
         nextStep,
       },
     }
   }, [installations, repositories, summary, loading, syncing, error, lastSyncedAt, refresh])
+
+  useEffect(() => {
+    if (loading || syncing) return
+    if (installations.length > 0) return
+    if (didAttemptBackgroundSyncRef.current) return
+
+    didAttemptBackgroundSyncRef.current = true
+    refresh({ sync: true, background: true })
+  }, [installations.length, loading, refresh, syncing])
 
   return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>
 }

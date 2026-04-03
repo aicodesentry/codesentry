@@ -88,6 +88,22 @@ describe('AppRoutes onboarding redirects', () => {
     expect(screen.getByText('Dashboard Home')).toBeInTheDocument()
   })
 
+  it('lets connected users into the workspace even before the first review lands', () => {
+    onboardingState.status = {
+      needsOnboarding: false,
+      needsFirstReview: true,
+      hasWorkspaceAccess: true,
+    }
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <AppRoutes />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText('Dashboard Home')).toBeInTheDocument()
+  })
+
   it('redirects unauthenticated users back to home', () => {
     authState.user = null
 
