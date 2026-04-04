@@ -16,12 +16,19 @@ jest.mock('../src/db/installations', () => ({
   listByUser: jest.fn(),
   upsertInstallation: jest.fn(),
   linkUserInstallation: jest.fn(),
+  removeSameAccountStaleLinks: jest.fn(),
+  reconcileUserInstallations: jest.fn(),
+  deleteUnreferencedInstallations: jest.fn(),
+}));
+jest.mock('../src/db/repositories', () => ({
+  revokeMissingAccessForInstallation: jest.fn(),
 }));
 
 const axios = require('axios');
 const { pool } = require('../src/config/database');
 const { getInstallationToken } = require('../src/services/githubApp');
 const installationsDb = require('../src/db/installations');
+const repositoriesDb = require('../src/db/repositories');
 const { createApp } = require('../src/app');
 
 describe('installation sync', () => {
@@ -51,6 +58,10 @@ describe('installation sync', () => {
 
     installationsDb.upsertInstallation.mockResolvedValue({});
     installationsDb.linkUserInstallation.mockResolvedValue({});
+    installationsDb.removeSameAccountStaleLinks.mockResolvedValue({});
+    installationsDb.reconcileUserInstallations.mockResolvedValue({});
+    installationsDb.deleteUnreferencedInstallations.mockResolvedValue({});
+    repositoriesDb.revokeMissingAccessForInstallation.mockResolvedValue({});
     getInstallationToken.mockRejectedValue(new Error('app token unavailable'));
     axios.get
       .mockResolvedValueOnce({
@@ -90,6 +101,21 @@ describe('installation sync', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
+    expect(response.body.synced_installations).toBe(1);
+    expect(response.body.synced_repositories).toBe(1);
+
+    expect(installationsDb.removeSameAccountStaleLinks).toHaveBeenCalledWith(
+      pool,
+      'user-1',
+      expect.objectContaining({ id: 42 })
+    );
+    expect(installationsDb.reconcileUserInstallations).toHaveBeenCalledWith(pool, 'user-1', [42]);
+    expect(installationsDb.deleteUnreferencedInstallations).toHaveBeenCalledWith(pool);
+    expect(repositoriesDb.revokeMissingAccessForInstallation).toHaveBeenCalledWith(
+      'user-1',
+      42,
+      [999]
+    );
 
     const executedSql = pool.query.mock.calls.map(([sql]) => sql);
     expect(executedSql.some((sql) => sql.includes('SET is_active = false'))).toBe(false);
