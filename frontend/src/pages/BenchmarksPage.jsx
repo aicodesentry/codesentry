@@ -2,23 +2,22 @@ import TrustPage from '../components/TrustPage'
 
 const sections = [
   {
-    title: 'What we care about',
-    description: 'Benchmarks should be honest. The point is not to inflate issue counts; it is to improve signal quality and reviewer usefulness.',
+    title: 'What we measure',
+    description: 'We care about review usefulness, not inflated issue counts.',
     points: [
       'Time to first PR comment after webhook receipt.',
       'Completed vs failed analysis runs over the last seven days.',
       'Raw findings vs clustered findings after dedupe.',
-      'Reviewer-facing comment rate for high-confidence issues.',
+      'Which findings are strong enough to reach the PR reviewer.',
     ],
   },
   {
-    title: 'How we compare',
-    description: 'Mitig8it is strongest when judged on practical review output: lower noise, stronger evidence, clearer remediation, and security-specific focus.',
+    title: 'What we optimize for',
+    description: 'Mitig8it is strongest when judged on practical PR output.',
     points: [
-      'Security-only positioning instead of general lint or style review.',
-      'Evidence snippets pulled from the exact matching diff hunk.',
-      'Clustered issue output so semgrep and deterministic matches do not spam the same PR.',
-      'BYOK roadmap for teams that want their own model keys and audit boundaries.',
+      'Security findings instead of general lint or style commentary.',
+      'Evidence tied to the matching diff hunk.',
+      'Clustered output so the same issue does not spam the PR.',
     ],
   },
 ]
@@ -28,10 +27,10 @@ export default function BenchmarksPage() {
     <TrustPage
       eyebrow="Benchmarks"
       title="Measure review quality, not just issue volume"
-      intro="The benchmark story should center on speed, usefulness, and noise reduction. A scanner that posts more comments is not automatically the better reviewer."
+      intro="A tool that posts more comments is not automatically the better reviewer. The useful benchmark is whether the right finding reaches the reviewer quickly and clearly."
       sections={sections}
-      ctaTitle="Inspect the live run history"
-      ctaText="The reports page already exposes the production pipeline. Use it as the baseline for benchmark instrumentation."
+      ctaTitle="Inspect the run history"
+      ctaText="The reports page shows the current analysis pipeline and run outcomes."
       ctaLink="/dashboard/reports"
       ctaLabel="Open reports"
     />

@@ -23,36 +23,36 @@ export default function RepositoryDetailsPage() {
   }, [repositoryId])
 
   if (!repository) {
-    return <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 text-sm text-slate-500 dark:text-slate-400">Loading repository...</div>
+    return <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 text-sm text-neutral-500 dark:text-neutral-400">Loading repository...</div>
   }
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6">
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">{repository.full_name}</h1>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+      <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-white">{repository.full_name}</h1>
+        <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
           Open: {summary?.open_findings || 0} • Dismissed: {summary?.dismissed_findings || 0} • Accepted risk: {summary?.accepted_risk_findings || 0}
         </p>
       </div>
 
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Pull Requests</h2>
+        <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">Pull Requests</h2>
         {pullRequests.length === 0 && (
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 text-sm text-slate-500 dark:text-slate-400">No pull requests yet.</div>
+          <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 text-sm text-neutral-500 dark:text-neutral-400">No pull requests yet.</div>
         )}
         {pullRequests.map((pr) => (
           <div
             key={pr.id}
-            className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 hover:border-slate-300 dark:hover:border-slate-600"
+            className="flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 hover:border-neutral-300 dark:hover:border-neutral-600"
           >
             <Link to={`/dashboard/pull-requests/${pr.id}/findings`} className="flex-1 min-w-0">
-              <p className="font-medium text-slate-900 dark:text-white">#{pr.pr_number} {pr.title}</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400">{pr.state} • {pr.author}</p>
+              <p className="font-medium text-neutral-900 dark:text-white">#{pr.pr_number} {pr.title}</p>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">{pr.state} • {pr.author}</p>
             </Link>
             <div className="flex items-center gap-4">
-              <div className="text-right text-sm text-slate-600 dark:text-slate-400">
-                <p>Open findings: <span className="font-semibold text-slate-900 dark:text-white">{pr.open_findings_count}</span></p>
-                <p>Critical/High: <span className="font-semibold text-slate-900 dark:text-white">{(pr.critical_count || 0) + (pr.high_count || 0)}</span></p>
+              <div className="text-right text-sm text-neutral-600 dark:text-neutral-400">
+                <p>Open findings: <span className="font-semibold text-neutral-900 dark:text-white">{pr.open_findings_count}</span></p>
+                <p>Critical/High: <span className="font-semibold text-neutral-900 dark:text-white">{(pr.critical_count || 0) + (pr.high_count || 0)}</span></p>
               </div>
               {pr.html_url && (
                 <a
@@ -60,7 +60,7 @@ export default function RepositoryDetailsPage() {
                   target="_blank"
                   rel="noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="flex-shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  className="flex-shrink-0 rounded-lg border border-neutral-200 dark:border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                 >
                   View on GitHub
                 </a>

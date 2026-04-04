@@ -3,12 +3,12 @@ import Footer from '../components/Footer'
 
 const PrivacyPage = () => {
   return (
-    <div className="bg-slate-950 text-white min-h-screen">
+    <div className="bg-neutral-950 text-white min-h-screen">
       <Header />
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <h1 className="text-3xl font-bold mb-8">Privacy Policy</h1>
-        <div className="space-y-6 text-sm text-slate-400 leading-relaxed">
-          <p className="text-slate-300">Last updated: March 2026</p>
+        <div className="space-y-6 text-sm text-neutral-400 leading-relaxed">
+          <p className="text-neutral-300">Last updated: March 2026</p>
 
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">What we collect</h2>

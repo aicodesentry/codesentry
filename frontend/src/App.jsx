@@ -29,7 +29,7 @@ const Protected = ({ children }) => {
   const { user, isLoading } = useAuth()
 
   if (isLoading) {
-    return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading...</div>
+    return <div className="flex min-h-screen items-center justify-center text-neutral-500">Loading...</div>
   }
 
   if (!user) {
@@ -43,7 +43,7 @@ const DashboardIndexRoute = () => {
   const { loading, status } = useOnboarding()
 
   if (loading) {
-    return <div className="flex min-h-[40vh] items-center justify-center text-slate-500">Loading workspace...</div>
+    return <div className="flex min-h-[40vh] items-center justify-center text-neutral-500">Loading workspace...</div>
   }
 
   if (status.needsOnboarding) {

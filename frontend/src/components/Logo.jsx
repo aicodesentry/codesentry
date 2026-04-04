@@ -1,21 +1,10 @@
-const Logo = ({ variant = 'light', className = '', showText = true }) => {
-  const textColor = variant === 'dark' ? 'text-white' : 'text-slate-900'
-  const hoverClass = variant === 'light' ? 'group-hover:text-sky-500' : ''
+const Logo = ({ variant = 'light', className = '' }) => {
+  const textColor = variant === 'dark' ? 'text-white' : 'text-neutral-950'
 
   return (
-    <div className={`group flex items-center gap-2 ${className}`}>
-      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-sky-500">
-        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 3 L5 7 L5 12 C5 17 8 20.5 12 22 C16 20.5 19 17 19 12 L19 7 Z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.5 12 L11.5 14 L15 10.5" />
-        </svg>
-      </div>
-      {showText && (
-        <span className={`text-xl font-bold transition-colors ${textColor} ${hoverClass}`}>
-          Mitig8it
-        </span>
-      )}
-    </div>
+    <span className={`text-lg font-bold tracking-tight ${textColor} ${className}`}>
+      Mitig<span className="text-neutral-400">8</span>it
+    </span>
   )
 }
 

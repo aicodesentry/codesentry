@@ -99,9 +99,9 @@ const ReportsPage = () => {
   const getStatusBadge = (status) => {
     const badges = {
       completed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400',
-      processing: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
+      processing: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300',
       failed: 'bg-red-100 text-red-800 dark:bg-red-500/10 dark:text-red-400',
-      received: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400',
+      received: 'bg-neutral-100 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-400',
     };
     return badges[status] || badges.received;
   };
@@ -123,12 +123,12 @@ const ReportsPage = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Reports</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Analysis history across your repositories</p>
+          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-white">Reports</h1>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">Analysis history across your repositories</p>
         </div>
         <a
           href="/dashboard/onboarding"
-          className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+          className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
         >
           Trigger first PR
           <ArrowUpRight className="h-3.5 w-3.5" />
@@ -144,14 +144,14 @@ const ReportsPage = () => {
             { icon: ShieldAlert, value: summary.failed, label: 'Failed' },
             { icon: Clock3, value: summary.recent_7_days, label: 'Last 7 days' },
           ].map((stat) => (
-            <div key={stat.label} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            <div key={stat.label} className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
-                  <stat.icon className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800">
+                  <stat.icon className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
                 </div>
                 <div>
-                  <p className="text-2xl font-semibold text-slate-900 dark:text-white">{stat.value}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{stat.label}</p>
+                  <p className="text-2xl font-semibold text-neutral-900 dark:text-white">{stat.value}</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{stat.label}</p>
                 </div>
               </div>
             </div>
@@ -170,7 +170,7 @@ const ReportsPage = () => {
         <select
           value={selectedRepo}
           onChange={(e) => { setSelectedRepo(e.target.value); setCurrentPage(1); }}
-          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-slate-500"
+          className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm text-neutral-900 focus:border-neutral-500 focus:outline-none dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:border-neutral-500"
         >
           <option value="">All repositories</option>
           {repositories.filter((r) => r.is_active !== false).map(repo => (
@@ -180,7 +180,7 @@ const ReportsPage = () => {
         <select
           value={selectedStatus}
           onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-slate-500"
+          className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm text-neutral-900 focus:border-neutral-500 focus:outline-none dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:border-neutral-500"
         >
           <option value="">All statuses</option>
           <option value="completed">Completed</option>
@@ -191,7 +191,7 @@ const ReportsPage = () => {
         {(selectedRepo || selectedStatus) && (
           <button
             onClick={() => { setSelectedRepo(''); setSelectedStatus(''); setCurrentPage(1); }}
-            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
+            className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             Clear filters
           </button>
@@ -201,46 +201,46 @@ const ReportsPage = () => {
       {/* Table */}
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Pull Request Analyses</h2>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">Pull Request Analyses</h2>
           {totalCount > 0 && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">
               {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount}
             </p>
           )}
         </div>
 
         {analyses.length === 0 && !loading ? (
-          <div className="rounded-xl border border-dashed border-slate-200 px-6 py-12 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+          <div className="rounded-xl border border-dashed border-neutral-200 px-6 py-12 text-center text-sm text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
             No analyses found. Connect a repository and open a pull request to get started.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-            <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+            <table className="min-w-full divide-y divide-neutral-100 dark:divide-neutral-800">
               <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/50">
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Repository</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">PR</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Status</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Started</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Duration</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500"></th>
+                <tr className="bg-neutral-50 dark:bg-neutral-800/50">
+                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-500">Repository</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-500">PR</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-500">Status</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-500">Started</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-500">Duration</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-500"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                 {loading ? (
                   Array.from({ length: itemsPerPage }).map((_, idx) => (
                     <tr key={idx} className="animate-pulse">
                       {Array.from({ length: 6 }).map((_, i) => (
-                        <td key={i} className="px-5 py-4"><div className="h-4 rounded bg-slate-100 dark:bg-slate-800 w-20" /></td>
+                        <td key={i} className="px-5 py-4"><div className="h-4 rounded bg-neutral-100 dark:bg-neutral-800 w-20" /></td>
                       ))}
                     </tr>
                   ))
                 ) : (
                   analyses.map((analysis) => (
-                    <tr key={analysis.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                      <td className="px-5 py-3 text-sm font-medium text-slate-900 dark:text-white whitespace-nowrap">{analysis.repository_name}</td>
+                    <tr key={analysis.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                      <td className="px-5 py-3 text-sm font-medium text-neutral-900 dark:text-white whitespace-nowrap">{analysis.repository_name}</td>
                       <td className="px-5 py-3 whitespace-nowrap">
-                        <a href={analysis.pr_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">
+                        <a href={analysis.pr_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white">
                           #{analysis.pr_number}
                           <ArrowUpRight className="h-3 w-3" />
                         </a>
@@ -250,12 +250,12 @@ const ReportsPage = () => {
                           {analysis.status}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatDate(analysis.started_at)}</td>
-                      <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatDuration(analysis.processing_time_seconds)}</td>
+                      <td className="px-5 py-3 text-sm text-neutral-500 dark:text-neutral-400 whitespace-nowrap">{formatDate(analysis.started_at)}</td>
+                      <td className="px-5 py-3 text-sm text-neutral-500 dark:text-neutral-400 whitespace-nowrap">{formatDuration(analysis.processing_time_seconds)}</td>
                       <td className="px-5 py-3 whitespace-nowrap">
                         <button
                           onClick={() => handleViewDetails(analysis)}
-                          className="text-sm font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                          className="text-sm font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
                         >
                           Details
                         </button>
@@ -266,7 +266,7 @@ const ReportsPage = () => {
               </tbody>
             </table>
             {totalCount > itemsPerPage && (
-              <div className="border-t border-slate-100 px-5 py-3 dark:border-slate-800">
+              <div className="border-t border-neutral-100 px-5 py-3 dark:border-neutral-800">
                 <Pagination currentPage={currentPage} totalPages={Math.ceil(totalCount / itemsPerPage)} onPageChange={setCurrentPage} />
               </div>
             )}
@@ -276,10 +276,10 @@ const ReportsPage = () => {
 
       {showModal && selectedAnalysis && (
         <Suspense fallback={
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="rounded-lg bg-white p-8 dark:bg-slate-800">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-500 mx-auto" />
-              <p className="mt-4 text-slate-600 dark:text-slate-400">Loading details...</p>
+          <div className="fixed inset-0 bg-neutral-950/50 flex items-center justify-center z-50">
+            <div className="rounded-lg bg-white p-8 dark:bg-neutral-800">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-neutral-500 mx-auto" />
+              <p className="mt-4 text-neutral-600 dark:text-neutral-400">Loading details...</p>
             </div>
           </div>
         }>

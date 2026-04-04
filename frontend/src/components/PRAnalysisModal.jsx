@@ -2,7 +2,7 @@ const severityColors = {
   critical: { text: 'text-red-600 dark:text-red-400', bg: 'bg-red-500' },
   high: { text: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-500' },
   medium: { text: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-amber-400' },
-  low: { text: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-400' },
+  low: { text: 'text-neutral-600 dark:text-neutral-400', bg: 'bg-neutral-400' },
 };
 
 const PRAnalysisModal = ({ analysis, onClose }) => {
@@ -18,21 +18,21 @@ const PRAnalysisModal = ({ analysis, onClose }) => {
     : null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-xl max-w-lg w-full shadow-lg" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-neutral-950/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-neutral-900 rounded-xl max-w-lg w-full shadow-lg" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="px-6 pt-5 pb-4">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+              <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">
                 PR #{analysis.pr_number}
               </h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
                 {analysis.repository_name}
               </p>
             </div>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 -mt-1">
+            <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 -mt-1">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -57,7 +57,7 @@ const PRAnalysisModal = ({ analysis, onClose }) => {
             </div>
 
             {/* Stacked bar */}
-            <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden flex">
+            <div className="h-2 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden flex">
               {Object.entries(counts).map(([level, count]) => (
                 count > 0 && (
                   <div
@@ -69,7 +69,7 @@ const PRAnalysisModal = ({ analysis, onClose }) => {
               ))}
             </div>
 
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-3">
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-3">
               {total} finding{total === 1 ? '' : 's'} detected. Review the annotated PR on GitHub for details and remediation.
             </p>
           </div>
@@ -86,7 +86,7 @@ const PRAnalysisModal = ({ analysis, onClose }) => {
 
         {/* Meta */}
         <div className="px-6 pb-4">
-          <div className="flex items-center gap-4 text-xs text-slate-400 dark:text-slate-500">
+          <div className="flex items-center gap-4 text-xs text-neutral-400 dark:text-neutral-500">
             <span className="capitalize">{analysis.status}</span>
             {duration !== null && <span>{duration}s</span>}
             {analysis.completed_at && (
@@ -96,10 +96,10 @@ const PRAnalysisModal = ({ analysis, onClose }) => {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+        <div className="px-6 py-4 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            className="px-4 py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
           >
             Close
           </button>
@@ -107,7 +107,7 @@ const PRAnalysisModal = ({ analysis, onClose }) => {
             href={prUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors text-sm font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors text-sm font-medium"
           >
             View on GitHub
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

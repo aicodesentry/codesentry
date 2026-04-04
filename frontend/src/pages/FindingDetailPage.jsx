@@ -14,7 +14,7 @@ export default function FindingDetailPage() {
   }, [findingId])
 
   if (!finding) {
-    return <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading finding...</div>
+    return <div className="rounded-xl border border-neutral-200 bg-white p-6 text-sm text-neutral-500">Loading finding...</div>
   }
 
   const setStatus = async (status) => {
@@ -28,31 +28,31 @@ export default function FindingDetailPage() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <h1 className="text-2xl font-semibold text-slate-900">{finding.title}</h1>
-        <p className="mt-2 text-sm text-slate-600">
+      <div className="rounded-xl border border-neutral-200 bg-white p-6">
+        <h1 className="text-2xl font-semibold text-neutral-900">{finding.title}</h1>
+        <p className="mt-2 text-sm text-neutral-600">
           {finding.repository_full_name} • PR #{finding.pr_number} • {finding.category}
         </p>
-        <p className="mt-2 text-sm text-slate-600">Severity: {finding.severity} • Confidence: {Math.round(Number(finding.confidence) * 100)}%</p>
+        <p className="mt-2 text-sm text-neutral-600">Severity: {finding.severity} • Confidence: {Math.round(Number(finding.confidence) * 100)}%</p>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-slate-900">Evidence</h2>
-        <p className="mt-2 text-sm text-slate-700">{finding.evidence}</p>
-        <pre className="mt-4 overflow-x-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-100">{finding.code_snippet || 'No snippet'}</pre>
+      <div className="rounded-xl border border-neutral-200 bg-white p-6">
+        <h2 className="text-lg font-semibold text-neutral-900">Evidence</h2>
+        <p className="mt-2 text-sm text-neutral-700">{finding.evidence}</p>
+        <pre className="mt-4 overflow-x-auto rounded-lg bg-neutral-900 p-3 text-xs text-neutral-100">{finding.code_snippet || 'No snippet'}</pre>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-slate-900">Exploitability and Remediation</h2>
-        <p className="mt-2 text-sm text-slate-700">{finding.exploit_scenario}</p>
-        <p className="mt-3 text-sm text-slate-700">{finding.remediation}</p>
+      <div className="rounded-xl border border-neutral-200 bg-white p-6">
+        <h2 className="text-lg font-semibold text-neutral-900">Exploitability and Remediation</h2>
+        <p className="mt-2 text-sm text-neutral-700">{finding.exploit_scenario}</p>
+        <p className="mt-3 text-sm text-neutral-700">{finding.remediation}</p>
       </div>
 
       <div className="flex gap-2">
-        <button onClick={() => setStatus('open')} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Mark Open</button>
-        <button onClick={() => setStatus('accepted_risk')} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Accept Risk</button>
-        <button onClick={() => setStatus('dismissed')} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Dismiss</button>
-        <button onClick={() => setStatus('fixed')} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Mark Fixed</button>
+        <button onClick={() => setStatus('open')} className="rounded-lg border border-neutral-300 px-4 py-2 text-sm">Mark Open</button>
+        <button onClick={() => setStatus('accepted_risk')} className="rounded-lg border border-neutral-300 px-4 py-2 text-sm">Accept Risk</button>
+        <button onClick={() => setStatus('dismissed')} className="rounded-lg border border-neutral-300 px-4 py-2 text-sm">Dismiss</button>
+        <button onClick={() => setStatus('fixed')} className="rounded-lg border border-neutral-300 px-4 py-2 text-sm">Mark Fixed</button>
       </div>
     </div>
   )

@@ -35,16 +35,16 @@ const SupportPage = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Support</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Get help and find answers to common questions</p>
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-white">Support</h1>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">Get help and find answers to common questions</p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Contact Form */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
           <div className="mb-4 flex items-center gap-2">
-            <MessageSquare className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Contact support</h2>
+            <MessageSquare className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
+            <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">Contact support</h2>
           </div>
 
           {submitSuccess && (
@@ -55,30 +55,30 @@ const SupportPage = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Subject</label>
+              <label className="mb-1.5 block text-sm font-medium text-neutral-700 dark:text-neutral-300">Subject</label>
               <input
                 type="text"
                 value={formData.subject}
                 onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none dark:border-slate-800 dark:bg-slate-800 dark:text-white dark:focus:border-slate-500"
+                className="w-full rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm text-neutral-900 focus:border-neutral-500 focus:outline-none dark:border-neutral-800 dark:bg-neutral-800 dark:text-white dark:focus:border-neutral-500"
                 placeholder="Brief description of your issue"
                 required
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Message</label>
+              <label className="mb-1.5 block text-sm font-medium text-neutral-700 dark:text-neutral-300">Message</label>
               <textarea
                 value={formData.message}
                 onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                 rows="5"
-                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none dark:border-slate-800 dark:bg-slate-800 dark:text-white dark:focus:border-slate-500"
+                className="w-full rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm text-neutral-900 focus:border-neutral-500 focus:outline-none dark:border-neutral-800 dark:bg-neutral-800 dark:text-white dark:focus:border-neutral-500"
                 placeholder="Describe your issue in detail..."
                 required
               />
             </div>
             <button
               type="submit"
-              className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+              className="w-full rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
             >
               Submit request
             </button>
@@ -87,22 +87,22 @@ const SupportPage = () => {
 
         {/* Quick help */}
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
             <div className="mb-4 flex items-center gap-2">
-              <Mail className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Reach us directly</h2>
+              <Mail className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
+              <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">Reach us directly</h2>
             </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
               Email us at{' '}
-              <a href="mailto:support@mitig8it.com" className="font-medium text-slate-900 dark:text-white hover:underline">
+              <a href="mailto:support@mitig8it.com" className="font-medium text-neutral-900 dark:text-white hover:underline">
                 support@mitig8it.com
               </a>
             </p>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/50">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-200">Beta feedback welcome</h3>
-            <p className="mt-1 text-sm text-slate-700 dark:text-slate-400">
+          <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-5 dark:border-neutral-700 dark:bg-neutral-800/50">
+            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">Beta feedback welcome</h3>
+            <p className="mt-1 text-sm text-neutral-700 dark:text-neutral-400">
               Found a bug or have a feature request? We're actively building — your feedback shapes the product.
             </p>
           </div>
@@ -112,14 +112,14 @@ const SupportPage = () => {
       {/* FAQs */}
       <div>
         <div className="mb-3 flex items-center gap-2">
-          <HelpCircle className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Frequently Asked Questions</h2>
+          <HelpCircle className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">Frequently Asked Questions</h2>
         </div>
-        <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
+        <div className="divide-y divide-neutral-100 rounded-xl border border-neutral-200 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900">
           {faqs.map((faq, index) => (
             <div key={index} className="px-5 py-4">
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">{faq.question}</h4>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{faq.answer}</p>
+              <h4 className="text-sm font-semibold text-neutral-900 dark:text-white">{faq.question}</h4>
+              <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{faq.answer}</p>
             </div>
           ))}
         </div>

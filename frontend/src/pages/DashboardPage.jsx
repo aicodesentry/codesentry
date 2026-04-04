@@ -11,7 +11,7 @@ const statusConfig = {
   merged: { label: 'Merged', dot: 'bg-purple-500', text: 'text-purple-600 dark:text-purple-400' },
   open: { label: 'Open', dot: 'bg-green-500', text: 'text-green-600 dark:text-green-400' },
   closed: { label: 'Closed', dot: 'bg-red-500', text: 'text-red-600 dark:text-red-400' },
-  draft: { label: 'Draft', dot: 'bg-slate-400', text: 'text-slate-500 dark:text-slate-400' },
+  draft: { label: 'Draft', dot: 'bg-neutral-400', text: 'text-neutral-500 dark:text-neutral-400' },
 }
 
 const severityConfig = {
@@ -138,7 +138,7 @@ const DashboardPage = () => {
           actions={
             <Link
               to="/dashboard/onboarding"
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-200"
             >
               Continue onboarding
               <ArrowUpRight className="h-4 w-4" />
@@ -152,7 +152,7 @@ const DashboardPage = () => {
           action={
             <Link
               to={onboardingStatus.hasActiveRepo ? '/dashboard/reports' : '/dashboard/repositories'}
-              className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-900"
+              className="rounded-xl border border-neutral-700 px-4 py-2.5 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500 hover:bg-neutral-900"
             >
               {onboardingStatus.hasActiveRepo ? 'Check reports' : 'Choose a repository'}
             </Link>
@@ -165,7 +165,7 @@ const DashboardPage = () => {
   return (
     <div className="space-y-6">
       {onboardingStatus.needsFirstReview ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300">
+        <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300">
           Your workspace is connected. Open or update a pull request in an active repository to generate the first review.
         </div>
       ) : null}
@@ -176,7 +176,7 @@ const DashboardPage = () => {
         actions={
           <Link
             to="/dashboard/reports"
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+            className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
           >
             View reports
             <ArrowUpRight className="h-3.5 w-3.5" />
@@ -186,19 +186,19 @@ const DashboardPage = () => {
 
       <PageStats
         items={[
-          { label: 'Active repos', value: statVal(onboardingStatus.activeRepositoryCount), icon: <Server className="h-4 w-4 text-slate-600 dark:text-slate-300" /> },
-          { label: 'PRs tracked', value: statVal(prInsights.length), icon: <GitPullRequest className="h-4 w-4 text-slate-600 dark:text-slate-300" /> },
-          { label: 'Scans run', value: statVal(analysisSummary.total_analyses), icon: <Search className="h-4 w-4 text-slate-600 dark:text-slate-300" /> },
-          { label: 'Open findings', value: statVal(severityTotals.total), icon: <ShieldAlert className="h-4 w-4 text-slate-600 dark:text-slate-300" /> },
+          { label: 'Active repos', value: statVal(onboardingStatus.activeRepositoryCount), icon: <Server className="h-4 w-4 text-neutral-600 dark:text-neutral-300" /> },
+          { label: 'PRs tracked', value: statVal(prInsights.length), icon: <GitPullRequest className="h-4 w-4 text-neutral-600 dark:text-neutral-300" /> },
+          { label: 'Scans run', value: statVal(analysisSummary.total_analyses), icon: <Search className="h-4 w-4 text-neutral-600 dark:text-neutral-300" /> },
+          { label: 'Open findings', value: statVal(severityTotals.total), icon: <ShieldAlert className="h-4 w-4 text-neutral-600 dark:text-neutral-300" /> },
         ]}
       />
 
       {/* Severity bar */}
       {severityTotals.total > 0 && (
-        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-5 py-3 dark:border-slate-800 dark:bg-slate-900">
-          <Shield className="h-4 w-4 text-slate-400" />
+        <div className="flex items-center gap-4 rounded-xl border border-neutral-200 bg-white px-5 py-3 dark:border-neutral-800 dark:bg-neutral-900">
+          <Shield className="h-4 w-4 text-neutral-400" />
           <div className="flex flex-1 items-center gap-2">
-            <div className="flex flex-1 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            <div className="flex flex-1 h-2 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
               {severityTotals.critical > 0 && (
                 <div className="bg-red-500" style={{ width: `${(severityTotals.critical / severityTotals.total) * 100}%` }} />
               )}
@@ -213,7 +213,7 @@ const DashboardPage = () => {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-3 text-xs text-neutral-500 dark:text-neutral-400">
             {severityTotals.critical > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" />{severityTotals.critical} critical</span>}
             {severityTotals.high > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" />{severityTotals.high} high</span>}
             {severityTotals.medium > 0 && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />{severityTotals.medium} medium</span>}
@@ -225,8 +225,8 @@ const DashboardPage = () => {
       {/* PR list */}
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Recent Pull Requests</h2>
-          <Link to="/dashboard/reports" className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">Recent Pull Requests</h2>
+          <Link to="/dashboard/reports" className="text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white">
             View reports
           </Link>
         </div>
@@ -234,31 +234,31 @@ const DashboardPage = () => {
         {insightsLoading ? (
           <div className="space-y-2">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-16 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
+              <div key={i} className="h-16 animate-pulse rounded-lg bg-neutral-100 dark:bg-neutral-800" />
             ))}
           </div>
         ) : prInsights.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 px-6 py-12 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+          <div className="rounded-xl border border-dashed border-neutral-200 px-6 py-12 text-center text-sm text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
             No pull requests yet. Connect repositories and sync to see PR activity.
           </div>
         ) : (
           <>
-            <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
+            <div className="divide-y divide-neutral-100 rounded-xl border border-neutral-200 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900">
               {prInsights
                 .slice((insightsPage - 1) * insightsPerPage, insightsPage * insightsPerPage)
                 .map((pr) => {
                   const st = statusConfig[pr.status] || statusConfig.open
                   return (
-                    <div key={`${pr.repository}-${pr.pr_number}`} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <div key={`${pr.repository}-${pr.pr_number}`} className="flex items-center gap-4 px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
                       {/* Status dot */}
                       <span className={`h-2 w-2 flex-shrink-0 rounded-full ${st.dot}`} title={st.label} />
 
                       {/* PR info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                        <p className="text-sm font-medium text-neutral-900 dark:text-white truncate">
                           #{pr.pr_number} {pr.title || 'Untitled'}
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
                           {pr.repository} · {pr.author} · <span className={st.text}>{st.label}</span> · {formatTime(pr.timestamp)}
                         </p>
                       </div>
@@ -281,7 +281,7 @@ const DashboardPage = () => {
                         href={pr.html_url || `https://github.com/${pr.repository}/pull/${pr.pr_number}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex-shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        className="flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
                         title="Open on GitHub"
                       >
                         <ArrowUpRight className="h-4 w-4" />
