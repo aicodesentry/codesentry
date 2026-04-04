@@ -170,7 +170,7 @@ const ReportsPage = () => {
         <select
           value={selectedRepo}
           onChange={(e) => { setSelectedRepo(e.target.value); setCurrentPage(1); }}
-          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-slate-500"
+          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-slate-500"
         >
           <option value="">All repositories</option>
           {repositories.filter((r) => r.is_active !== false).map(repo => (
@@ -180,7 +180,7 @@ const ReportsPage = () => {
         <select
           value={selectedStatus}
           onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-slate-500"
+          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-slate-500"
         >
           <option value="">All statuses</option>
           <option value="completed">Completed</option>
@@ -278,7 +278,7 @@ const ReportsPage = () => {
         <Suspense fallback={
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="rounded-lg bg-white p-8 dark:bg-slate-800">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500 mx-auto" />
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-500 mx-auto" />
               <p className="mt-4 text-slate-600 dark:text-slate-400">Loading details...</p>
             </div>
           </div>
