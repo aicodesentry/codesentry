@@ -9,7 +9,7 @@ router.get('/', async (_req, res) => {
 
     res.json({
       status: 'ok',
-      service: 'codesentry-api',
+      service: 'mitig8it-api',
       checks: {
         postgres: 'ok',
       },
@@ -18,7 +18,7 @@ router.get('/', async (_req, res) => {
   } catch (error) {
     res.status(503).json({
       status: 'error',
-      service: 'codesentry-api',
+      service: 'mitig8it-api',
       error: error.message,
     });
   }

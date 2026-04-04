@@ -37,7 +37,7 @@ const pillars = [
   {
     icon: BookOpenText,
     title: 'Team Rules',
-    desc: 'Teach CodeSentry how your team wants reviews phrased, scoped, and prioritized.',
+    desc: 'Teach Mitig8it how your team wants reviews phrased, scoped, and prioritized.',
   },
   {
     icon: Bot,
@@ -49,11 +49,11 @@ const pillars = [
 const workflow = [
   {
     title: 'Connect the GitHub App',
-    desc: 'Install CodeSentry on one repo or one org. No CI config, no YAML setup, no sidecar jobs.',
+    desc: 'Install Mitig8it on one repo or one org. No CI config, no YAML setup, no sidecar jobs.',
   },
   {
     title: 'Open a pull request',
-    desc: 'CodeSentry reads the changed files, applies static + semantic detection, and clusters duplicate findings.',
+    desc: 'Mitig8it reads the changed files, applies static + semantic detection, and clusters duplicate findings.',
   },
   {
     title: 'Review actionable output',
@@ -104,7 +104,7 @@ const HomePage = () => {
                 <span className="block text-slate-500">and catches security bugs before merge.</span>
               </h1>
               <p className="mt-4 max-w-xl text-[15px] leading-7 text-slate-400">
-                CodeSentry reviews pull requests with repository context, explains what is risky, and shows engineers exactly where to fix it in GitHub.
+                Mitig8it reviews pull requests with repository context, explains what is risky, and shows engineers exactly where to fix it in GitHub.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 {user ? (

@@ -106,14 +106,14 @@ router.post('/github/reviews/submit', async (req, res) => {
   try {
     const token = await githubAppAuth.getInstallationToken(installation_id);
 
-    // Dismiss previous CodeSentry reviews so only the latest is visible
+    // Dismiss previous Mitig8it reviews so only the latest is visible
     const existingReviews = await githubRequest(
       'get',
       `https://api.github.com/repos/${owner}/${repo}/pulls/${pr_number}/reviews?per_page=100`,
       token
     );
     for (const review of existingReviews.data) {
-      if (review.body?.includes('<!-- codesentry-review -->') && review.state === 'CHANGES_REQUESTED') {
+      if (review.body?.includes('<!-- mitig8it-review -->') && review.state === 'CHANGES_REQUESTED') {
         try {
           await githubRequest(
             'put',
@@ -169,7 +169,7 @@ router.post('/github/check-runs', async (req, res) => {
       `https://api.github.com/repos/${owner}/${repo}/check-runs`,
       token,
       {
-        name: 'CodeSentry Security Review',
+        name: 'Mitig8it Security Review',
         head_sha,
         status: 'completed',
         conclusion,

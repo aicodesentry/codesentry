@@ -1,5 +1,5 @@
 -- =============================================================================
--- CodeSentry Database Initialization Script
+-- Mitig8it Database Initialization Script
 -- PostgreSQL 15+
 -- =============================================================================
 

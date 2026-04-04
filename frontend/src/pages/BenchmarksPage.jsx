@@ -13,7 +13,7 @@ const sections = [
   },
   {
     title: 'How we compare',
-    description: 'CodeSentry is strongest when judged on practical review output: lower noise, stronger evidence, clearer remediation, and security-specific focus.',
+    description: 'Mitig8it is strongest when judged on practical review output: lower noise, stronger evidence, clearer remediation, and security-specific focus.',
     points: [
       'Security-only positioning instead of general lint or style review.',
       'Evidence snippets pulled from the exact matching diff hunk.',

@@ -1,15 +1,15 @@
-# CodeSentry
+# Mitig8it
 
 A platform to plug into GitHub, analyze every pull request, and deliver actionable security reviews with multi-source context (regex, Semgrep, dependency checks plus LLM-ready BYOK hints).
 
 ## How It Works
 
 1. Developer opens a PR
-2. CodeSentry receives the webhook, analyzes changed files
+2. Mitig8it receives the webhook, analyzes changed files
 3. Posts a PR review: `CHANGES_REQUESTED` if critical/high findings, `COMMENT` otherwise
 4. Each finding is annotated on the exact line with severity, evidence, and remediation
 
-No CI config. No manual scans. Just install, invite the CodeSentry App, and merge with confidence.
+No CI config. No manual scans. Just install, invite the Mitig8it App, and merge with confidence.
 
 ## Highlights
 
@@ -76,16 +76,20 @@ PostgreSQL ── findings, analysis runs, repositories, users
 ## Quick Start
 
 ```bash
-# 1. Copy and fill env
-cp .env.example .env
-# Fill in: GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_APP_ID,
-#          GITHUB_APP_PRIVATE_KEY, JWT_SECRET, GITHUB_WEBHOOK_SECRET,
-#          GITHUB_SERVICE_INTERNAL_SECRET
+# 1. Bootstrap local env and local-only secrets
+./scripts/setup-local-dev.sh
 
-# 2. Validate
+# 2. Fill in GitHub credentials in .env
+#    GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_APP_ID,
+#    GITHUB_APP_PRIVATE_KEY
+
+# 3. Install the git hook that blocks direct pushes to main/master
+./scripts/install-git-hooks.sh
+
+# 4. Validate
 ./scripts/validate-env.sh
 
-# 3. Start
+# 5. Start
 docker-compose up --build
 ```
 
@@ -94,6 +98,22 @@ docker-compose up --build
 - Analysis: http://localhost:8001
 
 Single root `.env` feeds all services via `docker-compose env_file:`. No per-service env files needed.
+
+## Local Development
+
+- `./scripts/setup-local-dev.sh` creates a root `.env` from `.env.example` and generates local-only app secrets when placeholders are still present.
+- `./scripts/install-git-hooks.sh` configures `.githooks/pre-push`, which blocks direct pushes to `main` and `master`.
+- `docker-compose up --build` runs the full stack locally.
+- If Docker is not running, the app stack will not start and the API/database-backed counts will be unavailable.
+
+Recommended workflow:
+
+```bash
+git checkout -b feat/my-change
+./scripts/setup-local-dev.sh
+./scripts/install-git-hooks.sh
+docker-compose up --build
+```
 
 ## Testing
 

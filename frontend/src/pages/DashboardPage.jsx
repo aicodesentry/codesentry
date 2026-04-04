@@ -148,7 +148,7 @@ const DashboardPage = () => {
 
         <EmptyPanel
           title="This workspace is not live yet"
-          description="Connect one repository, open one pull request, and come back once CodeSentry has produced the first review."
+          description="Connect one repository, open one pull request, and come back once Mitig8it has produced the first review."
           action={
             <Link
               to={onboardingStatus.hasActiveRepo ? '/dashboard/reports' : '/dashboard/repositories'}

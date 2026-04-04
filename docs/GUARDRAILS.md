@@ -1,6 +1,6 @@
 # Centralized Security Guardrails
 
-CodeSentry enforces guardrails as a centralized control model, not per-service ad hoc behavior.
+Mitig8it enforces guardrails as a centralized control model, not per-service ad hoc behavior.
 
 ## 1) Network and Ingress
 - Public ingress allowed only for `api-service`.

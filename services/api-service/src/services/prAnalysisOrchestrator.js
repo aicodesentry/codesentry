@@ -29,8 +29,8 @@ function buildReviewBody(findings, runId) {
 
   if (total === 0) {
     return [
-      '<!-- codesentry-review -->',
-      '### 🛡️ CodeSentry — No security issues found',
+      '<!-- mitig8it-review -->',
+      '### 🛡️ Mitig8it — No security issues found',
       '',
       'This PR passed all security checks.',
       '',
@@ -39,8 +39,8 @@ function buildReviewBody(findings, runId) {
   }
 
   return [
-    '<!-- codesentry-review -->',
-    `### 🛡️ CodeSentry — ${total} finding${total === 1 ? '' : 's'} detected`,
+    '<!-- mitig8it-review -->',
+    `### 🛡️ Mitig8it — ${total} finding${total === 1 ? '' : 's'} detected`,
     '',
     hasBlocking ? '**Resolve critical and high severity issues before merging.**' : 'No blocking issues. Review at your discretion.',
     '',
@@ -48,7 +48,7 @@ function buildReviewBody(findings, runId) {
     '|---|---|---|---|',
     `| **${counts.critical || 0}** | **${counts.high || 0}** | **${counts.medium || 0}** | **${counts.low || 0}** |`,
     '',
-    `<sub>Analyzed by <strong>CodeSentry</strong> · Run \`${runId.slice(0, 8)}\` · Findings are annotated on the affected lines below</sub>`,
+    `<sub>Analyzed by <strong>Mitig8it</strong> · Run \`${runId.slice(0, 8)}\` · Findings are annotated on the affected lines below</sub>`,
   ].join('\n');
 }
 
@@ -228,7 +228,7 @@ async function runAnalysisJob(payload) {
         owner, repo, installation_id: installationId, head_sha: commitSha,
         conclusion: highOrCritical > 0 ? 'failure' : 'success',
         title: highOrCritical > 0 ? `${highOrCritical} critical/high finding${highOrCritical === 1 ? '' : 's'}` : 'No blocking security findings',
-        summary: `CodeSentry found ${actionable.length} finding${actionable.length === 1 ? '' : 's'} (${counts.critical || 0} critical, ${counts.high || 0} high, ${counts.medium || 0} medium, ${counts.low || 0} low).`,
+        summary: `Mitig8it found ${actionable.length} finding${actionable.length === 1 ? '' : 's'} (${counts.critical || 0} critical, ${counts.high || 0} high, ${counts.medium || 0} medium, ${counts.low || 0} low).`,
       });
     } catch (checkErr) {
       logger.error('Failed to create check run', { runId, error: checkErr.message });

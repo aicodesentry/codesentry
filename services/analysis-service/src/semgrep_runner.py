@@ -79,7 +79,7 @@ def run_semgrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     findings = []
 
-    with tempfile.TemporaryDirectory(prefix="codesentry_") as tmpdir:
+    with tempfile.TemporaryDirectory(prefix="mitig8it_") as tmpdir:
         # Write files to temp directory preserving path structure
         for file_info in scannable:
             file_path = Path(tmpdir) / file_info["path"]

@@ -78,9 +78,9 @@ class NotificationService {
 
     try {
       await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'CodeSentry'}" <${process.env.EMAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Mitig8it'}" <${process.env.EMAIL_USER}>`,
         to: recipient,
-        subject: 'Test Email - CodeSentry',
+        subject: 'Test Email - Mitig8it',
         html: '<h1>Email Configuration Successful!</h1><p>Your email notification service is working correctly.</p>'
       });
 
@@ -130,7 +130,7 @@ class NotificationService {
 
         try {
           await this.transporter.sendMail({
-            from: `"${process.env.EMAIL_FROM_NAME || 'CodeSentry'}" <${process.env.EMAIL_USER}>`,
+            from: `"${process.env.EMAIL_FROM_NAME || 'Mitig8it'}" <${process.env.EMAIL_USER}>`,
             to: reviewer.email,
             subject: subject,
             html: emailBody,
@@ -423,7 +423,7 @@ class NotificationService {
 
           <!-- Footer -->
           <div class="footer">
-            <p><strong>CodeSentry</strong></p>
+            <p><strong>Mitig8it</strong></p>
             <p>Automated security vulnerability analysis</p>
             <p style="margin-top: 10px;">
               This is an automated notification. AI analysis comments have been posted directly on the PR.

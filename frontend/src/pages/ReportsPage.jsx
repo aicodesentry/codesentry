@@ -173,7 +173,7 @@ const ReportsPage = () => {
       <PageHeader
         eyebrow="Run History"
         title="See every PR analysis in one place"
-        description="Reports should look like the dashboard control room, not a separate analytics product. Keep the pipeline visible, but make the interface feel like the rest of CodeSentry."
+        description="Reports should look like the dashboard control room, not a separate analytics product. Keep the pipeline visible, but make the interface feel like the rest of Mitig8it."
         actions={
           <a
             href="/dashboard/onboarding"

@@ -1,7 +1,7 @@
-# CodeSentry Capstone Presentation (Clark MSCS)
+# Mitig8it Capstone Presentation (Clark MSCS)
 
 ## Who We Are
-- **Team:** CodeSentry — AI-powered code review assistant
+- **Team:** Mitig8it — AI-powered code review assistant
 - **Problem:** PR reviews miss security and quality issues; manual reviews slow teams down
 - **Goal:** Automate high-signal PR feedback with minimal setup and clear, actionable findings
 

@@ -12,9 +12,9 @@ curl -fsS "$ANALYSIS_URL/health" >/dev/null
 
 echo "[2/4] Metrics endpoint"
 if [ -n "$METRICS_SECRET" ]; then
-  curl -fsS "$API_URL/metrics" -H "x-internal-secret: $METRICS_SECRET" | grep -q "codesentry_http_request_duration_seconds"
+  curl -fsS "$API_URL/metrics" -H "x-internal-secret: $METRICS_SECRET" | grep -q "mitig8it_http_request_duration_seconds"
 else
-  curl -fsS "$API_URL/metrics" | grep -q "codesentry_http_request_duration_seconds"
+  curl -fsS "$API_URL/metrics" | grep -q "mitig8it_http_request_duration_seconds"
 fi
 
 echo "[3/4] Analysis pipeline smoke test"

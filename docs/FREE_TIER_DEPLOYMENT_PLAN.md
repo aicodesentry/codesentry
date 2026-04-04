@@ -1,4 +1,4 @@
-# CodeSentry Free-Tier Deployment Plan (All GCP)
+# Mitig8it Free-Tier Deployment Plan (All GCP)
 
 This plan optimizes for low cost while keeping production-like behavior.
 

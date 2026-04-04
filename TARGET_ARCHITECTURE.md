@@ -1,7 +1,7 @@
-# CodeSentry Target Architecture (V1)
+# Mitig8it Target Architecture (V1)
 
 ## 1. Product Boundary
-CodeSentry V1 is a **GitHub-native security reviewer** for pull requests.
+Mitig8it V1 is a **GitHub-native security reviewer** for pull requests.
 
 Primary value:
 - likely security issue detection in changed code

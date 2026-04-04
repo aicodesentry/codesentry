@@ -22,7 +22,7 @@ const PrivacyPage = () => {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">How we access your code</h2>
             <p>
-              CodeSentry reads pull request diffs through the GitHub API. We only access the changed
+              Mitig8it reads pull request diffs through the GitHub API. We only access the changed
               lines in a pull request — we do not clone, store, or retain your source code. Analysis
               is performed on the diff content and results are stored as findings metadata (file path,
               line number, CWE ID, description).
@@ -52,7 +52,7 @@ const PrivacyPage = () => {
             <p>
               You can disconnect repositories at any time from your dashboard. When you uninstall
               the GitHub App, we remove your repository data and findings. To delete your account
-              entirely, contact us at support@codesentry.dev.
+              entirely, contact us at support@mitig8it.com.
             </p>
           </section>
 
@@ -60,8 +60,8 @@ const PrivacyPage = () => {
             <h2 className="text-lg font-semibold text-white mb-3">Contact</h2>
             <p>
               Questions about this policy? Reach us at{' '}
-              <a href="mailto:support@codesentry.dev" className="text-primary-400 hover:text-primary-300 transition-colors">
-                support@codesentry.dev
+              <a href="mailto:support@mitig8it.com" className="text-primary-400 hover:text-primary-300 transition-colors">
+                support@mitig8it.com
               </a>.
             </p>
           </section>

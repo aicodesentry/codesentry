@@ -12,7 +12,7 @@ const samplePullRequest = {
   repo: 'codesentry/demo-storefront',
   number: 14,
   title: 'Tighten checkout redirect handling',
-  summary: 'See how CodeSentry turns one PR into inline findings, a summary review, and taxonomy-backed remediation.',
+  summary: 'See how Mitig8it turns one PR into inline findings, a summary review, and taxonomy-backed remediation.',
   findings: [
     { label: 'Critical', count: 2, tint: 'bg-slate-900 text-slate-200 border-slate-700' },
     { label: 'High', count: 1, tint: 'bg-slate-900 text-slate-200 border-slate-700' },
@@ -31,14 +31,14 @@ export default function OnboardingPage() {
         title: 'Install the GitHub App',
         detail: status.hasInstall
           ? `${status.installationCount} installation${status.installationCount === 1 ? '' : 's'} detected`
-          : 'Connect CodeSentry to one repository or one organization first',
+          : 'Connect Mitig8it to one repository or one organization first',
         done: status.hasInstall,
       },
       {
         id: 'access',
         title: 'Grant repository access',
         detail: status.hasRepoAccess
-          ? `${status.repositoryCount} repos visible to CodeSentry`
+          ? `${status.repositoryCount} repos visible to Mitig8it`
           : 'Grant repo permissions in GitHub installation settings and sync again',
         done: status.hasRepoAccess,
       },
@@ -309,7 +309,7 @@ export default function OnboardingPage() {
 
       {!status.hasInstall ? (
         <EmptyPanel
-          title="CodeSentry starts after the GitHub App is installed"
+          title="Mitig8it starts after the GitHub App is installed"
           description="Install the app on one repo, then sync here. Everything else stays hidden until the first review loop is working."
           action={
             <a
@@ -318,7 +318,7 @@ export default function OnboardingPage() {
               rel="noreferrer"
               className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
             >
-              Install CodeSentry
+              Install Mitig8it
             </a>
           }
         />

@@ -4,14 +4,14 @@
 -- Safety latch:
 --   psql "$DATABASE_URL" \
 --     -v ON_ERROR_STOP=1 \
---     -c "SET codesentry.allow_destructive_maintenance = 'true';" \
+--     -c "SET mitig8it.allow_destructive_maintenance = 'true';" \
 --     -f scripts/cleanup-orphans.sql
 
 DO $$
 BEGIN
-  IF current_setting('codesentry.allow_destructive_maintenance', true) IS DISTINCT FROM 'true' THEN
+  IF current_setting('mitig8it.allow_destructive_maintenance', true) IS DISTINCT FROM 'true' THEN
     RAISE EXCEPTION
-      'Refusing to run destructive cleanup without SET codesentry.allow_destructive_maintenance = ''true''';
+      'Refusing to run destructive cleanup without SET mitig8it.allow_destructive_maintenance = ''true''';
   END IF;
 END $$;
 
