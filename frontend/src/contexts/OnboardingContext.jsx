@@ -10,9 +10,49 @@ const EMPTY_SUMMARY = {
   recent_7_days: 0,
 }
 
+function getRepositoryKey(repo) {
+  return repo.id || repo.github_id || repo.full_name
+}
+
+function mergeRepositoryRecord(current, next) {
+  if (!current) return next
+
+  return {
+    ...current,
+    ...next,
+    is_active: Boolean(current.is_active || next.is_active),
+    pull_request_count: Math.max(
+      Number(current.pull_request_count || 0),
+      Number(next.pull_request_count || 0)
+    ),
+    open_findings_count: Math.max(
+      Number(current.open_findings_count || 0),
+      Number(next.open_findings_count || 0)
+    ),
+    accepted_risk_count: Math.max(
+      Number(current.accepted_risk_count || 0),
+      Number(next.accepted_risk_count || 0)
+    ),
+    updated_at: next.updated_at || current.updated_at,
+  }
+}
+
+function normalizeRepositories(items = []) {
+  const repositoriesById = new Map()
+
+  items.forEach((repo) => {
+    const key = getRepositoryKey(repo)
+    if (!key) return
+    repositoriesById.set(key, mergeRepositoryRecord(repositoriesById.get(key), repo))
+  })
+
+  return Array.from(repositoriesById.values())
+}
+
 export function OnboardingProvider({ children }) {
   const [installations, setInstallations] = useState([])
   const [repositories, setRepositories] = useState([])
+  const [githubRepoCount, setGithubRepoCount] = useState(0)
   const [summary, setSummary] = useState(EMPTY_SUMMARY)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -45,7 +85,10 @@ export function OnboardingProvider({ children }) {
       ])
 
       setInstallations(installationsData.installations || [])
-      setRepositories(repositoriesData.repositories || [])
+      const repoData = repositoriesData.repositories || []
+      const normalized = normalizeRepositories(repoData)
+      setRepositories(normalized)
+      setGithubRepoCount(repositoriesData.total_count ?? normalized.length)
       setSummary(summaryData.summary || EMPTY_SUMMARY)
 
       if (syncError) {
@@ -65,7 +108,9 @@ export function OnboardingProvider({ children }) {
 
   const value = useMemo(() => {
     const installationCount = installations.length
-    const repositoryCount = repositories.length
+    // Use the server-provided total_count which reflects GitHub's authoritative count,
+    // not just the local DB snapshot length.
+    const repositoryCount = githubRepoCount || repositories.length
     const activeRepositoryCount = repositories.filter((repo) => repo.is_active).length
     const openPullRequestCount = repositories.reduce(
       (count, repo) => count + Number(repo.pull_request_count || 0),
@@ -116,7 +161,7 @@ export function OnboardingProvider({ children }) {
         nextStep,
       },
     }
-  }, [installations, repositories, summary, loading, syncing, error, lastSyncedAt, refresh])
+  }, [installations, repositories, githubRepoCount, summary, loading, syncing, error, lastSyncedAt, refresh])
 
   return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>
 }

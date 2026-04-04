@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Bell, Bot, Github, ShieldAlert, UserRound } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { PageHeader, PagePanel, PageStats } from '../components/PageSection'
+import { PageHeader, PageStats } from '../components/PageSection'
 
 const toggleClassName = (enabled) =>
   `relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
@@ -52,97 +52,83 @@ const ProfilePage = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Account"
-        title={user?.github_username ? `${user.github_username}'s workspace profile` : 'Workspace profile'}
-        description="This page should explain who owns the workspace, how notifications behave, and what the next security workflow upgrade is."
+        title={user?.github_username ? `${user.github_username}'s profile` : 'Profile'}
+        description="Account identity and notification preferences"
       />
 
       <PageStats
         items={[
           {
-            label: 'GitHub Login',
+            label: 'GitHub login',
             value: user?.github_username || 'unknown',
-            meta: 'primary identity',
-            icon: <Github className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
-            iconWrapClassName: 'bg-slate-100 dark:bg-slate-700/70',
+            icon: <Github className="h-4 w-4 text-slate-600 dark:text-slate-300" />,
           },
           {
-            label: 'Active Toggles',
+            label: 'Active toggles',
             value: activeSettings,
-            meta: `${rows.length} available`,
-            icon: <Bell className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
-            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
+            icon: <Bell className="h-4 w-4 text-slate-600 dark:text-slate-300" />,
           },
           {
-            label: 'Plan Mode',
+            label: 'Plan',
             value: 'Beta',
-            meta: 'pricing hidden for now',
-            icon: <ShieldAlert className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
-            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
+            icon: <ShieldAlert className="h-4 w-4 text-slate-600 dark:text-slate-300" />,
           },
           {
-            label: 'AI Setup',
+            label: 'AI setup',
             value: 'BYOK',
-            meta: 'next P2 slice',
-            icon: <Bot className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
-            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
+            icon: <Bot className="h-4 w-4 text-slate-600 dark:text-slate-300" />,
           },
         ]}
       />
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <PagePanel
-          title="Identity and access"
-          description="Ground the user in which GitHub account is actually connected."
-        >
-          <div className="flex flex-col gap-5 rounded-xl border border-slate-200 bg-slate-50 p-5 sm:flex-row sm:items-center dark:border-slate-800 dark:bg-slate-900/70">
+        {/* Identity */}
+        <div>
+          <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-white">Identity</h2>
+          <div className="flex flex-col gap-5 rounded-xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-center dark:border-slate-800 dark:bg-slate-900">
             {user?.avatar_url ? (
               <img
                 src={user.avatar_url}
                 alt={user.github_username}
-                className="h-24 w-24 rounded-full object-cover ring-1 ring-slate-200 dark:ring-white/10"
+                className="h-20 w-20 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700"
               />
             ) : (
-              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-                <UserRound className="h-10 w-10 text-slate-500 dark:text-slate-400" />
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+                <UserRound className="h-8 w-8 text-slate-400" />
               </div>
             )}
             <div className="grid flex-1 gap-4 sm:grid-cols-2">
               <div>
-                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Username</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{user?.github_username || 'N/A'}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Username</p>
+                <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">{user?.github_username || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Email</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{user?.github_email || user?.email || 'N/A'}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Email</p>
+                <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">{user?.github_email || user?.email || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">GitHub ID</p>
-                <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">{user?.github_id || 'Unknown'}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">GitHub ID</p>
+                <p className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">{user?.github_id || 'Unknown'}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Member since</p>
-                <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Member since</p>
+                <p className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">
                   {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'Recently'}
                 </p>
               </div>
             </div>
           </div>
-        </PagePanel>
+        </div>
 
-        <PagePanel
-          title="Notification behavior"
-          description="Keep the toggles, but make the page explain what each one changes in the product."
-        >
-          <div className="space-y-3">
+        {/* Notifications */}
+        <div>
+          <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-white">Notifications</h2>
+          <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
             {rows.map((row) => (
-              <div
-                key={row.key}
-                className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-800 dark:bg-slate-900/70"
-              >
-                <div className="pr-4">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{row.label}</p>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{row.description}</p>
+              <div key={row.key} className="flex items-center justify-between gap-4 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-900 dark:text-white">{row.label}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{row.description}</p>
                 </div>
                 <button onClick={() => handleSettingChange(row.key)} className={toggleClassName(settings[row.key])}>
                   <span
@@ -154,26 +140,22 @@ const ProfilePage = () => {
               </div>
             ))}
           </div>
-        </PagePanel>
+        </div>
       </div>
 
-      <PagePanel
-        title="Danger zone"
-        description="This stays visible, but it should feel deliberate instead of looking like a default alert box."
-        className="border-rose-500/35 bg-rose-950/20"
-      >
-        <div className="flex flex-col gap-4 rounded-xl border border-rose-500/20 bg-rose-950/30 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+      {/* Danger zone */}
+      <div>
+        <h2 className="mb-3 text-lg font-semibold text-red-600 dark:text-red-400">Danger zone</h2>
+        <div className="flex flex-col gap-4 rounded-xl border border-red-200 bg-red-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-red-500/20 dark:bg-red-500/5">
           <div>
-            <p className="text-sm font-semibold text-rose-100">Delete account</p>
-            <p className="mt-1 text-sm text-rose-100/75">
-              Permanently delete your account and all connected workspace data.
-            </p>
+            <p className="text-sm font-medium text-red-900 dark:text-red-200">Delete account</p>
+            <p className="text-xs text-red-700 dark:text-red-300/70">Permanently delete your account and all workspace data.</p>
           </div>
-          <button className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-500">
+          <button className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500">
             Delete Account
           </button>
         </div>
-      </PagePanel>
+      </div>
     </div>
   )
 }

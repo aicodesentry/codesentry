@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowRight, CheckCircle2, Compass, GitFork, KeyRound, RefreshCcw, ShieldCheck, Sparkles } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useOnboarding } from '../contexts/OnboardingContext'
-import { EmptyPanel, PageHeader, PagePanel, PageStats } from '../components/PageSection'
+import { EmptyPanel } from '../components/PageSection'
 
 const INSTALLATIONS_SETTINGS_URL = 'https://github.com/settings/installations'
 const GITHUB_APP_URL = 'https://github.com/apps/aicodesentry'
@@ -105,178 +105,195 @@ export default function OnboardingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="First Value"
-        title="Get from install to first security review in one pass"
-        description="The only job here is to connect GitHub, activate one repository, and confirm that one pull request receives a review."
-        actions={
-          <>
-            <button
-              onClick={() => refresh({ sync: true })}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-900"
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
+            Get from install to first security review
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Connect GitHub, activate one repository, and confirm that one pull request receives a review.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => refresh({ sync: true })}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-900"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            {syncing ? 'Syncing...' : 'Sync GitHub'}
+          </button>
+          {nextAction.external ? (
+            <a
+              href={nextAction.href}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
             >
-              <RefreshCcw className="h-4 w-4" />
-              {syncing ? 'Syncing...' : 'Sync GitHub'}
-            </button>
-            {nextAction.external ? (
-              <a
-                href={nextAction.href}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
-              >
-                <GitFork className="h-4 w-4" />
-                {nextAction.label}
-              </a>
-            ) : (
-              <Link
-                to={nextAction.href}
-                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
-              >
-                <ArrowRight className="h-4 w-4" />
-                {nextAction.label}
-              </Link>
-            )}
-          </>
-        }
-      />
+              <GitFork className="h-4 w-4" />
+              {nextAction.label}
+            </a>
+          ) : (
+            <Link
+              to={nextAction.href}
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+            >
+              <ArrowRight className="h-4 w-4" />
+              {nextAction.label}
+            </Link>
+          )}
+        </div>
+      </div>
 
-      <PageStats
-        items={[
-          {
-            label: 'Installations',
-            value: status.installationCount,
-            meta: status.hasInstall ? 'connected' : 'not yet',
-            icon: <ShieldCheck className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
-            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
-          },
-          {
-            label: 'Repos Visible',
-            value: status.repositoryCount,
-            meta: status.hasRepoAccess ? `${status.activeRepositoryCount} active` : 'needs access',
-            icon: <Compass className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
-            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
-          },
-          {
-            label: 'PR Reviews',
-            value: status.analysisCount,
-            meta: status.hasFirstReview ? 'first value reached' : 'waiting for first run',
-            icon: <Sparkles className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
-            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
-          },
-          {
-            label: 'Last Sync',
-            value: lastSyncedAt ? 'Live' : 'Pending',
-            meta: formatSyncTime(),
-            icon: <KeyRound className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
-            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
-          },
-        ]}
-      />
+      {/* Stats row */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+              <ShieldCheck className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-slate-900 dark:text-white">{status.installationCount}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Installations</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+              <Compass className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-slate-900 dark:text-white">{status.repositoryCount}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Repos Visible</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+              <Sparkles className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-slate-900 dark:text-white">{status.analysisCount}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">PR Reviews</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+              <KeyRound className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-slate-900 dark:text-white">{lastSyncedAt ? 'Live' : 'Pending'}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Last Sync</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {error ? (
-        <PagePanel className="border-rose-500/40 bg-rose-950/30" contentClassName="p-5">
+        <div className="rounded-xl border border-rose-500/40 bg-rose-950/30 p-5">
           <p className="text-sm font-medium text-rose-100">{error}</p>
-        </PagePanel>
+        </div>
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
-        <PagePanel
-          title="Launch checklist"
-          description="Each step should move the user toward a visible GitHub review, not toward another settings page."
-          action={
+        {/* Launch checklist */}
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Launch checklist</h2>
             <a
               href={INSTALLATIONS_SETTINGS_URL}
               target="_blank"
               rel="noreferrer"
-              className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+              className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
             >
               Manage installation
             </a>
-          }
-        >
-          <div className="space-y-3">
-            {checklist.map((item, index) => (
-              <div
-                key={item.id}
-                className={`flex items-start gap-4 rounded-2xl border px-4 py-4 ${
-                  item.done
-                    ? 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/90'
-                    : item.optional
-                      ? 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/70'
-                      : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/60'
-                }`}
-              >
-                <div className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-full ${item.done ? 'bg-slate-200 dark:bg-slate-700' : 'bg-slate-100 dark:bg-slate-800'}`}>
-                  {item.done ? (
-                    <CheckCircle2 className="h-5 w-5 text-slate-900 dark:text-white" />
-                  ) : (
-                    <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">{index + 1}</span>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{item.title}</p>
-                    {item.optional ? (
-                      <span className="rounded-full border border-slate-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                        Optional
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{item.detail}</p>
-                </div>
-              </div>
-            ))}
           </div>
-
-          {status.needsPermissionFix ? (
-            <div className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-4 dark:border-slate-700 dark:bg-slate-900">
-              <p className="text-sm font-semibold text-slate-900 dark:text-white">The app is installed, but GitHub access is still too narrow.</p>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Expand repository access in GitHub installation settings, then sync again. Until then the rest of the product will look empty.
-              </p>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            <div className="space-y-3">
+              {checklist.map((item, index) => (
+                <div
+                  key={item.id}
+                  className={`flex items-start gap-4 rounded-xl border px-4 py-4 ${
+                    item.done
+                      ? 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50'
+                      : item.optional
+                        ? 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/30'
+                        : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/40'
+                  }`}
+                >
+                  <div className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-full ${item.done ? 'bg-slate-200 dark:bg-slate-700' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                    {item.done ? (
+                      <CheckCircle2 className="h-5 w-5 text-slate-900 dark:text-white" />
+                    ) : (
+                      <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">{index + 1}</span>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">{item.title}</p>
+                      {item.optional ? (
+                        <span className="rounded-full border border-slate-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                          Optional
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{item.detail}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-          ) : null}
 
-          {status.hasFirstReview ? (
-            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-50 px-4 py-4 dark:bg-emerald-950/20">
-              <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-100">The first review has landed.</p>
-              <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-200/80">
-                The activation loop is complete. You can move into the live dashboard and reports now.
-              </p>
-              <Link
-                to="/dashboard/home"
-                className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-950"
-              >
-                Open workspace
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-          ) : null}
-        </PagePanel>
+            {status.needsPermissionFix ? (
+              <div className="mt-3 rounded-xl border border-slate-300 bg-slate-50 px-4 py-4 dark:border-slate-700 dark:bg-slate-800/50">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">The app is installed, but GitHub access is still too narrow.</p>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Expand repository access in GitHub installation settings, then sync again. Until then the rest of the product will look empty.
+                </p>
+              </div>
+            ) : null}
 
-        <PagePanel
-          title="What users should expect"
-          description="A sample PR preview so the value is obvious before the first real review shows up."
-          action={
+            {status.hasFirstReview ? (
+              <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-50 px-4 py-4 dark:bg-emerald-950/20">
+                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-100">The first review has landed.</p>
+                <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-200/80">
+                  The activation loop is complete. You can move into the live dashboard and reports now.
+                </p>
+                <Link
+                  to="/dashboard/home"
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                >
+                  Open workspace
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* What users should expect */}
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">What users should expect</h2>
             <Link
               to="/examples"
-              className="rounded-xl bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-950 transition hover:bg-slate-200"
+              className="text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
             >
               See examples
             </Link>
-          }
-        >
+          </div>
           <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Sample PR</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Sample PR</p>
                 <h3 className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">
                   #{samplePullRequest.number} {samplePullRequest.title}
                 </h3>
                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{samplePullRequest.repo}</p>
               </div>
-              <div className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
+              <div className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                 Review ready
               </div>
             </div>
@@ -285,7 +302,7 @@ export default function OnboardingPage() {
               {samplePullRequest.findings.map((item) => (
                 <span
                   key={item.label}
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${item.tint}`}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${item.tint}`}
                 >
                   {item.count} {item.label}
                 </span>
@@ -297,14 +314,14 @@ export default function OnboardingPage() {
                 'A GitHub check summary rolls up severity and taxonomy context.',
                 'Reports becomes the operating log once the first scan lands.',
               ].map((line) => (
-                <div key={line} className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/70">
+                <div key={line} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/40">
                   <Sparkles className="mt-0.5 h-4 w-4 text-slate-500 dark:text-slate-300" />
                   <p className="text-sm text-slate-700 dark:text-slate-300">{line}</p>
                 </div>
               ))}
             </div>
           </div>
-        </PagePanel>
+        </div>
       </div>
 
       {!status.hasInstall ? (
@@ -316,7 +333,7 @@ export default function OnboardingPage() {
               href={githubAppInstallUrl || GITHUB_APP_URL}
               target="_blank"
               rel="noreferrer"
-              className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
             >
               Install Mitig8it
             </a>

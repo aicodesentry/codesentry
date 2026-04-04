@@ -4,6 +4,7 @@ const { pool } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { getInstallationToken } = require('../services/githubApp');
 const { decrypt, isEncrypted } = require('../utils/encryption');
+const installationsDb = require('../db/installations');
 
 const router = express.Router();
 
@@ -71,13 +72,13 @@ async function syncRepoPullRequests({ repoFullName, repoId, githubToken }) {
 
 async function fetchInstallationRepositories({ installationId, githubToken }) {
   const repositories = [];
+  let githubTotalCount = 0;
 
   // Prefer GitHub App installation token: this reflects app-granted repo access directly.
   try {
     const installationToken = await getInstallationToken(installationId);
     let page = 1;
-    let hasMore = true;
-    while (hasMore) {
+    while (true) {
       const reposResp = await axios.get('https://api.github.com/installation/repositories', {
         headers: {
           Authorization: `Bearer ${installationToken}`,
@@ -87,20 +88,24 @@ async function fetchInstallationRepositories({ installationId, githubToken }) {
         timeout: 20000,
       });
 
+      // Capture the authoritative total from GitHub on the first page.
+      if (page === 1) {
+        githubTotalCount = reposResp.data.total_count || 0;
+      }
       const pageRepos = reposResp.data.repositories || [];
       repositories.push(...pageRepos);
-      hasMore = pageRepos.length === 100;
+      // Stop when we've collected everything GitHub reports or the page is short.
+      if (repositories.length >= githubTotalCount || pageRepos.length < 100) break;
       page += 1;
     }
 
-    return repositories;
+    return { repositories, total_count: githubTotalCount };
   } catch (appTokenError) {
     // Fall back to user-scoped endpoint when app credentials are unavailable.
   }
 
   let page = 1;
-  let hasMore = true;
-  while (hasMore) {
+  while (true) {
     const reposResp = await axios.get(
       `https://api.github.com/user/installations/${installationId}/repositories`,
       {
@@ -113,13 +118,16 @@ async function fetchInstallationRepositories({ installationId, githubToken }) {
       }
     );
 
+    if (page === 1) {
+      githubTotalCount = reposResp.data.total_count || 0;
+    }
     const pageRepos = reposResp.data.repositories || [];
     repositories.push(...pageRepos);
-    hasMore = pageRepos.length === 100;
+    if (repositories.length >= githubTotalCount || pageRepos.length < 100) break;
     page += 1;
   }
 
-  return repositories;
+  return { repositories, total_count: githubTotalCount };
 }
 
 async function grantRepositoryAccess(client, repositoryId, userIds) {
@@ -136,26 +144,8 @@ async function grantRepositoryAccess(client, repositoryId, userIds) {
 }
 
 router.get('/', authenticateToken, async (req, res) => {
-  const result = await pool.query(
-    `SELECT
-       i.id,
-       i.account_login,
-       i.account_type,
-       i.status,
-       i.updated_at,
-       COUNT(r.id) FILTER (WHERE r.is_active = true) AS repository_count
-     FROM installations i
-     JOIN user_installations ui ON ui.installation_id = i.id
-     LEFT JOIN repositories r ON r.installation_id = i.id
-     LEFT JOIN repository_access ra ON ra.repository_id = r.id AND ra.user_id = $1
-     WHERE ui.user_id = $1
-       AND (r.id IS NULL OR ra.user_id = $1)
-     GROUP BY i.id
-     ORDER BY i.updated_at DESC`,
-    [req.user.user_id]
-  );
-
-  res.json({ installations: result.rows });
+  const installations = await installationsDb.listByUser(req.user.user_id);
+  res.json({ installations });
 });
 
 router.post('/sync', authenticateToken, async (req, res) => {
@@ -183,60 +173,23 @@ router.post('/sync', authenticateToken, async (req, res) => {
     let syncedRepos = 0;
     const syncErrors = [];
     for (const installation of response.data.installations || []) {
-      await pool.query(
-        `INSERT INTO installations (id, account_login, account_type, target_type, html_url, permissions, events, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')
-         ON CONFLICT (id)
-         DO UPDATE SET
-           account_login = EXCLUDED.account_login,
-           account_type = EXCLUDED.account_type,
-           target_type = EXCLUDED.target_type,
-           html_url = EXCLUDED.html_url,
-           permissions = EXCLUDED.permissions,
-           events = EXCLUDED.events,
-           status = 'active',
-           updated_at = NOW()`,
-        [
-          installation.id,
-          installation.account?.login,
-          installation.account?.type,
-          installation.target_type,
-          installation.html_url,
-          JSON.stringify(installation.permissions || {}),
-          installation.events || [],
-        ]
-      );
-      await pool.query(
-        `INSERT INTO user_installations (user_id, installation_id)
-         VALUES ($1, $2)
-         ON CONFLICT (user_id, installation_id)
-         DO UPDATE SET updated_at = NOW()`,
-        [req.user.user_id, installation.id]
-      );
+      await installationsDb.upsertInstallation(pool, installation, 'active');
+      await installationsDb.linkUserInstallation(pool, req.user.user_id, installation.id);
       synced += 1;
 
       try {
-        await pool.query(
-          `UPDATE repositories
-           SET is_active = false, updated_at = NOW()
-           WHERE installation_id = $2
-             AND EXISTS (
-               SELECT 1 FROM repository_access ra
-               WHERE ra.repository_id = repositories.id AND ra.user_id = $1
-             )`,
-          [req.user.user_id, installation.id]
-        );
-
-        const repositories = await fetchInstallationRepositories({
+        const { repositories, total_count: githubCount } = await fetchInstallationRepositories({
           installationId: installation.id,
           githubToken,
         });
+        // Track the highest total_count GitHub reports so we can surface it.
+        if (githubCount > 0) syncedRepos = Math.max(syncedRepos, githubCount);
 
         for (const repo of repositories) {
           const upserted = await pool.query(
             `INSERT INTO repositories
               (github_id, installation_id, owner_id, name, full_name, private, default_branch, language, html_url, clone_url, is_active)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false)
              ON CONFLICT (github_id)
              DO UPDATE SET
                installation_id = EXCLUDED.installation_id,
@@ -247,7 +200,6 @@ router.post('/sync', authenticateToken, async (req, res) => {
                language = EXCLUDED.language,
                html_url = EXCLUDED.html_url,
                clone_url = EXCLUDED.clone_url,
-               is_active = true,
                updated_at = NOW()
              RETURNING id`,
             [
