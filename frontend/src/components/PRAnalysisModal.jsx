@@ -2,7 +2,7 @@ const severityColors = {
   critical: { text: 'text-red-600 dark:text-red-400', bg: 'bg-red-500' },
   high: { text: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-500' },
   medium: { text: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-amber-400' },
-  low: { text: 'text-blue-600 dark:text-blue-400', bg: 'bg-sky-400' },
+  low: { text: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-400' },
 };
 
 const PRAnalysisModal = ({ analysis, onClose }) => {

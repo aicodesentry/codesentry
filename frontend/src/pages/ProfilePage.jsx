@@ -5,7 +5,7 @@ import { PageHeader, PageStats } from '../components/PageSection'
 
 const toggleClassName = (enabled) =>
   `relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-    enabled ? 'bg-sky-500 dark:bg-white' : 'bg-slate-200 dark:bg-slate-700'
+    enabled ? 'bg-slate-900 dark:bg-white' : 'bg-slate-200 dark:bg-slate-700'
   }`
 
 const ProfilePage = () => {

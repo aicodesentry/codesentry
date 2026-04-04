@@ -165,7 +165,7 @@ const DashboardPage = () => {
   return (
     <div className="space-y-6">
       {onboardingStatus.needsFirstReview ? (
-        <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-100">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300">
           Your workspace is connected. Open or update a pull request in an active repository to generate the first review.
         </div>
       ) : null}

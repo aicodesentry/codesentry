@@ -13,7 +13,7 @@ const SubscriptionPage = () => {
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-2xl font-bold text-sky-500 dark:text-sky-400">Free Plan</h3>
+              <h3 className="text-2xl font-bold text-slate-900 dark:text-white">Free Plan</h3>
               <p className="text-slate-600 dark:text-slate-400 mt-1">
                 Perfect for getting started with PR security reviews
               </p>
@@ -66,9 +66,9 @@ const SubscriptionPage = () => {
         </Card>
 
         {/* Pro Plan */}
-        <Card className="border-sky-500 dark:border-sky-400 relative">
+        <Card className="border-slate-900 dark:border-white relative">
           <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-            <Badge className="bg-sky-500 text-white px-4 py-1">
+            <Badge className="bg-slate-900 text-white px-4 py-1">
               Popular
             </Badge>
           </div>

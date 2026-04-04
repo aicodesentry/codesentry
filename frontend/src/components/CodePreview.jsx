@@ -42,7 +42,7 @@ const CodePreview = () => {
 
       {/* Floating Success Badge */}
       <div className="absolute -bottom-4 -right-4 bg-white rounded-full p-3 shadow-xl" aria-hidden="true">
-        <svg className="w-8 h-8 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-8 h-8 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </div>

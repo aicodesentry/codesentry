@@ -1,20 +1,20 @@
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
-  Bot,
   CheckCircle2,
   Filter,
   GitPullRequest,
   Layers,
-  Search,
   Shield,
   ShieldAlert,
-  Sparkles,
   Target,
 } from 'lucide-react'
+import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import Header from './Header'
 import Footer from './Footer'
+
+const REVIEW_SCREENSHOT_PATH = '/proof/github-pr-xss-review.png'
 
 const GitHubIcon = () => (
   <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -29,23 +29,18 @@ const GitHubIcon = () => (
 const pillars = [
   {
     icon: GitPullRequest,
-    title: 'PR Review',
-    desc: 'Inline findings, summary reviews, and checks that land where engineers already work.',
+    title: 'GitHub-native',
+    desc: 'Findings land as inline comments and summary checks inside the PR.',
   },
   {
     icon: ShieldAlert,
-    title: 'Security Context',
-    desc: 'Security-only detections with CWE, OWASP, ATT&CK, and CAPEC context for every finding.',
+    title: 'Security-only',
+    desc: 'Focused on security bugs with severity and taxonomy context.',
   },
   {
     icon: Filter,
-    title: 'Low Noise',
-    desc: 'Multi-engine cross-validation, dedup clustering, and confidence scoring cut false positives so you act on signal, not noise.',
-  },
-  {
-    icon: Bot,
-    title: 'BYOK AI',
-    desc: 'Bring your own model key for explanations and remediation without handing secrets to us.',
+    title: 'Low-noise output',
+    desc: 'Cross-validation, deduping, and confidence scoring keep review usable.',
   },
 ]
 
@@ -89,31 +84,35 @@ const trustLinks = [
 
 const HomePage = () => {
   const { loginWithGitHub, user } = useAuth()
+  const [proofImageUnavailable, setProofImageUnavailable] = useState(false)
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-neutral-950 text-white">
       <Header />
 
       <main className="overflow-hidden">
         {/* Hero */}
-        <section className="border-b border-slate-800">
-          <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-8 lg:py-16">
-            <div className="max-w-2xl">
-              <p className="text-xs font-medium uppercase tracking-[0.25em] text-sky-400">
-                AI security review for pull requests
+        <section className="border-b border-neutral-800/60">
+          <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_0.95fr] lg:items-center lg:px-8 lg:py-20">
+            <div className="max-w-xl">
+              <p className="text-xs font-medium uppercase tracking-[0.25em] text-neutral-500">
+                Security review for pull requests
               </p>
-              <h1 className="mt-4 text-3xl font-bold leading-tight tracking-tight sm:text-4xl lg:text-[2.75rem]">
-                Code review that understands your repo
-                <span className="block text-slate-500">and catches security bugs before merge.</span>
+              <h1 className="mt-4 text-4xl font-bold leading-[1.15] tracking-tight sm:text-5xl">
+                Catch vulnerabilities
+                <span className="block text-neutral-400">before they merge.</span>
               </h1>
-              <p className="mt-4 max-w-xl text-[15px] leading-7 text-slate-400">
-                Mitig8it reviews pull requests with repository context, explains what is risky, and shows engineers exactly where to fix it in GitHub.
+              <p className="mt-5 text-[15px] leading-7 text-neutral-400">
+                Mitig8it posts inline security findings on every pull request. No CI config, no extra console — just GitHub-native review where developers already work.
               </p>
+              <div className="mt-4 inline-flex rounded-md border border-neutral-700 bg-neutral-900 px-3.5 py-2 text-[13px] text-neutral-300">
+                In beta — 16 users, live GitHub App, PR findings, dashboard.
+              </div>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 {user ? (
                   <Link
                     to="/dashboard"
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
+                    className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5 py-2.5 text-sm font-semibold text-neutral-950 shadow-sm transition hover:bg-neutral-200"
                   >
                     Open workspace
                     <ArrowRight className="h-4 w-4" />
@@ -121,7 +120,7 @@ const HomePage = () => {
                 ) : (
                   <button
                     onClick={loginWithGitHub}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+                    className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5 py-2.5 text-sm font-semibold text-neutral-950 shadow-sm transition hover:bg-neutral-200"
                   >
                     <GitHubIcon />
                     Start with GitHub
@@ -129,82 +128,91 @@ const HomePage = () => {
                 )}
                 <Link
                   to="/examples"
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-5 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 hover:text-white"
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-neutral-700 px-5 py-2.5 text-sm font-medium text-neutral-300 transition hover:border-neutral-500 hover:text-white"
                 >
                   See a sample PR review
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
-              <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-slate-500">
+              <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-neutral-500">
                 <span className="inline-flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-neutral-400" />
                   GitHub-native comments
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <Shield className="h-3.5 w-3.5 text-sky-400" />
-                  Security-focused findings
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5 text-violet-400" />
-                  BYOK-ready AI
+                  <Shield className="h-3.5 w-3.5 text-neutral-400" />
+                  CWE-mapped findings
                 </span>
               </div>
             </div>
 
+            {/* Hero card */}
             <div className="relative">
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5 shadow-2xl shadow-black/40">
+                <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
                   <div>
-                    <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500">Sample output</p>
-                    <h2 className="mt-1.5 text-base font-semibold">PR #48 Harden checkout redirect</h2>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-neutral-500">GitHub review output</p>
+                    <h2 className="mt-1.5 text-base font-semibold text-white">Real PR finding in GitHub</h2>
                   </div>
-                  <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-rose-300">
-                    3 issues
+                  <span className="rounded-full border border-neutral-700 bg-neutral-800 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-300">
+                    High severity
                   </span>
                 </div>
-                <div className="mt-4 space-y-2.5">
-                  {[
-                    ['Critical', 'Open redirect with user-controlled URL', 'CWE-601'],
-                    ['High', 'Unescaped HTML render in confirmation page', 'CWE-79'],
-                    ['Medium', 'Weak cookie attribute on session helper', 'CWE-614'],
-                  ].map(([severity, title, tag]) => (
-                    <div key={title} className="rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-medium text-slate-200">{title}</p>
-                          <p className="mt-0.5 text-xs text-slate-500">Inline review comment + remediation + taxonomy context</p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">{severity}</span>
-                          <span className="mt-0.5 block text-[11px] text-slate-600">{tag}</span>
+                {!proofImageUnavailable ? (
+                  <div className="mt-4 overflow-hidden rounded-lg border border-neutral-800">
+                    <img
+                      src={REVIEW_SCREENSHOT_PATH}
+                      alt="Mitig8it GitHub pull request review showing a high-severity XSS finding"
+                      className="block w-full"
+                      loading="eager"
+                      onError={() => setProofImageUnavailable(true)}
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-2">
+                    {[
+                      ['High', 'Reflected XSS via unescaped user input in template', 'CWE-79'],
+                      ['Medium', 'Missing Content-Security-Policy header', 'CWE-693'],
+                      ['Low', 'Cookie without SameSite attribute', 'CWE-1275'],
+                    ].map(([severity, title, tag]) => (
+                      <div key={title} className="rounded-lg border border-neutral-800 bg-neutral-950 px-4 py-3">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-medium text-neutral-200">{title}</p>
+                            <p className="mt-0.5 text-xs text-neutral-500">Inline comment + remediation + taxonomy context</p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <span className="block text-[11px] font-semibold uppercase tracking-wider text-neutral-400">{severity}</span>
+                            <span className="block text-[11px] text-neutral-600">{tag}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 rounded-lg border border-sky-500/20 bg-sky-500/5 px-4 py-3 text-sm text-sky-200">
-                  Summary check: 1 critical, 1 high, 1 medium. Review requested before merge.
-                </div>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-3 text-[13px] text-neutral-500">
+                  Severity, confidence, and fix direction posted directly inside the PR.
+                </p>
               </div>
             </div>
           </div>
         </section>
 
         {/* Pillars */}
-        <section className="border-b border-slate-800 py-12">
+        <section className="border-b border-neutral-800/60 bg-neutral-900/40 py-14">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-            <div className="mb-6 max-w-2xl">
-              <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-slate-500">Product pillars</p>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight">What the product actually gives a team</h2>
+            <div className="mb-8 max-w-2xl">
+              <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-neutral-500">Why teams care</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight">Security review where developers already work</h2>
             </div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-3">
               {pillars.map((pillar) => (
-                <div key={pillar.title} className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/10">
-                    <pillar.icon className="h-5 w-5 text-sky-400" />
+                <div key={pillar.title} className="rounded-xl border border-neutral-800 bg-neutral-900 p-6 transition hover:border-neutral-700">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-800">
+                    <pillar.icon className="h-5 w-5 text-neutral-300" />
                   </div>
-                  <h3 className="mt-3 text-sm font-semibold">{pillar.title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-slate-400">{pillar.desc}</p>
+                  <h3 className="mt-4 text-sm font-semibold text-white">{pillar.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-neutral-400">{pillar.desc}</p>
                 </div>
               ))}
             </div>
@@ -212,41 +220,32 @@ const HomePage = () => {
         </section>
 
         {/* False Positive Reduction */}
-        <section className="border-b border-slate-800 py-12">
+        <section className="border-b border-neutral-800/60 py-14">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
             <div className="mb-8 max-w-2xl">
-              <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-sky-400">Signal over noise</p>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight">How we reduce false positives</h2>
-              <p className="mt-3 text-sm leading-relaxed text-slate-400">
-                Most scanners flood PRs with noise. Mitig8it runs multiple detection engines and only surfaces findings that survive cross-validation.
+              <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-neutral-500">Signal over noise</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight">How we reduce false positives</h2>
+              <p className="mt-3 text-sm leading-relaxed text-neutral-400">
+                Most scanners spam pull requests. Mitig8it surfaces fewer, stronger findings by cross-validating across detection engines.
               </p>
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/10">
-                  <Layers className="h-5 w-5 text-sky-400" />
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6 transition hover:border-neutral-700">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-800">
+                  <Layers className="h-5 w-5 text-neutral-300" />
                 </div>
-                <h3 className="mt-3 text-sm font-semibold">Multi-engine detection</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-slate-400">
-                  Every file is scanned by both regex pattern matching and Semgrep AST analysis. When two engines flag the same location, confidence goes up. When only one fires, the finding is downranked.
+                <h3 className="mt-4 text-sm font-semibold text-white">Multi-engine cross-validation</h3>
+                <p className="mt-2 text-sm leading-relaxed text-neutral-400">
+                  Regex pattern matching and Semgrep AST analysis run together. When both flag the same location, confidence goes up. Single-engine hits are downranked.
                 </p>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/10">
-                  <Target className="h-5 w-5 text-sky-400" />
+              <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6 transition hover:border-neutral-700">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-800">
+                  <Target className="h-5 w-5 text-neutral-300" />
                 </div>
-                <h3 className="mt-3 text-sm font-semibold">Dedup clustering</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-slate-400">
-                  Findings in the same file, same vulnerability type, and within two lines of each other are merged into a single result. One actionable issue, not five redundant alerts.
-                </p>
-              </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/10">
-                  <Search className="h-5 w-5 text-sky-400" />
-                </div>
-                <h3 className="mt-3 text-sm font-semibold">Confidence scoring</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-slate-400">
-                  Every finding carries a confidence score based on detector type, corroboration, and match specificity. Low-confidence results are suppressed from PR comments so reviewers focus on what matters.
+                <h3 className="mt-4 text-sm font-semibold text-white">Dedup clustering + confidence scoring</h3>
+                <p className="mt-2 text-sm leading-relaxed text-neutral-400">
+                  Nearby duplicates in the same file and vulnerability type are merged into one finding. Low-confidence results stay out of PR comments.
                 </p>
               </div>
             </div>
@@ -254,25 +253,25 @@ const HomePage = () => {
         </section>
 
         {/* Workflow */}
-        <section className="border-b border-slate-800 py-12">
+        <section className="border-b border-neutral-800/60 bg-neutral-900/40 py-14">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-            <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
               <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-slate-500">Workflow</p>
-                <h2 className="mt-2 text-xl font-semibold tracking-tight">Show the path from install to value</h2>
-                <p className="mt-3 text-sm leading-relaxed text-slate-400">
-                  New users should understand the sequence instantly: install, open a PR, review findings, tune rules, then optionally turn on BYOK AI.
+                <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-neutral-500">Workflow</p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight">From install to first finding</h2>
+                <p className="mt-3 text-sm leading-relaxed text-neutral-400">
+                  Install the app, open a pull request, and review the finding in GitHub. That is the core loop.
                 </p>
               </div>
               <div className="space-y-3">
                 {workflow.map((item, index) => (
-                  <div key={item.title} className="flex gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-sm font-semibold text-sky-400">
+                  <div key={item.title} className="flex gap-4 rounded-xl border border-neutral-800 bg-neutral-900 p-5 transition hover:border-neutral-700">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-800 text-sm font-bold text-white">
                       {index + 1}
                     </div>
                     <div>
-                      <h3 className="text-sm font-semibold">{item.title}</h3>
-                      <p className="mt-1 text-sm leading-relaxed text-slate-400">{item.desc}</p>
+                      <h3 className="text-sm font-semibold text-white">{item.title}</h3>
+                      <p className="mt-1.5 text-sm leading-relaxed text-neutral-400">{item.desc}</p>
                     </div>
                   </div>
                 ))}
@@ -282,24 +281,24 @@ const HomePage = () => {
         </section>
 
         {/* Trust */}
-        <section className="border-b border-slate-800 py-12">
+        <section className="border-b border-neutral-800/60 py-14">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-            <div className="mb-6 max-w-2xl">
-              <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-slate-500">Trust and proof</p>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight">The pages a serious buyer expects</h2>
+            <div className="mb-8 max-w-2xl">
+              <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-neutral-500">Trust and proof</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight">Go deeper</h2>
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
               {trustLinks.map((item) => (
                 <Link
                   key={item.to}
                   to={item.to}
-                  className="group flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900 p-5 transition hover:border-slate-700 hover:bg-slate-800/80"
+                  className="group flex items-center justify-between rounded-xl border border-neutral-800 bg-neutral-900 p-5 transition hover:border-neutral-600 hover:bg-neutral-800/80"
                 >
                   <div>
-                    <h3 className="text-sm font-semibold">{item.title}</h3>
-                    <p className="mt-1 text-sm leading-relaxed text-slate-400">{item.desc}</p>
+                    <h3 className="text-sm font-semibold text-white">{item.title}</h3>
+                    <p className="mt-1.5 text-sm leading-relaxed text-neutral-400">{item.desc}</p>
                   </div>
-                  <ArrowRight className="ml-4 h-4 w-4 shrink-0 text-slate-600 transition group-hover:text-slate-400" />
+                  <ArrowRight className="ml-4 h-4 w-4 shrink-0 text-neutral-600 transition group-hover:text-neutral-300" />
                 </Link>
               ))}
             </div>
@@ -307,19 +306,18 @@ const HomePage = () => {
         </section>
 
         {/* CTA */}
-        <section className="py-12">
+        <section className="py-16">
           <div className="mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
-            <div className="rounded-xl border border-slate-800 bg-slate-900 px-6 py-8">
-              <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-slate-500">Start now</p>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight">Install on one repo and watch the first review land in GitHub</h2>
-              <p className="mt-3 text-sm leading-relaxed text-slate-400">
-                The product should make sense from the first PR. That is the bar.
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-8 py-10 shadow-2xl shadow-black/30">
+              <h2 className="text-2xl font-semibold tracking-tight">Try it on one repo</h2>
+              <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-400">
+                Install the GitHub App, open a pull request, and see the first review land inline. No setup, no config files.
               </p>
-              <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+              <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
                 {user ? (
                   <Link
                     to="/dashboard"
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
+                    className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-6 py-2.5 text-sm font-semibold text-neutral-950 shadow-sm transition hover:bg-neutral-200"
                   >
                     Open workspace
                     <ArrowRight className="h-4 w-4" />
@@ -327,7 +325,7 @@ const HomePage = () => {
                 ) : (
                   <button
                     onClick={loginWithGitHub}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-400"
+                    className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-6 py-2.5 text-sm font-semibold text-neutral-950 shadow-sm transition hover:bg-neutral-200"
                   >
                     <GitHubIcon />
                     Start with GitHub
@@ -335,7 +333,7 @@ const HomePage = () => {
                 )}
                 <Link
                   to="/examples"
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-5 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 hover:text-white"
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-neutral-700 px-6 py-2.5 text-sm font-medium text-neutral-300 transition hover:border-neutral-500 hover:text-white"
                 >
                   Review sample output
                   <ArrowRight className="h-4 w-4" />
