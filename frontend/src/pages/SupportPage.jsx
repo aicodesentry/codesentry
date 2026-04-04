@@ -1,172 +1,129 @@
 import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
-import { Button } from '../components/ui/button'
+import { HelpCircle, Mail, MessageSquare } from 'lucide-react'
 
 const SupportPage = () => {
-  const [formData, setFormData] = useState({
-    subject: '',
-    message: '',
-  })
+  const [formData, setFormData] = useState({ subject: '', message: '' })
   const [submitSuccess, setSubmitSuccess] = useState(false)
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    // Handle form submission
     setSubmitSuccess(true)
     setFormData({ subject: '', message: '' })
-    // Hide success message after 5 seconds
     setTimeout(() => setSubmitSuccess(false), 5000)
   }
 
   const faqs = [
     {
       question: 'How do I connect a repository?',
-      answer: 'Go to the Repositories page and click the "Connect" button next to any of your repositories. The AI will automatically start analyzing pull requests.'
+      answer: 'Go to the Repositories page and click "Connect" next to any repo. Mitig8it will automatically start analyzing pull requests.'
     },
     {
       question: 'What languages are supported?',
-      answer: 'We support repositories in any language. Mitig8it analyzes pull request diffs for security vulnerabilities regardless of the tech stack.'
+      answer: 'Mitig8it analyzes pull request diffs for security vulnerabilities regardless of language or tech stack.'
     },
     {
-      question: 'How does the AI analysis work?',
-      answer: 'Our AI analyzes your code for security vulnerabilities including injection, secrets, auth bypass, path traversal, and more. Each finding is mapped to a CWE ID. It provides detailed feedback directly in your pull requests.'
+      question: 'How does the analysis work?',
+      answer: 'Multi-engine static analysis (regex + Semgrep AST) scans changed files, cross-validates findings, and maps each to a CWE ID with remediation context.'
     },
     {
       question: 'Can I customize the analysis rules?',
-      answer: 'Yes! Pro and Enterprise plans allow you to customize analysis rules and create custom checks specific to your coding standards.'
+      answer: 'Custom rule support is on the roadmap. Currently the engine runs 35+ CWE-focused patterns plus Semgrep rules for Python and JavaScript.'
     },
   ]
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* Header */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-xl font-bold">Support Center</CardTitle>
-          <p className="text-slate-600 dark:text-slate-400">
-            Get help and find answers to common questions
-          </p>
-        </CardHeader>
-      </Card>
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Support</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Get help and find answers to common questions</p>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Contact Form */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Contact Support</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {submitSuccess && (
-              <div className="mb-4 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-lg p-4">
-                <p className="text-emerald-800 dark:text-emerald-400">
-                  Support request submitted! We will get back to you soon.
-                </p>
-              </div>
-            )}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Subject
-                </label>
-                <input
-                  type="text"
-                  value={formData.subject}
-                  onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                  placeholder="Brief description of your issue"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Message
-                </label>
-                <textarea
-                  value={formData.message}
-                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                  rows="6"
-                  className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                  placeholder="Describe your issue in detail..."
-                  required
-                />
-              </div>
-              <Button type="submit" variant="primary" className="w-full">
-                Submit Request
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-4 flex items-center gap-2">
+            <MessageSquare className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Contact support</h2>
+          </div>
 
-        {/* Quick Links */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Links</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <a href="#" className="flex items-center gap-3 text-sky-500 dark:text-sky-400 hover:underline">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                  Documentation
-                </a>
-                <a href="#" className="flex items-center gap-3 text-sky-500 dark:text-sky-400 hover:underline">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                  Video Tutorials
-                </a>
-                <a href="#" className="flex items-center gap-3 text-sky-500 dark:text-sky-400 hover:underline">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                  Community Forum
-                </a>
-                <a href="#" className="flex items-center gap-3 text-sky-500 dark:text-sky-400 hover:underline">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                  Email Support
-                </a>
-              </div>
-            </CardContent>
-          </Card>
+          {submitSuccess && (
+            <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+              <p className="text-sm text-emerald-800 dark:text-emerald-400">Support request submitted. We'll get back to you soon.</p>
+            </div>
+          )}
 
-          <div className="bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/30 rounded-xl p-6 transition-colors">
-            <h3 className="text-lg font-semibold text-sky-900 dark:text-sky-300 mb-2">
-              Need immediate help?
-            </h3>
-            <p className="text-sky-800 dark:text-sky-400 mb-4">
-              Our support team is available 24/7 for Pro and Enterprise customers.
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Subject</label>
+              <input
+                type="text"
+                value={formData.subject}
+                onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-800 dark:bg-slate-800 dark:text-white dark:focus:border-slate-500"
+                placeholder="Brief description of your issue"
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Message</label>
+              <textarea
+                value={formData.message}
+                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                rows="5"
+                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-800 dark:bg-slate-800 dark:text-white dark:focus:border-slate-500"
+                placeholder="Describe your issue in detail..."
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+            >
+              Submit request
+            </button>
+          </form>
+        </div>
+
+        {/* Quick help */}
+        <div className="space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-4 flex items-center gap-2">
+              <Mail className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Reach us directly</h2>
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Email us at{' '}
+              <a href="mailto:support@mitig8it.com" className="font-medium text-slate-900 dark:text-white hover:underline">
+                support@mitig8it.com
+              </a>
             </p>
-            <Button variant="primary" className="w-full">
-              Upgrade for Priority Support
-            </Button>
+          </div>
+
+          <div className="rounded-xl border border-sky-200 bg-sky-50 p-5 dark:border-sky-500/30 dark:bg-sky-500/10">
+            <h3 className="text-sm font-semibold text-sky-900 dark:text-sky-300">Beta feedback welcome</h3>
+            <p className="mt-1 text-sm text-sky-800 dark:text-sky-400">
+              Found a bug or have a feature request? We're actively building — your feedback shapes the product.
+            </p>
           </div>
         </div>
       </div>
 
       {/* FAQs */}
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle className="text-xl font-bold">Frequently Asked Questions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {faqs.map((faq, index) => (
-              <div key={index} className="border-b border-slate-200 dark:border-slate-800 pb-4 last:border-0">
-                <h4 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                  {faq.question}
-                </h4>
-                <p className="text-slate-600 dark:text-slate-400">
-                  {faq.answer}
-                </p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <div>
+        <div className="mb-3 flex items-center gap-2">
+          <HelpCircle className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Frequently Asked Questions</h2>
+        </div>
+        <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
+          {faqs.map((faq, index) => (
+            <div key={index} className="px-5 py-4">
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">{faq.question}</h4>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{faq.answer}</p>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

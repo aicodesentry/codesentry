@@ -13,12 +13,9 @@ jest.mock('../src/services/githubApp', () => ({
   getInstallationToken: jest.fn(),
 }));
 jest.mock('../src/db/installations', () => ({
-  deleteUnreferencedInstallations: jest.fn(),
-  linkUserInstallation: jest.fn(),
   listByUser: jest.fn(),
-  reconcileUserInstallations: jest.fn(),
-  removeSameAccountStaleLinks: jest.fn(),
   upsertInstallation: jest.fn(),
+  linkUserInstallation: jest.fn(),
 }));
 
 const axios = require('axios');
@@ -27,7 +24,7 @@ const { getInstallationToken } = require('../src/services/githubApp');
 const installationsDb = require('../src/db/installations');
 const { createApp } = require('../src/app');
 
-describe('installation sync reconciliation', () => {
+describe('installation sync', () => {
   let token;
 
   beforeEach(() => {
@@ -37,14 +34,13 @@ describe('installation sync reconciliation', () => {
     token = jwt.sign({ user_id: 'user-1' }, process.env.JWT_SECRET);
   });
 
-  test('reconciles same-account stale installations and preserves repo connection state', async () => {
+  test('preserves connection state during sync and does not reset repositories inactive', async () => {
     const app = createApp();
 
     pool.query
       .mockResolvedValueOnce({
         rows: [{ github_token: 'plain-github-token' }],
       })
-      .mockResolvedValueOnce({})
       .mockResolvedValueOnce({
         rows: [{ id: 'repo-1' }],
       })
@@ -55,10 +51,6 @@ describe('installation sync reconciliation', () => {
 
     installationsDb.upsertInstallation.mockResolvedValue({});
     installationsDb.linkUserInstallation.mockResolvedValue({});
-    installationsDb.removeSameAccountStaleLinks.mockResolvedValue({});
-    installationsDb.reconcileUserInstallations.mockResolvedValue({});
-    installationsDb.deleteUnreferencedInstallations.mockResolvedValue({});
-
     getInstallationToken.mockRejectedValue(new Error('app token unavailable'));
     axios.get
       .mockResolvedValueOnce({
@@ -66,7 +58,7 @@ describe('installation sync reconciliation', () => {
           installations: [
             {
               id: 42,
-              account: { login: 'Acme', type: 'Organization' },
+              account: { login: 'acme', type: 'Organization' },
               target_type: 'Organization',
               html_url: 'https://github.com/organizations/acme/settings/installations/42',
               permissions: { contents: 'read' },
@@ -99,24 +91,8 @@ describe('installation sync reconciliation', () => {
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
 
-    expect(installationsDb.removeSameAccountStaleLinks).toHaveBeenCalledWith(
-      pool,
-      'user-1',
-      expect.objectContaining({ id: 42 })
-    );
-    expect(installationsDb.reconcileUserInstallations).toHaveBeenCalledWith(pool, 'user-1', [42]);
-    expect(installationsDb.deleteUnreferencedInstallations).toHaveBeenCalledWith(pool);
-
     const executedSql = pool.query.mock.calls.map(([sql]) => sql);
     expect(executedSql.some((sql) => sql.includes('SET is_active = false'))).toBe(false);
-    expect(
-      executedSql.some(
-        (sql) =>
-          sql.includes('DELETE FROM repository_access ra') &&
-          sql.includes('r.installation_id = $2') &&
-          sql.includes('r.github_id <> ALL($3::bigint[])')
-      )
-    ).toBe(true);
 
     const repoUpsertSql = executedSql.find((sql) => sql.includes('INSERT INTO repositories'));
     expect(repoUpsertSql).toContain('VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false)');

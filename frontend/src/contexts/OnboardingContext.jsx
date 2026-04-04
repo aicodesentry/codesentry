@@ -43,7 +43,6 @@ function normalizeRepositories(items = []) {
   items.forEach((repo) => {
     const key = getRepositoryKey(repo)
     if (!key) return
-
     repositoriesById.set(key, mergeRepositoryRecord(repositoriesById.get(key), repo))
   })
 
@@ -53,6 +52,7 @@ function normalizeRepositories(items = []) {
 export function OnboardingProvider({ children }) {
   const [installations, setInstallations] = useState([])
   const [repositories, setRepositories] = useState([])
+  const [githubRepoCount, setGithubRepoCount] = useState(0)
   const [summary, setSummary] = useState(EMPTY_SUMMARY)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -89,7 +89,10 @@ export function OnboardingProvider({ children }) {
       ])
 
       setInstallations(installationsData.installations || [])
-      setRepositories(normalizeRepositories(repositoriesData.repositories || []))
+      const repoData = repositoriesData.repositories || []
+      const normalized = normalizeRepositories(repoData)
+      setRepositories(normalized)
+      setGithubRepoCount(repositoriesData.total_count ?? normalized.length)
       setSummary(summaryData.summary || EMPTY_SUMMARY)
 
       if (syncError) {
@@ -109,7 +112,9 @@ export function OnboardingProvider({ children }) {
 
   const value = useMemo(() => {
     const installationCount = installations.length
-    const repositoryCount = repositories.length
+    // Use the server-provided total_count which reflects GitHub's authoritative count,
+    // not just the local DB snapshot length.
+    const repositoryCount = githubRepoCount || repositories.length
     const activeRepositoryCount = repositories.filter((repo) => repo.is_active).length
     const openPullRequestCount = repositories.reduce(
       (count, repo) => count + Number(repo.pull_request_count || 0),
@@ -164,7 +169,7 @@ export function OnboardingProvider({ children }) {
         nextStep,
       },
     }
-  }, [installations, repositories, summary, loading, syncing, error, lastSyncedAt, refresh])
+  }, [installations, repositories, githubRepoCount, summary, loading, syncing, error, lastSyncedAt, refresh])
 
   useEffect(() => {
     if (loading || syncing) return
