@@ -25,7 +25,7 @@ const SupportPage = () => {
     },
     {
       question: 'What languages are supported?',
-      answer: 'We support repositories in any language. CodeSentry analyzes pull request diffs for security vulnerabilities regardless of the tech stack.'
+      answer: 'We support repositories in any language. Mitig8it analyzes pull request diffs for security vulnerabilities regardless of the tech stack.'
     },
     {
       question: 'How does the AI analysis work?',

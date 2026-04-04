@@ -1,6 +1,6 @@
 # Environment Variables Setup Guide
 
-CodeSentry uses a **single root `.env` file** as the source of truth for all services.
+Mitig8it uses a **single root `.env` file** as the source of truth for all services.
 
 ## Quick Start
 

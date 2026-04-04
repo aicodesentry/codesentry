@@ -1,6 +1,6 @@
 # GCP Frontend Setup (Firebase Hosting)
 
-This setup keeps CodeSentry frontend on Firebase Hosting and backend services on Cloud Run.
+This setup keeps Mitig8it frontend on Firebase Hosting and backend services on Cloud Run.
 
 ## Hosting Choice
 - Use **Firebase Hosting** for the React/Vite frontend.

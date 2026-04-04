@@ -3,7 +3,7 @@ import TrustPage from '../components/TrustPage'
 const sections = [
   {
     title: 'Who this is for',
-    description: 'CodeSentry fits teams that already review in GitHub and want security feedback where developers work, not in a disconnected scanner console.',
+    description: 'Mitig8it fits teams that already review in GitHub and want security feedback where developers work, not in a disconnected scanner console.',
     points: [
       'Early-stage product teams that want one more pair of eyes on risky PRs.',
       'Platform or security teams that need auditable findings tied to pull requests.',
@@ -27,7 +27,7 @@ export default function CustomersPage() {
   return (
     <TrustPage
       eyebrow="Customers"
-      title="The kinds of teams CodeSentry is built for"
+      title="The kinds of teams Mitig8it is built for"
       intro="This product is still in beta, so the right customer story is about fit and workflow, not inflated enterprise claims."
       sections={sections}
       ctaTitle="See the onboarding path those teams follow"

@@ -1,4 +1,4 @@
-# CodeSentry V1 Architecture
+# Mitig8it V1 Architecture
 
 ## Control Plane
 `services/api-service` provides:

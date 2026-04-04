@@ -41,7 +41,7 @@ export default function RepositoriesPage() {
       <PageHeader
         eyebrow="Repository Access"
         title="Pick one repository and turn on the review loop"
-        description="This page should feel like activation, not administration. Choose the first repo that should send pull requests into CodeSentry."
+        description="This page should feel like activation, not administration. Choose the first repo that should send pull requests into Mitig8it."
         actions={
           <>
             <button

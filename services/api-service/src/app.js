@@ -46,7 +46,9 @@ function createApp() {
       origin &&
       (
         CORS_ORIGINS.includes(origin) ||
-        (origin.endsWith('.web.app') && origin.includes('codesentry'))
+        (origin.endsWith('.web.app') && origin.includes('codesentry')) ||
+        origin === 'https://mitig8it.com' ||
+        origin === 'https://www.mitig8it.com'
       )
     );
 
@@ -162,7 +164,7 @@ function createApp() {
   });
 
   app.get('/', (_req, res) => {
-    res.json({ service: 'codesentry-api', status: 'ok', version: '1.0.0' });
+    res.json({ service: 'mitig8it-api', status: 'ok', version: '1.0.0' });
   });
 
   app.use((err, req, res, _next) => {

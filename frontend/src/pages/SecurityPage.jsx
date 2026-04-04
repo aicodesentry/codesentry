@@ -27,7 +27,7 @@ export default function SecurityPage() {
   return (
     <TrustPage
       eyebrow="Security"
-      title="How CodeSentry handles code, reviews, and model boundaries"
+      title="How Mitig8it handles code, reviews, and model boundaries"
       intro="A security product needs to explain its own security posture clearly. This page is the public-facing version of that story."
       sections={sections}
       ctaTitle="Review the current architecture inside the app"

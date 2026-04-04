@@ -6,9 +6,8 @@ const Footer = ({ variant = 'landing' }) => {
       <footer className="border-t border-slate-200 dark:border-slate-800 mt-8">
         <div className="px-8 py-4">
           <div className="flex flex-col md:flex-row justify-between items-center text-xs text-slate-500 dark:text-slate-400">
-            <span>CodeSentry</span>
+            <span>Mitig8it</span>
             <div className="flex gap-4 mt-2 md:mt-0">
-              <a href="https://github.com/aicodesentry/codesentry" target="_blank" rel="noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">GitHub</a>
               <a href="/privacy" className="hover:text-slate-900 dark:hover:text-white transition-colors">Privacy</a>
               <a href="/terms" className="hover:text-slate-900 dark:hover:text-white transition-colors">Terms</a>
             </div>
@@ -46,7 +45,7 @@ const Footer = ({ variant = 'landing' }) => {
               <li><a href="/security" className="hover:text-white transition-colors">Security</a></li>
               <li><a href="/privacy" className="hover:text-white transition-colors">Privacy</a></li>
               <li><a href="/terms" className="hover:text-white transition-colors">Terms</a></li>
-              <li><a href="mailto:support@codesentry.dev" className="hover:text-white transition-colors">Contact</a></li>
+              <li><a href="mailto:support@mitig8it.com" className="hover:text-white transition-colors">Contact</a></li>
             </ul>
           </div>
 
@@ -54,14 +53,13 @@ const Footer = ({ variant = 'landing' }) => {
           <div>
             <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Connect</h4>
             <ul className="space-y-2 text-xs text-slate-600">
-              <li><a href="https://github.com/aicodesentry/codesentry" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a></li>
-              <li><a href="https://x.com/codesentry" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">X / Twitter</a></li>
+              <li><a href="mailto:support@mitig8it.com" className="hover:text-white transition-colors">Email</a></li>
             </ul>
           </div>
         </div>
 
         <div className="mt-8 pt-6 border-t border-white/5 text-xs text-slate-700 text-center">
-          &copy; {new Date().getFullYear()} CodeSentry. All rights reserved.
+          &copy; {new Date().getFullYear()} Mitig8it. All rights reserved.
         </div>
       </div>
     </footer>

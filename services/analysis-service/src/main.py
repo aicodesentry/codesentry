@@ -42,7 +42,7 @@ ANALYSIS_DURATION = Histogram(
     buckets=[0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20],
 )
 
-app = FastAPI(title="CodeSentry Analysis Service", version="1.0.0")
+app = FastAPI(title="Mitig8it Analysis Service", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:5173"), "http://localhost:5173", "http://localhost:3001"],

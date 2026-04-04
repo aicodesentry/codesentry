@@ -3,7 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: codesentry-postgres
+    container_name: mitig8it-postgres
     environment:
       POSTGRES_DB: codesentry
       POSTGRES_USER: dev
@@ -19,13 +19,13 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - codesentry-net
+      - mitig8it-net
 
   api-service:
     build:
       context: ./services/api-service
       dockerfile: Dockerfile
-    container_name: codesentry-api
+    container_name: mitig8it-api
     env_file: [.env]
     ports:
       - "3000:3000"
@@ -46,13 +46,13 @@ services:
       - ./services/api-service:/app
       - /app/node_modules
     networks:
-      - codesentry-net
+      - mitig8it-net
 
   github-service:
     build:
       context: ./services/github-service
       dockerfile: Dockerfile
-    container_name: codesentry-github
+    container_name: mitig8it-github
     env_file: [.env]
     expose:
       - "3002"
@@ -69,13 +69,13 @@ services:
       - ./services/github-service:/app
       - /app/node_modules
     networks:
-      - codesentry-net
+      - mitig8it-net
 
   analysis-service:
     build:
       context: ./services/analysis-service
       dockerfile: Dockerfile
-    container_name: codesentry-analysis
+    container_name: mitig8it-analysis
     env_file: [.env]
     expose:
       - "8001"
@@ -86,13 +86,13 @@ services:
     volumes:
       - ./services/analysis-service:/app
     networks:
-      - codesentry-net
+      - mitig8it-net
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: codesentry-frontend
+    container_name: mitig8it-frontend
     env_file: [.env]
     ports:
       - "5173:5173"
@@ -103,10 +103,10 @@ services:
       - ./frontend:/app
       - /app/node_modules
     networks:
-      - codesentry-net
+      - mitig8it-net
 
 networks:
-  codesentry-net:
+  mitig8it-net:
     driver: bridge
 
 volumes:

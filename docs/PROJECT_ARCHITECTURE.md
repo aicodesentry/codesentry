@@ -1,7 +1,7 @@
-# CodeSentry Project Architecture
+# Mitig8it Project Architecture
 
 ## Overview
-CodeSentry is a GitHub-native AI security reviewer for pull requests.  
+Mitig8it is a GitHub-native AI security reviewer for pull requests.  
 The active V1 runtime path is:
 
 - `frontend` (React/Vite dashboard)

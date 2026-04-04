@@ -28,7 +28,7 @@ export default function ExamplesPage() {
     <TrustPage
       eyebrow="Examples"
       title="Sample PR reviews before a team installs anything"
-      intro="Examples remove the blank-page problem. They show what CodeSentry writes in GitHub, what the dashboard records, and what engineers are expected to do next."
+      intro="Examples remove the blank-page problem. They show what Mitig8it writes in GitHub, what the dashboard records, and what engineers are expected to do next."
       sections={sections}
       ctaTitle="Try the same flow in your own repo"
       ctaText="Install the app on one repository, open a test PR, and compare the output against this example."

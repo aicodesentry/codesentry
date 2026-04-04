@@ -1,4 +1,4 @@
-# CodeSentry Rebuild Plan (Security-Only V1)
+# Mitig8it Rebuild Plan (Security-Only V1)
 
 ## Goals
 - Replace generic AI code review positioning with a security-first PR workflow.

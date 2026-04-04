@@ -100,7 +100,7 @@ class CommentFormatter {
     });
 
     comment += `---\n\n`;
-    comment += `<sub>Powered by **CodeSentry** • [Report Issue](https://github.com/nebullii/aicode-review-assistant/issues)</sub>`;
+    comment += `<sub>Powered by **Mitig8it** • [Report Issue](https://github.com/nebullii/aicode-review-assistant/issues)</sub>`;
 
     return comment;
   }
@@ -130,7 +130,7 @@ class CommentFormatter {
              `![Quality](https://img.shields.io/badge/Quality-✓_Good-brightgreen)\n\n` +
              `> **Well done!** No security vulnerabilities or code quality issues detected.\n\n` +
              `---\n\n` +
-             `<sub>Powered by **CodeSentry**</sub>`;
+             `<sub>Powered by **Mitig8it**</sub>`;
     }
 
     let summary = `## 📊 Code Analysis Report\n\n`;
@@ -188,7 +188,7 @@ class CommentFormatter {
     summary += `- Apply recommended fixes\n`;
     summary += `- Re-run analysis after changes\n\n`;
 
-    summary += `<sub>Powered by **CodeSentry**</sub>`;
+    summary += `<sub>Powered by **Mitig8it**</sub>`;
 
     return summary;
   }

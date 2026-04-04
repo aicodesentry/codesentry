@@ -12,7 +12,7 @@ const Logo = ({ variant = 'light', className = '', showText = true }) => {
       </div>
       {showText && (
         <span className={`text-xl font-bold transition-colors ${textColor} ${hoverClass}`}>
-          CodeSentry
+          Mitig8it
         </span>
       )}
     </div>

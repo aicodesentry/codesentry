@@ -13,7 +13,7 @@ const TermsPage = () => {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">Service description</h2>
             <p>
-              CodeSentry is a security analysis tool that reviews pull requests on GitHub for
+              Mitig8it is a security analysis tool that reviews pull requests on GitHub for
               potential vulnerabilities. The service is provided as-is and identifies possible
               security issues — it does not guarantee the absence of vulnerabilities in your code.
             </p>
@@ -22,7 +22,7 @@ const TermsPage = () => {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">Your responsibilities</h2>
             <p>
-              You are responsible for reviewing and acting on findings. CodeSentry provides
+              You are responsible for reviewing and acting on findings. Mitig8it provides
               recommendations, not guarantees. You retain full ownership of your code and
               repositories. Security decisions remain yours.
             </p>
@@ -31,7 +31,7 @@ const TermsPage = () => {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">GitHub access</h2>
             <p>
-              By installing the CodeSentry GitHub App, you grant us read access to pull request
+              By installing the Mitig8it GitHub App, you grant us read access to pull request
               diffs and the ability to post check runs and review comments on your repositories.
               You can revoke this access at any time by uninstalling the GitHub App.
             </p>
@@ -40,7 +40,7 @@ const TermsPage = () => {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">Acceptable use</h2>
             <p>
-              Do not use CodeSentry to scan repositories you do not own or have authorization
+              Do not use Mitig8it to scan repositories you do not own or have authorization
               to analyze. Do not attempt to circumvent rate limits or abuse the service.
             </p>
           </section>
@@ -48,9 +48,9 @@ const TermsPage = () => {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">Limitation of liability</h2>
             <p>
-              CodeSentry is provided without warranty. We are not liable for security incidents,
+              Mitig8it is provided without warranty. We are not liable for security incidents,
               data breaches, or vulnerabilities that are not detected by the service. Use
-              CodeSentry as one layer in your security process, not the only one.
+              Mitig8it as one layer in your security process, not the only one.
             </p>
           </section>
 
@@ -67,8 +67,8 @@ const TermsPage = () => {
             <h2 className="text-lg font-semibold text-white mb-3">Contact</h2>
             <p>
               Questions? Reach us at{' '}
-              <a href="mailto:support@codesentry.dev" className="text-primary-400 hover:text-primary-300 transition-colors">
-                support@codesentry.dev
+              <a href="mailto:support@mitig8it.com" className="text-primary-400 hover:text-primary-300 transition-colors">
+                support@mitig8it.com
               </a>.
             </p>
           </section>

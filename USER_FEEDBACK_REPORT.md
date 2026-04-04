@@ -1,5 +1,5 @@
 # User Feedback & Product Improvement Report
-**Product:** CodeSentry - AI Code Review Assistant
+**Product:** Mitig8it - AI Code Review Assistant
 **Date:** November 25, 2025
 
 ## 1. Executive Summary

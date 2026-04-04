@@ -21,6 +21,19 @@ describe('CORS configuration', () => {
     );
   });
 
+  test('allows mitig8it.com origin', async () => {
+    const app = createApp();
+
+    const response = await request(app)
+      .options('/health')
+      .set('Origin', 'https://mitig8it.com')
+      .set('Access-Control-Request-Method', 'GET');
+
+    expect(response.headers['access-control-allow-origin']).toBe(
+      'https://mitig8it.com'
+    );
+  });
+
   test('allows localhost origins', async () => {
     const app = createApp();
 

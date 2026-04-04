@@ -35,7 +35,7 @@ const ProfilePage = () => {
     {
       key: 'prComments',
       label: 'PR comments',
-      description: 'Post CodeSentry findings back into pull requests.',
+      description: 'Post Mitig8it findings back into pull requests.',
     },
     {
       key: 'weeklyReport',
