@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+remote_name="${1:-}"
+
+while read -r local_ref _local_sha remote_ref _remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/master)
+      echo "Push blocked: direct pushes to ${remote_ref#refs/heads/} are disabled in this repo."
+      echo "Create or update a feature branch and merge through a pull request instead."
+      echo "Remote: ${remote_name:-unknown}"
+      exit 1
+      ;;
+  esac
+done
+
+exit 0

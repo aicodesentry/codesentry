@@ -164,6 +164,12 @@ const DashboardPage = () => {
 
   return (
     <div className="space-y-6">
+      {onboardingStatus.needsFirstReview ? (
+        <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-100">
+          Your workspace is connected. Open or update a pull request in an active repository to generate the first review.
+        </div>
+      ) : null}
+
       <PageHeader
         title={user?.github_username ? `${user.github_username}'s workspace` : 'Dashboard'}
         description="Security posture across your repositories"

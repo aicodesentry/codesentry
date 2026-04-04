@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { installationAPI, repositoryAPI, reportsAPI } from '../services/api'
 
 const OnboardingContext = createContext(null)
@@ -58,11 +58,15 @@ export function OnboardingProvider({ children }) {
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState(null)
   const [lastSyncedAt, setLastSyncedAt] = useState(null)
+  const didAttemptBackgroundSyncRef = useRef(false)
 
-  const refresh = useCallback(async ({ sync = false } = {}) => {
+  const refresh = useCallback(async ({ sync = false, background = false } = {}) => {
     setError(null)
     if (sync) {
       setSyncing(true)
+      if (!background) {
+        setLoading(true)
+      }
     } else {
       setLoading(true)
     }
@@ -103,7 +107,7 @@ export function OnboardingProvider({ children }) {
   }, [])
 
   useEffect(() => {
-    refresh({ sync: true })
+    refresh()
   }, [refresh])
 
   const value = useMemo(() => {
@@ -122,8 +126,10 @@ export function OnboardingProvider({ children }) {
     const hasActiveRepo = activeRepositoryCount > 0
     const hasFirstPullRequest = openPullRequestCount > 0
     const hasFirstReview = analysisCount > 0
+    const hasWorkspaceAccess = hasInstall && hasRepoAccess && hasActiveRepo
     const needsPermissionFix = hasInstall && !hasRepoAccess
-    const needsOnboarding = !hasInstall || !hasRepoAccess || !hasActiveRepo || !hasFirstReview
+    const needsOnboarding = !hasWorkspaceAccess
+    const needsFirstReview = hasWorkspaceAccess && !hasFirstReview
     const nextStep = !hasInstall
       ? 'install'
       : !hasRepoAccess
@@ -156,12 +162,23 @@ export function OnboardingProvider({ children }) {
         hasActiveRepo,
         hasFirstPullRequest,
         hasFirstReview,
+        hasWorkspaceAccess,
         needsPermissionFix,
         needsOnboarding,
+        needsFirstReview,
         nextStep,
       },
     }
   }, [installations, repositories, githubRepoCount, summary, loading, syncing, error, lastSyncedAt, refresh])
+
+  useEffect(() => {
+    if (loading || syncing) return
+    if (installations.length > 0) return
+    if (didAttemptBackgroundSyncRef.current) return
+
+    didAttemptBackgroundSyncRef.current = true
+    refresh({ sync: true, background: true })
+  }, [installations.length, loading, refresh, syncing])
 
   return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>
 }

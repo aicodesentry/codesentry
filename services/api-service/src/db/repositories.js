@@ -19,6 +19,7 @@ async function list(userId) {
        COUNT(DISTINCT f.id) FILTER (WHERE f.status = 'open') AS open_findings_count,
        COUNT(DISTINCT f.id) FILTER (WHERE f.status = 'accepted_risk') AS accepted_risk_count
      FROM repositories r
+     JOIN user_installations ui ON ui.installation_id = r.installation_id AND ui.user_id = $1
      JOIN repository_access ra ON ra.repository_id = r.id AND ra.user_id = $1
      LEFT JOIN pull_requests pr ON pr.repository_id = r.id
      LEFT JOIN findings f ON f.repository_id = r.id
@@ -27,6 +28,32 @@ async function list(userId) {
     [userId]
   );
   return rows.rows;
+}
+
+async function revokeMissingAccessForInstallation(userId, installationId, visibleGithubIds) {
+  const githubIds = (visibleGithubIds || []).filter(Boolean);
+
+  if (githubIds.length > 0) {
+    await pool.query(
+      `DELETE FROM repository_access ra
+       USING repositories r
+       WHERE ra.repository_id = r.id
+         AND ra.user_id = $1
+         AND r.installation_id = $2
+         AND r.github_id <> ALL($3::bigint[])`,
+      [userId, installationId, githubIds]
+    );
+    return;
+  }
+
+  await pool.query(
+    `DELETE FROM repository_access ra
+     USING repositories r
+     WHERE ra.repository_id = r.id
+       AND ra.user_id = $1
+       AND r.installation_id = $2`,
+    [userId, installationId]
+  );
 }
 
 async function getById(repoId, userId) {
@@ -100,4 +127,4 @@ async function disconnect(repoId, userId) {
   return updated.rowCount > 0 ? updated.rows[0] : null;
 }
 
-module.exports = { list, getById, updateBaseline, connect, disconnect };
+module.exports = { list, getById, updateBaseline, connect, disconnect, revokeMissingAccessForInstallation };

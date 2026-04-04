@@ -5,6 +5,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { getInstallationToken } = require('../services/githubApp');
 const { decrypt, isEncrypted } = require('../utils/encryption');
 const installationsDb = require('../db/installations');
+const repositoriesDb = require('../db/repositories');
 
 const router = express.Router();
 
@@ -72,13 +73,13 @@ async function syncRepoPullRequests({ repoFullName, repoId, githubToken }) {
 
 async function fetchInstallationRepositories({ installationId, githubToken }) {
   const repositories = [];
-  let githubTotalCount = 0;
 
   // Prefer GitHub App installation token: this reflects app-granted repo access directly.
   try {
     const installationToken = await getInstallationToken(installationId);
     let page = 1;
-    while (true) {
+    let hasMore = true;
+    while (hasMore) {
       const reposResp = await axios.get('https://api.github.com/installation/repositories', {
         headers: {
           Authorization: `Bearer ${installationToken}`,
@@ -88,24 +89,20 @@ async function fetchInstallationRepositories({ installationId, githubToken }) {
         timeout: 20000,
       });
 
-      // Capture the authoritative total from GitHub on the first page.
-      if (page === 1) {
-        githubTotalCount = reposResp.data.total_count || 0;
-      }
       const pageRepos = reposResp.data.repositories || [];
       repositories.push(...pageRepos);
-      // Stop when we've collected everything GitHub reports or the page is short.
-      if (repositories.length >= githubTotalCount || pageRepos.length < 100) break;
+      hasMore = pageRepos.length === 100;
       page += 1;
     }
 
-    return { repositories, total_count: githubTotalCount };
+    return repositories;
   } catch (appTokenError) {
     // Fall back to user-scoped endpoint when app credentials are unavailable.
   }
 
   let page = 1;
-  while (true) {
+  let hasMore = true;
+  while (hasMore) {
     const reposResp = await axios.get(
       `https://api.github.com/user/installations/${installationId}/repositories`,
       {
@@ -118,16 +115,13 @@ async function fetchInstallationRepositories({ installationId, githubToken }) {
       }
     );
 
-    if (page === 1) {
-      githubTotalCount = reposResp.data.total_count || 0;
-    }
     const pageRepos = reposResp.data.repositories || [];
     repositories.push(...pageRepos);
-    if (repositories.length >= githubTotalCount || pageRepos.length < 100) break;
+    hasMore = pageRepos.length === 100;
     page += 1;
   }
 
-  return { repositories, total_count: githubTotalCount };
+  return repositories;
 }
 
 async function grantRepositoryAccess(client, repositoryId, userIds) {
@@ -169,21 +163,29 @@ router.post('/sync', authenticateToken, async (req, res) => {
       timeout: 20000,
     });
 
+    const activeInstallationIds = [];
     let synced = 0;
     let syncedRepos = 0;
     const syncErrors = [];
     for (const installation of response.data.installations || []) {
       await installationsDb.upsertInstallation(pool, installation, 'active');
       await installationsDb.linkUserInstallation(pool, req.user.user_id, installation.id);
+      await installationsDb.removeSameAccountStaleLinks(pool, req.user.user_id, installation);
+      activeInstallationIds.push(installation.id);
       synced += 1;
 
       try {
-        const { repositories, total_count: githubCount } = await fetchInstallationRepositories({
+        const repositories = await fetchInstallationRepositories({
           installationId: installation.id,
           githubToken,
         });
-        // Track the highest total_count GitHub reports so we can surface it.
-        if (githubCount > 0) syncedRepos = Math.max(syncedRepos, githubCount);
+        const visibleGithubIds = repositories.map((repo) => repo.id).filter(Boolean);
+
+        await repositoriesDb.revokeMissingAccessForInstallation(
+          req.user.user_id,
+          installation.id,
+          visibleGithubIds
+        );
 
         for (const repo of repositories) {
           const upserted = await pool.query(
@@ -247,6 +249,9 @@ router.post('/sync', authenticateToken, async (req, res) => {
         });
       }
     }
+
+    await installationsDb.reconcileUserInstallations(pool, req.user.user_id, activeInstallationIds);
+    await installationsDb.deleteUnreferencedInstallations(pool);
 
     if (syncErrors.length) {
       return res.status(207).json({
