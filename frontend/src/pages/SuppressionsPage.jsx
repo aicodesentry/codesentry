@@ -20,18 +20,18 @@ export default function SuppressionsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Suppressions</h1>
+      <h1 className="text-2xl font-semibold text-neutral-900">Suppressions</h1>
       <div className="space-y-3">
         {suppressions.length === 0 && (
-          <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">No suppressions configured.</div>
+          <div className="rounded-xl border border-neutral-200 bg-white p-5 text-sm text-neutral-500">No suppressions configured.</div>
         )}
         {suppressions.map((suppression) => (
-          <div key={suppression.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4">
+          <div key={suppression.id} className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white p-4">
             <div>
-              <p className="font-medium text-slate-900">{suppression.title || suppression.fingerprint.slice(0, 12)}</p>
-              <p className="text-sm text-slate-500">{suppression.reason} • {suppression.category || 'Unmapped category'}</p>
+              <p className="font-medium text-neutral-900">{suppression.title || suppression.fingerprint.slice(0, 12)}</p>
+              <p className="text-sm text-neutral-500">{suppression.reason} • {suppression.category || 'Unmapped category'}</p>
             </div>
-            <button onClick={() => remove(suppression.id)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
+            <button onClick={() => remove(suppression.id)} className="rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700">
               Remove
             </button>
           </div>

@@ -17,17 +17,17 @@ class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-neutral-950">
           <div className="text-center p-8">
-            <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-4">
+            <h1 className="text-4xl font-bold text-neutral-900 dark:text-white mb-4">
               Something went wrong
             </h1>
-            <p className="text-slate-600 dark:text-slate-400 mb-6">
+            <p className="text-neutral-600 dark:text-neutral-400 mb-6">
               An unexpected error occurred. Please refresh the page to try again.
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="px-6 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
+              className="px-6 py-2 bg-neutral-900 text-white rounded-lg hover:bg-neutral-800 transition-colors"
             >
               Refresh Page
             </button>

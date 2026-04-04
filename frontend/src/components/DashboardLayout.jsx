@@ -32,10 +32,10 @@ const DashboardShell = () => {
   const pageName = navigation.find((item) => location.pathname === item.href)?.name || 'Dashboard'
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 transition-colors">
       <div className="relative flex">
-        <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col border-r border-slate-200/70 bg-slate-950 text-slate-100 dark:border-slate-800/80 dark:bg-slate-950 lg:flex">
-          <a href="/" className="flex items-center gap-3 border-b border-slate-800/80 px-6 py-6">
+        <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col border-r border-neutral-200/70 bg-neutral-950 text-neutral-100 dark:border-neutral-800/80 dark:bg-neutral-950 lg:flex">
+          <a href="/" className="flex items-center gap-3 border-b border-neutral-800/80 px-6 py-6">
             <Logo variant="dark" />
             <span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">
               {status.needsOnboarding ? 'First Run' : 'Beta'}
@@ -51,8 +51,8 @@ const DashboardShell = () => {
                   to={item.href}
                   className={`flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                     location.pathname === item.href
-                      ? 'bg-slate-800/80 text-white shadow-sm shadow-black/20'
-                      : 'text-slate-300 hover:bg-slate-800/40 hover:text-white'
+                      ? 'bg-neutral-800/80 text-white shadow-sm shadow-black/20'
+                      : 'text-neutral-300 hover:bg-neutral-800/40 hover:text-white'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -66,34 +66,34 @@ const DashboardShell = () => {
             <Button
               onClick={toggleTheme}
               variant="ghost"
-              className="w-full justify-start text-slate-300 hover:text-white"
+              className="w-full justify-start text-neutral-300 hover:text-white"
             >
               {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
               <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
             </Button>
 
-            <div className="mt-4 rounded-xl border border-slate-800/80 bg-slate-900/60 px-3 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            <div className="mt-4 rounded-xl border border-neutral-800/80 bg-neutral-900/60 px-3 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
                 {status.needsOnboarding ? 'Activation' : 'Live workspace'}
               </p>
-              <p className="mt-2 text-sm text-slate-300">
+              <p className="mt-2 text-sm text-neutral-300">
                 {status.needsOnboarding
                   ? 'Connect one repo, open one PR, and confirm the first review lands.'
                   : 'Your GitHub app is connected and reviews are flowing through the workspace.'}
               </p>
             </div>
 
-            <div className="mt-4 flex items-center gap-3 rounded-xl border border-slate-800/80 bg-slate-900/60 px-3 py-3">
+            <div className="mt-4 flex items-center gap-3 rounded-xl border border-neutral-800/80 bg-neutral-900/60 px-3 py-3">
               {user?.avatar_url ? (
-                <img src={user.avatar_url} alt={user.github_username} className="h-10 w-10 rounded-full border border-slate-700" />
+                <img src={user.avatar_url} alt={user.github_username} className="h-10 w-10 rounded-full border border-neutral-700" />
               ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-slate-300">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-800 text-neutral-300">
                   <UserCircle className="h-5 w-5" />
                 </div>
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-white">{user?.github_username || user?.name || 'User'}</p>
-                <button onClick={logout} className="text-xs text-slate-400 hover:text-rose-300">
+                <button onClick={logout} className="text-xs text-neutral-400 hover:text-rose-300">
                   Logout
                 </button>
               </div>
@@ -102,13 +102,13 @@ const DashboardShell = () => {
         </aside>
 
         <div className="flex min-h-screen w-full flex-col lg:pl-72">
-          <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur dark:border-slate-800/80 dark:bg-slate-950/80">
+          <header className="sticky top-0 z-40 border-b border-neutral-200/70 bg-white/80 backdrop-blur dark:border-neutral-800/80 dark:bg-neutral-950/80">
             <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-4 md:px-10">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Mitig8it</p>
-                <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">{pageName}</h1>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">Mitig8it</p>
+                <h1 className="text-2xl font-semibold text-neutral-900 dark:text-white">{pageName}</h1>
               </div>
-              <div className="rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-xs font-medium capitalize text-slate-600 dark:border-slate-800/80 dark:bg-slate-900/80 dark:text-slate-300">
+              <div className="rounded-full border border-neutral-200/70 bg-white/80 px-4 py-2 text-xs font-medium capitalize text-neutral-600 dark:border-neutral-800/80 dark:bg-neutral-900/80 dark:text-neutral-300">
                 {status.needsOnboarding
                   ? `Next step: ${status.nextStep.replace('-', ' ')}`
                   : `${status.analysisCount} analyses recorded`}

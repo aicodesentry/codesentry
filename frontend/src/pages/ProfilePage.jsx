@@ -5,7 +5,7 @@ import { PageHeader, PageStats } from '../components/PageSection'
 
 const toggleClassName = (enabled) =>
   `relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-    enabled ? 'bg-slate-900 dark:bg-white' : 'bg-slate-200 dark:bg-slate-700'
+    enabled ? 'bg-neutral-900 dark:bg-white' : 'bg-neutral-200 dark:bg-neutral-700'
   }`
 
 const ProfilePage = () => {
@@ -61,22 +61,22 @@ const ProfilePage = () => {
           {
             label: 'GitHub login',
             value: user?.github_username || 'unknown',
-            icon: <Github className="h-4 w-4 text-slate-600 dark:text-slate-300" />,
+            icon: <Github className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />,
           },
           {
             label: 'Active toggles',
             value: activeSettings,
-            icon: <Bell className="h-4 w-4 text-slate-600 dark:text-slate-300" />,
+            icon: <Bell className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />,
           },
           {
             label: 'Plan',
             value: 'Beta',
-            icon: <ShieldAlert className="h-4 w-4 text-slate-600 dark:text-slate-300" />,
+            icon: <ShieldAlert className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />,
           },
           {
             label: 'AI setup',
             value: 'BYOK',
-            icon: <Bot className="h-4 w-4 text-slate-600 dark:text-slate-300" />,
+            icon: <Bot className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />,
           },
         ]}
       />
@@ -84,35 +84,35 @@ const ProfilePage = () => {
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         {/* Identity */}
         <div>
-          <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-white">Identity</h2>
-          <div className="flex flex-col gap-5 rounded-xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-center dark:border-slate-800 dark:bg-slate-900">
+          <h2 className="mb-3 text-lg font-semibold text-neutral-900 dark:text-white">Identity</h2>
+          <div className="flex flex-col gap-5 rounded-xl border border-neutral-200 bg-white p-5 sm:flex-row sm:items-center dark:border-neutral-800 dark:bg-neutral-900">
             {user?.avatar_url ? (
               <img
                 src={user.avatar_url}
                 alt={user.github_username}
-                className="h-20 w-20 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700"
+                className="h-20 w-20 rounded-full object-cover ring-1 ring-neutral-200 dark:ring-neutral-700"
               />
             ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-                <UserRound className="h-8 w-8 text-slate-400" />
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+                <UserRound className="h-8 w-8 text-neutral-400" />
               </div>
             )}
             <div className="grid flex-1 gap-4 sm:grid-cols-2">
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Username</p>
-                <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">{user?.github_username || 'N/A'}</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">Username</p>
+                <p className="mt-0.5 text-sm font-semibold text-neutral-900 dark:text-white">{user?.github_username || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Email</p>
-                <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">{user?.github_email || user?.email || 'N/A'}</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">Email</p>
+                <p className="mt-0.5 text-sm font-semibold text-neutral-900 dark:text-white">{user?.github_email || user?.email || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">GitHub ID</p>
-                <p className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">{user?.github_id || 'Unknown'}</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">GitHub ID</p>
+                <p className="mt-0.5 text-sm text-neutral-700 dark:text-neutral-300">{user?.github_id || 'Unknown'}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Member since</p>
-                <p className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">Member since</p>
+                <p className="mt-0.5 text-sm text-neutral-700 dark:text-neutral-300">
                   {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'Recently'}
                 </p>
               </div>
@@ -122,18 +122,18 @@ const ProfilePage = () => {
 
         {/* Notifications */}
         <div>
-          <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-white">Notifications</h2>
-          <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
+          <h2 className="mb-3 text-lg font-semibold text-neutral-900 dark:text-white">Notifications</h2>
+          <div className="divide-y divide-neutral-100 rounded-xl border border-neutral-200 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900">
             {rows.map((row) => (
               <div key={row.key} className="flex items-center justify-between gap-4 px-4 py-3">
                 <div>
-                  <p className="text-sm font-medium text-slate-900 dark:text-white">{row.label}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{row.description}</p>
+                  <p className="text-sm font-medium text-neutral-900 dark:text-white">{row.label}</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{row.description}</p>
                 </div>
                 <button onClick={() => handleSettingChange(row.key)} className={toggleClassName(settings[row.key])}>
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      settings[row.key] ? 'translate-x-6' : 'translate-x-1'
+                      settings[row.key] ? 'tranneutral-x-6' : 'tranneutral-x-1'
                     }`}
                   />
                 </button>

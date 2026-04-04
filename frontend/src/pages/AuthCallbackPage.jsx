@@ -25,8 +25,8 @@ const AuthCallbackPage = () => {
   }, [navigate])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950">
-      <div className="text-slate-400 text-sm">Signing in...</div>
+    <div className="min-h-screen flex items-center justify-center bg-neutral-950">
+      <div className="text-neutral-400 text-sm">Signing in...</div>
     </div>
   )
 }

@@ -59,6 +59,6 @@ describe('Pagination', () => {
   it('highlights the current page', () => {
     render(<Pagination currentPage={3} totalPages={5} onPageChange={() => {}} />)
     const page3 = screen.getByText('3')
-    expect(page3.className).toContain('bg-slate-900')
+    expect(page3.className).toContain('bg-neutral-900')
   })
 })

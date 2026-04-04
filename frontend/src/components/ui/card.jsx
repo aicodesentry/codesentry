@@ -3,7 +3,7 @@ import { cn } from '../../lib/utils'
 const Card = ({ className, ...props }) => (
   <div
     className={cn(
-      'rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900',
+      'rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900',
       className
     )}
     {...props}
@@ -15,11 +15,11 @@ const CardHeader = ({ className, ...props }) => (
 )
 
 const CardTitle = ({ className, ...props }) => (
-  <h3 className={cn('text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50', className)} {...props} />
+  <h3 className={cn('text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50', className)} {...props} />
 )
 
 const CardDescription = ({ className, ...props }) => (
-  <p className={cn('text-sm text-slate-500 dark:text-slate-400', className)} {...props} />
+  <p className={cn('text-sm text-neutral-500 dark:text-neutral-400', className)} {...props} />
 )
 
 const CardContent = ({ className, ...props }) => (

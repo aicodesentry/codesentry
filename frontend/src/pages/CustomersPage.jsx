@@ -2,23 +2,21 @@ import TrustPage from '../components/TrustPage'
 
 const sections = [
   {
-    title: 'Who this is for',
-    description: 'Mitig8it fits teams that already review in GitHub and want security feedback where developers work, not in a disconnected scanner console.',
+    title: 'Best fit today',
+    description: 'Mitig8it fits teams that already merge through GitHub and want security review inside that workflow.',
     points: [
-      'Early-stage product teams that want one more pair of eyes on risky PRs.',
-      'Platform or security teams that need auditable findings tied to pull requests.',
-      'Engineering leaders who want security review without forcing CI rewrites.',
-      'Teams evaluating BYOK or stricter data boundaries for AI-assisted remediation.',
+      'Product teams that want security review without adding CI setup.',
+      'Security or platform teams that need findings tied to pull requests.',
+      'Engineering leads who want less scanner noise in code review.',
     ],
   },
   {
-    title: 'What they should care about',
-    description: 'The promise is simpler reviews, clearer risk decisions, and faster fixes, not a vanity dashboard.',
+    title: 'Why they use it',
+    description: 'The value is simple: faster review, clearer risk, and less tab switching.',
     points: [
-      'GitHub-native checks and comments instead of another inbox.',
-      'Security-only findings with less review noise.',
-      'Team rules and learning loop roadmap for organization-specific review behavior.',
-      'A dashboard that explains what to do next, not just what happened.',
+      'Inline GitHub comments and summary checks instead of a separate console.',
+      'Security-focused findings rather than broad code review noise.',
+      'A dashboard that keeps review history and next steps in one place.',
     ],
   },
 ]
@@ -27,11 +25,11 @@ export default function CustomersPage() {
   return (
     <TrustPage
       eyebrow="Customers"
-      title="The kinds of teams Mitig8it is built for"
-      intro="This product is still in beta, so the right customer story is about fit and workflow, not inflated enterprise claims."
+      title="Who Mitig8it fits right now"
+      intro="This is a beta product for teams that already review in GitHub and want security feedback to show up in the pull request itself."
       sections={sections}
-      ctaTitle="See the onboarding path those teams follow"
-      ctaText="The onboarding flow is where the product should become understandable in under three minutes."
+      ctaTitle="See the setup path"
+      ctaText="Install the app, open a pull request, and review the findings in GitHub."
     />
   )
 }
