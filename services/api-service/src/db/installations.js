@@ -64,8 +64,47 @@ async function linkUserInstallation(client, userId, installationId) {
   );
 }
 
+async function reconcileUserInstallations(client, userId, activeInstallationIds) {
+  const dbClient = client || pool;
+  if (!activeInstallationIds.length) return;
+
+  return dbClient.query(
+    `DELETE FROM user_installations
+     WHERE user_id = $1
+       AND installation_id != ALL($2::bigint[])`,
+    [userId, activeInstallationIds]
+  );
+}
+
+async function deleteUnreferencedInstallations(client) {
+  const dbClient = client || pool;
+
+  return dbClient.query(
+    `DELETE FROM installations
+     WHERE id NOT IN (SELECT DISTINCT installation_id FROM user_installations)`
+  );
+}
+
+async function removeSameAccountStaleLinks(client, userId, installation) {
+  const dbClient = client || pool;
+
+  return dbClient.query(
+    `DELETE FROM user_installations
+     WHERE user_id = $1
+       AND installation_id != $2
+       AND installation_id IN (
+         SELECT id FROM installations
+         WHERE account_login = $3 AND account_type = $4
+       )`,
+    [userId, installation.id, installation.account?.login, installation.account?.type]
+  );
+}
+
 module.exports = {
   listByUser,
   upsertInstallation,
   linkUserInstallation,
+  removeSameAccountStaleLinks,
+  reconcileUserInstallations,
+  deleteUnreferencedInstallations,
 };
