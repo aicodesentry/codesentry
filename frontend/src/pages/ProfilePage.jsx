@@ -5,7 +5,7 @@ import { PageHeader, PagePanel, PageStats } from '../components/PageSection'
 
 const toggleClassName = (enabled) =>
   `relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-    enabled ? 'bg-white' : 'bg-slate-700'
+    enabled ? 'bg-sky-500 dark:bg-white' : 'bg-slate-200 dark:bg-slate-700'
   }`
 
 const ProfilePage = () => {
@@ -63,29 +63,29 @@ const ProfilePage = () => {
             label: 'GitHub Login',
             value: user?.github_username || 'unknown',
             meta: 'primary identity',
-            icon: <Github className="h-5 w-5 text-slate-200" />,
-            iconWrapClassName: 'bg-slate-700/70',
+            icon: <Github className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+            iconWrapClassName: 'bg-slate-100 dark:bg-slate-700/70',
           },
           {
             label: 'Active Toggles',
             value: activeSettings,
             meta: `${rows.length} available`,
-            icon: <Bell className="h-5 w-5 text-slate-300" />,
-            iconWrapClassName: 'bg-slate-800',
+            icon: <Bell className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
           },
           {
             label: 'Plan Mode',
             value: 'Beta',
             meta: 'pricing hidden for now',
-            icon: <ShieldAlert className="h-5 w-5 text-slate-300" />,
-            iconWrapClassName: 'bg-slate-800',
+            icon: <ShieldAlert className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
           },
           {
             label: 'AI Setup',
             value: 'BYOK',
             meta: 'next P2 slice',
-            icon: <Bot className="h-5 w-5 text-slate-300" />,
-            iconWrapClassName: 'bg-slate-800',
+            icon: <Bot className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
           },
         ]}
       />
@@ -95,34 +95,34 @@ const ProfilePage = () => {
           title="Identity and access"
           description="Ground the user in which GitHub account is actually connected."
         >
-          <div className="flex flex-col gap-5 rounded-xl border border-slate-800 bg-slate-900/70 p-5 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-5 rounded-xl border border-slate-200 bg-slate-50 p-5 sm:flex-row sm:items-center dark:border-slate-800 dark:bg-slate-900/70">
             {user?.avatar_url ? (
               <img
                 src={user.avatar_url}
                 alt={user.github_username}
-                className="h-24 w-24 rounded-full object-cover ring-1 ring-white/10"
+                className="h-24 w-24 rounded-full object-cover ring-1 ring-slate-200 dark:ring-white/10"
               />
             ) : (
-              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-slate-800">
-                <UserRound className="h-10 w-10 text-slate-400" />
+              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+                <UserRound className="h-10 w-10 text-slate-500 dark:text-slate-400" />
               </div>
             )}
             <div className="grid flex-1 gap-4 sm:grid-cols-2">
               <div>
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Username</p>
-                <p className="mt-1 text-lg font-semibold text-white">{user?.github_username || 'N/A'}</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{user?.github_username || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Email</p>
-                <p className="mt-1 text-lg font-semibold text-white">{user?.github_email || user?.email || 'N/A'}</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{user?.github_email || user?.email || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-500">GitHub ID</p>
-                <p className="mt-1 text-sm font-medium text-slate-300">{user?.github_id || 'Unknown'}</p>
+                <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">{user?.github_id || 'Unknown'}</p>
               </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Member since</p>
-                <p className="mt-1 text-sm font-medium text-slate-300">
+                <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">
                   {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'Recently'}
                 </p>
               </div>
@@ -138,16 +138,16 @@ const ProfilePage = () => {
             {rows.map((row) => (
               <div
                 key={row.key}
-                className="flex items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-4"
+                className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-800 dark:bg-slate-900/70"
               >
                 <div className="pr-4">
-                  <p className="text-sm font-semibold text-white">{row.label}</p>
-                  <p className="mt-1 text-sm text-slate-400">{row.description}</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{row.label}</p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{row.description}</p>
                 </div>
                 <button onClick={() => handleSettingChange(row.key)} className={toggleClassName(settings[row.key])}>
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      settings[row.key] ? 'translate-x-6 bg-slate-950' : 'translate-x-1'
+                      settings[row.key] ? 'translate-x-6' : 'translate-x-1'
                     }`}
                   />
                 </button>

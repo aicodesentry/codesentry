@@ -47,7 +47,7 @@ export default function RepositoriesPage() {
             <button
               onClick={() => refresh({ sync: true })}
               disabled={syncing}
-              className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-900 disabled:opacity-50"
+              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-900"
             >
               {syncing ? 'Syncing...' : 'Sync GitHub'}
             </button>
@@ -67,29 +67,29 @@ export default function RepositoriesPage() {
             label: 'Visible Repos',
             value: status.repositoryCount,
             meta: status.installationCount > 0 ? `${status.installationCount} install${status.installationCount === 1 ? '' : 's'}` : 'no installs',
-            icon: <Compass className="h-5 w-5 text-slate-300" />,
-            iconWrapClassName: 'bg-slate-800',
+            icon: <Compass className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
           },
           {
             label: 'Connected',
             value: status.activeRepositoryCount,
             meta: status.activeRepositoryCount > 0 ? 'ready for PR reviews' : 'pick your first repo',
-            icon: <GitFork className="h-5 w-5 text-slate-300" />,
-            iconWrapClassName: 'bg-slate-800',
+            icon: <GitFork className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
           },
           {
             label: 'Open Findings',
             value: repositories.reduce((sum, repo) => sum + Number(repo.open_findings_count || 0), 0),
             meta: 'across visible repos',
-            icon: <ShieldAlert className="h-5 w-5 text-slate-300" />,
-            iconWrapClassName: 'bg-slate-800',
+            icon: <ShieldAlert className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
           },
           {
             label: 'Next Move',
             value: status.hasActiveRepo ? 'Open PR' : 'Connect',
             meta: status.hasActiveRepo ? 'push a test change' : 'enable one repository',
-            icon: <Sparkles className="h-5 w-5 text-slate-300" />,
-            iconWrapClassName: 'bg-slate-800',
+            icon: <Sparkles className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
           },
         ]}
       />
@@ -101,9 +101,9 @@ export default function RepositoriesPage() {
       ) : null}
 
       {status.repositoryCount === 0 && status.installationCount > 0 ? (
-        <PagePanel className="border-slate-700 bg-slate-950">
-          <p className="text-sm font-semibold text-white">The app is installed, but GitHub has not granted repository access yet.</p>
-          <p className="mt-1 text-sm text-slate-400">
+        <PagePanel className="border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-950">
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">The app is installed, but GitHub has not granted repository access yet.</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Expand repository access in GitHub installation settings, then sync again. Until then the roster will stay empty.
           </p>
           <a
@@ -124,7 +124,7 @@ export default function RepositoriesPage() {
           status.hasFirstReview ? (
             <Link
               to="/dashboard/reports"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-slate-500 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-white"
             >
               View reports
               <ArrowUpRight className="h-3.5 w-3.5" />
@@ -153,24 +153,24 @@ export default function RepositoriesPage() {
               key={repo.id}
               className={`rounded-xl border p-5 transition ${
                 repo.is_active
-                  ? 'border-emerald-500/30 bg-emerald-950/10 hover:border-emerald-400/40'
-                  : 'border-slate-800 bg-slate-900/70 hover:border-slate-600'
+                  ? 'border-emerald-500/30 bg-emerald-50 hover:border-emerald-400/40 dark:bg-emerald-950/10'
+                  : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/70 dark:hover:border-slate-600'
               }`}
             >
               <div className="flex items-center justify-between gap-4">
                 <Link to={`/dashboard/repositories/${repo.id}`} className="min-w-0 flex-1">
                   <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-semibold text-white">{repo.full_name}</h2>
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{repo.full_name}</h2>
                     {repo.is_active ? (
-                      <span className="rounded-full border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
+                      <span className="rounded-full border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-200">
                         Active
                       </span>
                     ) : null}
                   </div>
-                  <p className="text-sm text-slate-400">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     {repo.language || 'Unknown language'} · {repo.private ? 'Private' : 'Public'} · default: {repo.default_branch}
                   </p>
-                  <p className="mt-1 text-sm text-slate-300">
+                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
                     Open findings: <span className="font-semibold">{repo.open_findings_count || 0}</span> · PRs seen: <span className="font-semibold">{repo.pull_request_count || 0}</span>
                   </p>
                 </Link>
@@ -179,7 +179,7 @@ export default function RepositoriesPage() {
                     <button
                       onClick={() => handleConnect(repo.id, false)}
                       disabled={connecting === repo.id}
-                      className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-white dark:hover:bg-slate-900"
                     >
                       {connecting === repo.id ? 'Updating...' : 'Connected'}
                     </button>

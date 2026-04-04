@@ -1,13 +1,16 @@
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
-  BookOpenText,
   Bot,
   CheckCircle2,
+  Filter,
   GitPullRequest,
+  Layers,
+  Search,
   Shield,
   ShieldAlert,
   Sparkles,
+  Target,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import Header from './Header'
@@ -35,9 +38,9 @@ const pillars = [
     desc: 'Security-only detections with CWE, OWASP, ATT&CK, and CAPEC context for every finding.',
   },
   {
-    icon: BookOpenText,
-    title: 'Team Rules',
-    desc: 'Teach Mitig8it how your team wants reviews phrased, scoped, and prioritized.',
+    icon: Filter,
+    title: 'Low Noise',
+    desc: 'Multi-engine cross-validation, dedup clustering, and confidence scoring cut false positives so you act on signal, not noise.',
   },
   {
     icon: Bot,
@@ -204,6 +207,48 @@ const HomePage = () => {
                   <p className="mt-1.5 text-sm leading-relaxed text-slate-400">{pillar.desc}</p>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* False Positive Reduction */}
+        <section className="border-b border-slate-800 py-12">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <div className="mb-8 max-w-2xl">
+              <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-sky-400">Signal over noise</p>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight">How we reduce false positives</h2>
+              <p className="mt-3 text-sm leading-relaxed text-slate-400">
+                Most scanners flood PRs with noise. Mitig8it runs multiple detection engines and only surfaces findings that survive cross-validation.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/10">
+                  <Layers className="h-5 w-5 text-sky-400" />
+                </div>
+                <h3 className="mt-3 text-sm font-semibold">Multi-engine detection</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate-400">
+                  Every file is scanned by both regex pattern matching and Semgrep AST analysis. When two engines flag the same location, confidence goes up. When only one fires, the finding is downranked.
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/10">
+                  <Target className="h-5 w-5 text-sky-400" />
+                </div>
+                <h3 className="mt-3 text-sm font-semibold">Dedup clustering</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate-400">
+                  Findings in the same file, same vulnerability type, and within two lines of each other are merged into a single result. One actionable issue, not five redundant alerts.
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/10">
+                  <Search className="h-5 w-5 text-sky-400" />
+                </div>
+                <h3 className="mt-3 text-sm font-semibold">Confidence scoring</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate-400">
+                  Every finding carries a confidence score based on detector type, corroboration, and match specificity. Low-confidence results are suppressed from PR comments so reviewers focus on what matters.
+                </p>
+              </div>
             </div>
           </div>
         </section>

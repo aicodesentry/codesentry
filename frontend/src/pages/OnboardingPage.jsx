@@ -14,9 +14,9 @@ const samplePullRequest = {
   title: 'Tighten checkout redirect handling',
   summary: 'See how Mitig8it turns one PR into inline findings, a summary review, and taxonomy-backed remediation.',
   findings: [
-    { label: 'Critical', count: 2, tint: 'bg-slate-900 text-slate-200 border-slate-700' },
-    { label: 'High', count: 1, tint: 'bg-slate-900 text-slate-200 border-slate-700' },
-    { label: 'Medium', count: 1, tint: 'bg-slate-900 text-slate-200 border-slate-700' },
+    { label: 'Critical', count: 2, tint: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700' },
+    { label: 'High', count: 1, tint: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700' },
+    { label: 'Medium', count: 1, tint: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700' },
   ],
 }
 
@@ -113,7 +113,7 @@ export default function OnboardingPage() {
           <>
             <button
               onClick={() => refresh({ sync: true })}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/50 px-4 py-2.5 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-900"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-900"
             >
               <RefreshCcw className="h-4 w-4" />
               {syncing ? 'Syncing...' : 'Sync GitHub'}
@@ -147,29 +147,29 @@ export default function OnboardingPage() {
             label: 'Installations',
             value: status.installationCount,
             meta: status.hasInstall ? 'connected' : 'not yet',
-            icon: <ShieldCheck className="h-5 w-5 text-slate-300" />,
-            iconWrapClassName: 'bg-slate-800',
+            icon: <ShieldCheck className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
           },
           {
             label: 'Repos Visible',
             value: status.repositoryCount,
             meta: status.hasRepoAccess ? `${status.activeRepositoryCount} active` : 'needs access',
-            icon: <Compass className="h-5 w-5 text-slate-300" />,
-            iconWrapClassName: 'bg-slate-800',
+            icon: <Compass className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
           },
           {
             label: 'PR Reviews',
             value: status.analysisCount,
             meta: status.hasFirstReview ? 'first value reached' : 'waiting for first run',
-            icon: <Sparkles className="h-5 w-5 text-slate-300" />,
-            iconWrapClassName: 'bg-slate-800',
+            icon: <Sparkles className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
           },
           {
             label: 'Last Sync',
             value: lastSyncedAt ? 'Live' : 'Pending',
             meta: formatSyncTime(),
-            icon: <KeyRound className="h-5 w-5 text-slate-300" />,
-            iconWrapClassName: 'bg-slate-800',
+            icon: <KeyRound className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+            iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
           },
         ]}
       />
@@ -189,7 +189,7 @@ export default function OnboardingPage() {
               href={INSTALLATIONS_SETTINGS_URL}
               target="_blank"
               rel="noreferrer"
-              className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500 hover:text-white"
+              className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
             >
               Manage installation
             </a>
@@ -201,47 +201,47 @@ export default function OnboardingPage() {
                 key={item.id}
                 className={`flex items-start gap-4 rounded-2xl border px-4 py-4 ${
                   item.done
-                    ? 'border-slate-700 bg-slate-900/90'
+                    ? 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/90'
                     : item.optional
-                      ? 'border-slate-800 bg-slate-950/70'
-                      : 'border-slate-800 bg-slate-900/60'
+                      ? 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/70'
+                      : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/60'
                 }`}
               >
-                <div className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-full ${item.done ? 'bg-slate-700' : 'bg-slate-800'}`}>
+                <div className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-full ${item.done ? 'bg-slate-200 dark:bg-slate-700' : 'bg-slate-100 dark:bg-slate-800'}`}>
                   {item.done ? (
-                    <CheckCircle2 className="h-5 w-5 text-white" />
+                    <CheckCircle2 className="h-5 w-5 text-slate-900 dark:text-white" />
                   ) : (
-                    <span className="text-sm font-semibold text-slate-300">{index + 1}</span>
+                    <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">{index + 1}</span>
                   )}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-white">{item.title}</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{item.title}</p>
                     {item.optional ? (
-                      <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      <span className="rounded-full border border-slate-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-slate-700 dark:text-slate-400">
                         Optional
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-1 text-sm text-slate-400">{item.detail}</p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{item.detail}</p>
                 </div>
               </div>
             ))}
           </div>
 
           {status.needsPermissionFix ? (
-            <div className="rounded-2xl border border-slate-700 bg-slate-900 px-4 py-4">
-              <p className="text-sm font-semibold text-white">The app is installed, but GitHub access is still too narrow.</p>
-              <p className="mt-1 text-sm text-slate-400">
+            <div className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-4 dark:border-slate-700 dark:bg-slate-900">
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">The app is installed, but GitHub access is still too narrow.</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Expand repository access in GitHub installation settings, then sync again. Until then the rest of the product will look empty.
               </p>
             </div>
           ) : null}
 
           {status.hasFirstReview ? (
-            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 px-4 py-4">
-              <p className="text-sm font-semibold text-emerald-100">The first review has landed.</p>
-              <p className="mt-1 text-sm text-emerald-200/80">
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-50 px-4 py-4 dark:bg-emerald-950/20">
+              <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-100">The first review has landed.</p>
+              <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-200/80">
                 The activation loop is complete. You can move into the live dashboard and reports now.
               </p>
               <Link
@@ -267,20 +267,20 @@ export default function OnboardingPage() {
             </Link>
           }
         >
-          <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Sample PR</p>
-                <h3 className="mt-2 text-lg font-semibold text-white">
+                <h3 className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">
                   #{samplePullRequest.number} {samplePullRequest.title}
                 </h3>
-                <p className="mt-2 text-sm text-slate-400">{samplePullRequest.repo}</p>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{samplePullRequest.repo}</p>
               </div>
-              <div className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+              <div className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
                 Review ready
               </div>
             </div>
-            <p className="mt-4 text-sm leading-6 text-slate-300">{samplePullRequest.summary}</p>
+            <p className="mt-4 text-sm leading-6 text-slate-700 dark:text-slate-300">{samplePullRequest.summary}</p>
             <div className="mt-5 flex flex-wrap gap-2">
               {samplePullRequest.findings.map((item) => (
                 <span
@@ -297,9 +297,9 @@ export default function OnboardingPage() {
                 'A GitHub check summary rolls up severity and taxonomy context.',
                 'Reports becomes the operating log once the first scan lands.',
               ].map((line) => (
-                <div key={line} className="flex items-start gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3">
-                  <Sparkles className="mt-0.5 h-4 w-4 text-slate-300" />
-                  <p className="text-sm text-slate-300">{line}</p>
+                <div key={line} className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/70">
+                  <Sparkles className="mt-0.5 h-4 w-4 text-slate-500 dark:text-slate-300" />
+                  <p className="text-sm text-slate-700 dark:text-slate-300">{line}</p>
                 </div>
               ))}
             </div>
