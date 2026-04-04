@@ -192,29 +192,29 @@ const ReportsPage = () => {
               label: 'Total Analyses',
               value: summary.total_analyses,
               meta: `${totalCount} visible in this view`,
-              icon: <ClipboardList className="h-5 w-5 text-slate-300" />,
-              iconWrapClassName: 'bg-slate-800',
+              icon: <ClipboardList className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+              iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
             },
             {
               label: 'Completed',
               value: summary.completed,
               meta: 'healthy pipeline',
-              icon: <Sparkles className="h-5 w-5 text-slate-300" />,
-              iconWrapClassName: 'bg-slate-800',
+              icon: <Sparkles className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+              iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
             },
             {
               label: 'Failed',
               value: summary.failed,
               meta: 'needs review',
-              icon: <ShieldAlert className="h-5 w-5 text-slate-300" />,
-              iconWrapClassName: 'bg-slate-800',
+              icon: <ShieldAlert className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+              iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
             },
             {
               label: 'Last 7 Days',
               value: summary.recent_7_days,
               meta: 'recent workload',
-              icon: <Clock3 className="h-5 w-5 text-slate-300" />,
-              iconWrapClassName: 'bg-slate-800',
+              icon: <Clock3 className="h-5 w-5 text-slate-600 dark:text-slate-300" />,
+              iconWrapClassName: 'bg-slate-100 dark:bg-slate-800',
             },
           ]}
         />
@@ -230,7 +230,7 @@ const ReportsPage = () => {
         title="Filters"
         description="Keep the controls visible, but make them feel like part of the same cockpit."
         action={
-          <div className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+          <div className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 dark:border-slate-700 dark:text-slate-300">
             <Filter className="h-3.5 w-3.5" />
             Live filter
           </div>
@@ -238,7 +238,7 @@ const ReportsPage = () => {
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-300">
+            <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
               Repository
             </label>
             <select
@@ -247,7 +247,7 @@ const ReportsPage = () => {
                 setSelectedRepo(e.target.value);
                 setCurrentPage(1); // Reset to page 1 when filter changes
               }}
-              className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-slate-100 transition-colors focus:border-slate-500 focus:outline-none"
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 transition-colors focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:focus:border-slate-500"
             >
               <option value="">All Repositories</option>
               {repositories.filter((r) => r.is_active !== false).map(repo => (
@@ -259,7 +259,7 @@ const ReportsPage = () => {
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-300">
+            <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
               Status
             </label>
             <select
@@ -268,7 +268,7 @@ const ReportsPage = () => {
                 setSelectedStatus(e.target.value);
                 setCurrentPage(1); // Reset to page 1 when filter changes
               }}
-              className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-slate-100 transition-colors focus:border-slate-500 focus:outline-none"
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 transition-colors focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:focus:border-slate-500"
             >
               <option value="">All Statuses</option>
               <option value="completed">Completed</option>
@@ -285,7 +285,7 @@ const ReportsPage = () => {
                 setSelectedStatus('');
                 setCurrentPage(1);
               }}
-              className="w-full rounded-xl border border-slate-700 px-5 py-2.5 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-900"
+              className="w-full rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-900"
             >
               Clear Filters
             </button>
@@ -299,9 +299,9 @@ const ReportsPage = () => {
         className="overflow-hidden"
         contentClassName="p-0"
       >
-        <div className="border-b border-slate-800 px-6 py-5">
+        <div className="border-b border-slate-200 px-6 py-5 dark:border-slate-800">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-white">Pull Request Analyses</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Pull Request Analyses</h2>
             {totalCount > 0 && (
               <p className="text-sm text-slate-400">
                 Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount}
@@ -327,8 +327,8 @@ const ReportsPage = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-800">
-              <thead className="bg-slate-950/50">
+            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
+              <thead className="bg-slate-50 dark:bg-slate-950/50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
                     Repository
@@ -350,15 +350,15 @@ const ReportsPage = () => {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 bg-slate-950/20">
+              <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-950/20">
                 {loading ? (
                   // Show skeleton rows while loading
                   Array.from({ length: itemsPerPage }).map((_, idx) => <SkeletonRow key={idx} />)
                 ) : (
                   analyses.map((analysis) => (
-                  <tr key={analysis.id} className="transition-colors hover:bg-slate-900/55">
+                  <tr key={analysis.id} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-900/55">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-white">
+                      <div className="text-sm font-medium text-slate-900 dark:text-white">
                         {analysis.repository_name}
                       </div>
                     </td>
@@ -367,7 +367,7 @@ const ReportsPage = () => {
                         href={analysis.pr_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm text-slate-200 hover:text-white hover:underline"
+                        className="inline-flex items-center gap-1 text-sm text-slate-700 hover:text-slate-900 hover:underline dark:text-slate-200 dark:hover:text-white"
                       >
                         #{analysis.pr_number}
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -389,7 +389,7 @@ const ReportsPage = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <button
                         onClick={() => handleViewDetails(analysis)}
-                        className="inline-flex items-center gap-1.5 font-medium text-slate-200 transition-colors hover:text-white"
+                        className="inline-flex items-center gap-1.5 font-medium text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-200 dark:hover:text-white"
                       >
                         View Details
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -407,7 +407,7 @@ const ReportsPage = () => {
 
         {/* Pagination Controls */}
         {totalCount > itemsPerPage && (
-          <div className="border-t border-slate-800 px-6 py-4">
+          <div className="border-t border-slate-200 px-6 py-4 dark:border-slate-800">
             <Pagination
               currentPage={currentPage}
               totalPages={Math.ceil(totalCount / itemsPerPage)}
