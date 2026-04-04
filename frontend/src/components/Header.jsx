@@ -6,13 +6,13 @@ const Header = () => {
   const { loginWithGitHub, user } = useAuth()
 
   return (
-    <nav className="border-b border-white/10 sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md" role="navigation" aria-label="Main navigation">
+    <nav className="sticky top-0 z-50 border-b border-neutral-800/60 bg-neutral-950/80 backdrop-blur-md" role="navigation" aria-label="Main navigation">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-14">
           <a href="/" aria-label="Mitig8it home">
             <Logo variant="dark" />
           </a>
-          <div className="hidden items-center gap-5 text-sm text-slate-400 md:flex">
+          <div className="hidden items-center gap-5 text-sm text-neutral-400 md:flex">
             <a href="/examples" className="hover:text-white transition-colors">Examples</a>
             <a href="/benchmarks" className="hover:text-white transition-colors">Benchmarks</a>
             <a href="/customers" className="hover:text-white transition-colors">Customers</a>
@@ -21,14 +21,14 @@ const Header = () => {
           {user ? (
             <Link
               to="/dashboard"
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-white px-4 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-slate-200"
+              className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 shadow-sm transition hover:bg-neutral-200"
             >
               Open Workspace
             </Link>
           ) : (
             <button
               onClick={loginWithGitHub}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-white px-4 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-slate-200"
+              className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 shadow-sm transition hover:bg-neutral-200"
               aria-label="Sign in with GitHub"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
