@@ -6,7 +6,7 @@ import { useOnboarding } from '../contexts/OnboardingContext'
 import { EmptyPanel } from '../components/PageSection'
 
 const INSTALLATIONS_SETTINGS_URL = 'https://github.com/settings/installations'
-const GITHUB_APP_URL = 'https://github.com/apps/aicodesentry'
+const GITHUB_APP_URL = 'https://github.com/apps/mitig8it'
 
 const samplePullRequest = {
   repo: 'codesentry/demo-storefront',
