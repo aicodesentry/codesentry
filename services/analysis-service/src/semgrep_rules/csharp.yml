@@ -31,7 +31,7 @@ rules:
   - id: cwe-502.csharp-deserialization
     patterns:
       - pattern-either:
-        - pattern: BinaryFormatter().Deserialize(...)
+        - pattern: new BinaryFormatter().Deserialize(...)
         - pattern: new JavaScriptSerializer().Deserialize(...)
         - pattern: JsonConvert.DeserializeObject($INPUT)
         - pattern: new XmlSerializer(...).Deserialize(...)

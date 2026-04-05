@@ -378,7 +378,7 @@ SECURITY_RULES: List[SecurityRule] = [
         pattern=re.compile(
             r"(api[_-]?key|secret[_-]?key|auth[_-]?token|access[_-]?token|password|passwd|"
             r"private[_-]?key|client[_-]?secret|database[_-]?url|connection[_-]?string)"
-            r"\s*[:=]\s*['\"][A-Za-z0-9_\-/+=\.:@]{12,}['\"]",
+            r"\s*[:=]\s*['\"][A-Za-z0-9_\-/+=\.:@;]{12,}['\"]",
             re.IGNORECASE,
         ),
         description="Credential-like literal appears committed in source.",
@@ -432,7 +432,7 @@ SECURITY_RULES: List[SecurityRule] = [
         pattern=re.compile(
             r"(pickle\.loads|yaml\.load\(|marshal\.loads|unserialize\(|"
             r"ObjectInputStream|readObject\(|JsonConvert\.Deserialize|"
-            r"shelve\.open|dill\.loads|joblib\.load\()",
+            r"BinaryFormatter|JavaScriptSerializer|shelve\.open|dill\.loads|joblib\.load\()",
             re.IGNORECASE,
         ),
         description="Deserialization primitive can execute attacker-controlled payloads.",

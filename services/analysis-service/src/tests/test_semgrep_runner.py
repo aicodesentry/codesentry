@@ -1,12 +1,39 @@
 """Tests for Semgrep runner integration."""
 
 import subprocess
+import shutil
 import pytest
 from pathlib import Path
 from semgrep_runner import run_semgrep, _extract_file_content, make_fingerprint, RULES_DIR
 
-HAS_SEMGREP = __import__("shutil").which("semgrep") is not None
-skip_no_semgrep = pytest.mark.skipif(not HAS_SEMGREP, reason="Semgrep not installed")
+
+def _can_run_semgrep() -> bool:
+    semgrep_path = shutil.which("semgrep")
+    if not semgrep_path:
+        return False
+    try:
+        result = subprocess.run(
+            [semgrep_path, "--help"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return False
+    return result.returncode == 0
+
+
+HAS_SEMGREP = _can_run_semgrep()
+skip_no_semgrep = pytest.mark.skipif(
+    not HAS_SEMGREP,
+    reason="Semgrep not available or TLS trust anchors missing",
+)
+
+
+def _find(rule_id):
+    from security_rules import SECURITY_RULES
+
+    return next(r for r in SECURITY_RULES if r.rule_id == rule_id)
 
 
 class TestExtractFileContent:
@@ -71,6 +98,20 @@ class TestRunSemgrep:
             assert key in f, f"Missing key: {key}"
         assert f["rule_id"].startswith("semgrep.")
         assert f["severity"] in ("critical", "high", "medium", "low")
+
+    @skip_no_semgrep
+    def test_detects_csharp_binary_formatter(self):
+        files = [{
+            "path": "app.cs",
+            "patch": "+var secret = new BinaryFormatter().Deserialize(stream);"
+        }]
+        result = run_semgrep(files)
+        assert any("csharp-deserialization" in f["rule_id"] for f in result), "C# BinaryFormatter pattern should trigger"
+
+    def test_tier1_catches_generic_deserialize(self):
+        """Generic Deserialize<T> can't be parsed by semgrep C# — Tier 1 regex covers it."""
+        rule = _find("deserialize.untrusted_data")
+        assert rule.pattern.search("new JavaScriptSerializer().Deserialize<object>(input)")
 
 
 # ── Rule YAML validation ────────────────────────────────────────────────
@@ -198,6 +239,20 @@ class TestCombinedPipeline:
 
         cwe_ids = [f["cwe_id"] for f in findings]
         assert "CWE-502" in cwe_ids, "Tier 1 should catch pickle.loads as CWE-502"
+
+    def test_adjacent_secrets_do_not_cluster(self):
+        from security_rules import SECURITY_RULES
+        from main import generate_finding
+        from finding_quality import cluster_findings
+
+        rule = _find("secret.hardcoded.credential")
+        patches = [
+            "+password = \"FirstSecret123\"",
+            "+api_key = \"sk_live_abcdef\"",
+        ]
+        findings = [generate_finding(rule, "app.py", patch) for patch in patches]
+        merged = cluster_findings(findings)
+        assert len(merged) == 2, "Adjacent hardcoded secrets should remain separate findings"
 
     def test_findings_have_consistent_format(self):
         """Both tiers should produce findings with the same keys."""

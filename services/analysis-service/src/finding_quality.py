@@ -177,6 +177,11 @@ def _same_cluster(left: Dict[str, Any], right: Dict[str, Any]) -> bool:
     if left_line and right_line and abs(left_line - right_line) > 2:
         return False
 
+    left_snippet = (left.get("code_snippet") or "").strip()
+    right_snippet = (right.get("code_snippet") or "").strip()
+    if left.get("internal_type") == "hardcoded_secret" and left_snippet and right_snippet and left_snippet != right_snippet:
+        return False
+
     return True
 
 
