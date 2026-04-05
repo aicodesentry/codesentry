@@ -78,6 +78,49 @@ async function githubServiceRequest(path, payload) {
   return response.data;
 }
 
+async function submitReviewWithFallback({
+  owner,
+  repo,
+  prNumber,
+  installationId,
+  commitSha,
+  reviewBody,
+  event,
+  reviewComments,
+}) {
+  try {
+    return await githubServiceRequest('/internal/github/reviews/submit', {
+      owner,
+      repo,
+      pr_number: prNumber,
+      installation_id: installationId,
+      commit_sha: commitSha,
+      body: reviewBody,
+      event,
+      comments: reviewComments,
+    });
+  } catch (error) {
+    if (!reviewComments.length) throw error;
+
+    logger.error('Failed to submit PR review with inline comments, retrying summary-only review', {
+      prNumber,
+      error: error.message,
+      attemptedComments: reviewComments.length,
+    });
+
+    return githubServiceRequest('/internal/github/reviews/submit', {
+      owner,
+      repo,
+      pr_number: prNumber,
+      installation_id: installationId,
+      commit_sha: commitSha,
+      body: `${reviewBody}\n\n<sub>Inline annotations were skipped because GitHub rejected one or more review comments for this diff.</sub>`,
+      event,
+      comments: [],
+    });
+  }
+}
+
 function analysisServiceHeaders() {
   const internalSecret =
     process.env.ANALYSIS_SERVICE_INTERNAL_SECRET || process.env.GITHUB_SERVICE_INTERNAL_SECRET;
@@ -183,13 +226,13 @@ async function runAnalysisJob(payload) {
 
     const findings = analysisResp.data.findings || [];
     const completedCount = await analysisRunsDb.countCompletedRuns(repositoryId, runId);
-    const isInitialBaselineRun = !baselineSet && completedCount === 0;
+    const shouldMarkBaselineSet = !baselineSet && completedCount === 0;
 
     const persisted = [];
     for (const finding of findings) {
       const saved = await upsertFinding({
         finding, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha,
-        isBaseline: isInitialBaselineRun,
+        isBaseline: false,
       });
       persisted.push(saved);
     }
@@ -213,11 +256,15 @@ async function runAnalysisJob(payload) {
         .filter((f) => (f.line_start || 1) <= (fileMaxLines.get(f.file_path) || 1))
         .map((f) => ({ path: f.file_path, line: f.line_start || 1, body: buildReviewComment(f) }));
 
-      reviewResp = await githubServiceRequest('/internal/github/reviews/submit', {
-        owner, repo, pr_number: prNumber, installation_id: installationId,
-        commit_sha: commitSha, body: reviewBody,
+      reviewResp = await submitReviewWithFallback({
+        owner,
+        repo,
+        prNumber,
+        installationId,
+        commitSha,
+        reviewBody,
         event: highOrCritical > 0 ? 'REQUEST_CHANGES' : 'COMMENT',
-        comments: reviewComments,
+        reviewComments,
       });
     } catch (reviewErr) {
       logger.error('Failed to submit PR review', { runId, error: reviewErr.message });
@@ -242,7 +289,7 @@ async function runAnalysisJob(payload) {
       reviewId: reviewResp.review_id,
     });
 
-    if (isInitialBaselineRun) {
+    if (shouldMarkBaselineSet) {
       await analysisRunsDb.markBaselineSet(repositoryId);
     }
   } catch (error) {

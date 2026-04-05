@@ -53,6 +53,21 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     commit_sha: 'abc123def456',
     baseline_set: true,
   };
+  const PERSISTED_FINDING = {
+    id: 'finding-1',
+    status: 'open',
+    is_baseline: false,
+    fingerprint: 'fp-1',
+    severity: 'critical',
+    confidence: 0.92,
+    file_path: 'test_vuln.js',
+    line_start: 2,
+    title: 'Code injection via eval or dynamic execution',
+    evidence: 'Matched deterministic rule `code.injection.eval` on `eval(`.',
+    description: 'Dynamic code execution can run attacker-controlled payloads.',
+    remediation: 'Replace eval/exec with safe alternatives.',
+    cwe_id: 'CWE-95',
+  };
 
   function flushAsync() {
     return new Promise((resolve) => setTimeout(resolve, 300));
@@ -185,5 +200,104 @@ describe('PR Analysis Orchestrator — pipeline', () => {
       (call) => typeof call[0] === 'string' && call[0].includes("status = 'completed'")
     );
     expect(updateCall).toBeTruthy();
+  });
+
+  test('does not suppress findings on the first completed PR run for a repository', async () => {
+    axios.post.mockResolvedValueOnce({
+      data: { files: [{ path: 'test_vuln.js', patch: '@@ -0,0 +1,2 @@\n+const apiKey = "secret123456789";\n+eval(req.body.code);', additions: 2 }] },
+    });
+    axios.post.mockResolvedValueOnce({
+      data: {
+        findings: [{
+          rule_id: 'code.injection.eval',
+          internal_type: 'code_injection',
+          title: 'Code injection via eval or dynamic execution',
+          description: 'Dynamic code execution can run attacker-controlled payloads.',
+          category: 'code injection',
+          severity: 'critical',
+          confidence: 0.92,
+          exploitability: 'high',
+          file_path: 'test_vuln.js',
+          line_start: 2,
+          line_end: 2,
+          code_snippet: 'eval(req.body.code);',
+          evidence: 'Matched deterministic rule `code.injection.eval` on `eval(`.',
+          remediation: 'Replace eval/exec with safe alternatives.',
+          fingerprint: 'fp-1',
+        }],
+      },
+    });
+    pool.query.mockResolvedValueOnce({ rows: [{ count: 0 }] });
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    pool.query.mockResolvedValueOnce({ rows: [PERSISTED_FINDING] });
+    pool.query.mockResolvedValueOnce({ rowCount: 0 });
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    axios.post.mockResolvedValueOnce({ data: { review_id: 1 } });
+    axios.post.mockResolvedValueOnce({ data: { check_run_id: 2 } });
+    pool.query.mockResolvedValueOnce({ rowCount: 1 });
+    pool.query.mockResolvedValueOnce({ rowCount: 1 });
+
+    jest.isolateModules(() => {
+      const mod = require('../src/services/prAnalysisOrchestrator');
+      mod.triggerAnalysisJob({ ...BASE_PAYLOAD, baseline_set: false });
+    });
+    await flushAsync();
+
+    const reviewCall = axios.post.mock.calls.find(
+      (call) => typeof call[0] === 'string' && call[0].includes('reviews/submit')
+    );
+    expect(reviewCall).toBeTruthy();
+    expect(reviewCall[1].comments).toHaveLength(1);
+    expect(reviewCall[1].event).toBe('REQUEST_CHANGES');
+  });
+
+  test('retries review submission without inline comments when GitHub rejects annotations', async () => {
+    axios.post.mockResolvedValueOnce({
+      data: { files: [{ path: 'test_vuln.js', patch: '@@ -0,0 +1,2 @@\n+const apiKey = "secret123456789";\n+eval(req.body.code);', additions: 2 }] },
+    });
+    axios.post.mockResolvedValueOnce({
+      data: {
+        findings: [{
+          rule_id: 'code.injection.eval',
+          internal_type: 'code_injection',
+          title: 'Code injection via eval or dynamic execution',
+          description: 'Dynamic code execution can run attacker-controlled payloads.',
+          category: 'code injection',
+          severity: 'critical',
+          confidence: 0.92,
+          exploitability: 'high',
+          file_path: 'test_vuln.js',
+          line_start: 2,
+          line_end: 2,
+          code_snippet: 'eval(req.body.code);',
+          evidence: 'Matched deterministic rule `code.injection.eval` on `eval(`.',
+          remediation: 'Replace eval/exec with safe alternatives.',
+          fingerprint: 'fp-1',
+        }],
+      },
+    });
+    pool.query.mockResolvedValueOnce({ rows: [{ count: 1 }] });
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    pool.query.mockResolvedValueOnce({ rows: [PERSISTED_FINDING] });
+    pool.query.mockResolvedValueOnce({ rowCount: 0 });
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    axios.post.mockRejectedValueOnce(new Error('Validation failed'));
+    axios.post.mockResolvedValueOnce({ data: { review_id: 99 } });
+    axios.post.mockResolvedValueOnce({ data: { check_run_id: 2 } });
+    pool.query.mockResolvedValueOnce({ rowCount: 1 });
+
+    jest.isolateModules(() => {
+      const mod = require('../src/services/prAnalysisOrchestrator');
+      mod.triggerAnalysisJob(BASE_PAYLOAD);
+    });
+    await flushAsync();
+
+    const reviewCalls = axios.post.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].includes('reviews/submit')
+    );
+    expect(reviewCalls).toHaveLength(2);
+    expect(reviewCalls[0][1].comments).toHaveLength(1);
+    expect(reviewCalls[1][1].comments).toHaveLength(0);
+    expect(reviewCalls[1][1].body).toContain('Inline annotations were skipped');
   });
 });
