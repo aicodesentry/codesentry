@@ -32,7 +32,11 @@ rules:
     patterns:
       - pattern-either:
         - pattern: BinaryFormatter().Deserialize(...)
+        - pattern: new BinaryFormatter().Deserialize(...)
         - pattern: new JavaScriptSerializer().Deserialize(...)
+        - pattern: BinaryFormatter().Deserialize<...>(...)
+        - pattern: new BinaryFormatter().Deserialize<...>(...)
+        - pattern: new JavaScriptSerializer().Deserialize<...>(...)
         - pattern: JsonConvert.DeserializeObject($INPUT)
         - pattern: new XmlSerializer(...).Deserialize(...)
     message: "Deserialization of untrusted data — use allowlist-based type filtering"

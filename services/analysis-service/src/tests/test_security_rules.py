@@ -232,6 +232,11 @@ class TestAuthFailures:
             'database_url = "postgresql://user:pass123456@host/db"'
         )
 
+    def test_hardcoded_mssql_connection_string(self):
+        assert _find("secret.hardcoded.credential").pattern.search(
+            'connection_string = "Server=prod;Database=main;User=admin;Password=secret123;"'
+        )
+
     def test_short_value_no_match(self):
         assert not _find("secret.hardcoded.credential").pattern.search('token = "short"')
 
@@ -268,6 +273,16 @@ class TestDeserialization:
     def test_java_object_input_stream(self):
         assert _find("deserialize.untrusted_data").pattern.search(
             "ObjectInputStream ois = new ObjectInputStream(stream)"
+        )
+
+    def test_binary_formatter_new(self):
+        assert _find("deserialize.untrusted_data").pattern.search(
+            "var secret = new BinaryFormatter().Deserialize(stream)"
+        )
+
+    def test_javascript_serializer_new(self):
+        assert _find("deserialize.untrusted_data").pattern.search(
+            "var obj = new JavaScriptSerializer().Deserialize(json)"
         )
 
     def test_yaml_safe_load_safe(self):
