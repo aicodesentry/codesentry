@@ -191,6 +191,26 @@ export default function OnboardingPage() {
         </div>
       </div>
 
+      {!status.hasInstall ? (
+        <div className="rounded-xl border border-yellow-300 bg-yellow-50/60 p-5 text-sm text-neutral-900 dark:border-yellow-500 dark:bg-yellow-950/50" role="region" aria-live="polite">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold">Install Mitig8it to start seeing reviews</p>
+              <p className="text-xs text-neutral-600 dark:text-neutral-300">Connect your GitHub app so we can read PR data and backfill your first insights.</p>
+            </div>
+            <a
+              href={githubAppInstallUrl || GITHUB_APP_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center rounded-lg bg-yellow-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-yellow-500"
+            >
+              <GitFork className="mr-2 h-4 w-4" />
+              Connect GitHub App
+            </a>
+          </div>
+        </div>
+      ) : null}
+
       {error ? (
         <div className="rounded-xl border border-rose-500/40 bg-rose-950/30 p-5">
           <p className="text-sm font-medium text-rose-100">{error}</p>
