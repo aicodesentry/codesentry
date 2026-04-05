@@ -24,6 +24,7 @@ import ExamplesPage from './pages/ExamplesPage'
 import BenchmarksPage from './pages/BenchmarksPage'
 import CustomersPage from './pages/CustomersPage'
 import SecurityPage from './pages/SecurityPage'
+import AboutPage from './pages/AboutPage'
 
 const Protected = ({ children }) => {
   const { user, isLoading } = useAuth()
@@ -62,6 +63,7 @@ export function AppRoutes() {
       <Route path="/benchmarks" element={<BenchmarksPage />} />
       <Route path="/customers" element={<CustomersPage />} />
       <Route path="/security" element={<SecurityPage />} />
+      <Route path="/about" element={<AboutPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route

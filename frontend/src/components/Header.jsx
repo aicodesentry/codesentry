@@ -17,6 +17,7 @@ const Header = () => {
             <a href="/benchmarks" className="hover:text-white transition-colors">Benchmarks</a>
             <a href="/customers" className="hover:text-white transition-colors">Customers</a>
             <a href="/security" className="hover:text-white transition-colors">Security</a>
+            <a href="/about" className="hover:text-white transition-colors">About</a>
           </div>
           {user ? (
             <Link
