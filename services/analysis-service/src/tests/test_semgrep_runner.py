@@ -108,14 +108,10 @@ class TestRunSemgrep:
         result = run_semgrep(files)
         assert any("csharp-deserialization" in f["rule_id"] for f in result), "C# BinaryFormatter pattern should trigger"
 
-    @skip_no_semgrep
-    def test_detects_csharp_generic_deserialize(self):
-        files = [{
-            "path": "app.cs",
-            "patch": "+var secret = new BinaryFormatter().Deserialize<object>(stream);"
-        }]
-        result = run_semgrep(files)
-        assert any("csharp-deserialization" in f["rule_id"] for f in result), "Generic Deserialize<T> should trigger"
+    def test_tier1_catches_generic_deserialize(self):
+        """Generic Deserialize<T> can't be parsed by semgrep C# — Tier 1 regex covers it."""
+        rule = _find("deserialize.untrusted_data")
+        assert rule.pattern.search("new JavaScriptSerializer().Deserialize<object>(input)")
 
 
 # ── Rule YAML validation ────────────────────────────────────────────────
