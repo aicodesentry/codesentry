@@ -1,19 +1,19 @@
-"""Tests for Semgrep runner integration."""
+"""Tests for OpenGrep runner integration."""
 
 import subprocess
 import shutil
 import pytest
 from pathlib import Path
-from semgrep_runner import run_semgrep, _extract_file_content, make_fingerprint, RULES_DIR
+from opengrep_runner import run_opengrep, _extract_file_content, make_fingerprint, RULES_DIR
 
 
-def _can_run_semgrep() -> bool:
-    semgrep_path = shutil.which("semgrep")
-    if not semgrep_path:
+def _can_run_opengrep() -> bool:
+    opengrep_path = shutil.which("semgrep")
+    if not opengrep_path:
         return False
     try:
         result = subprocess.run(
-            [semgrep_path, "--help"],
+            [opengrep_path, "--help"],
             capture_output=True,
             text=True,
             timeout=5,
@@ -23,10 +23,10 @@ def _can_run_semgrep() -> bool:
     return result.returncode == 0
 
 
-HAS_SEMGREP = _can_run_semgrep()
-skip_no_semgrep = pytest.mark.skipif(
-    not HAS_SEMGREP,
-    reason="Semgrep not available or TLS trust anchors missing",
+HAS_OPENGREP = _can_run_opengrep()
+skip_no_opengrep = pytest.mark.skipif(
+    not HAS_OPENGREP,
+    reason="OpenGrep not available or TLS trust anchors missing",
 )
 
 
@@ -72,54 +72,54 @@ class TestMakeFingerprint:
         assert fp1 != fp2
 
 
-class TestRunSemgrep:
+class TestRunOpenGrep:
     def test_returns_list(self):
-        result = run_semgrep([])
+        result = run_opengrep([])
         assert isinstance(result, list)
 
     def test_skips_unsupported_extensions(self):
         files = [{"path": "readme.md", "patch": "+# Hello"}]
-        assert run_semgrep(files) == []
+        assert run_opengrep(files) == []
 
     def test_handles_no_findings_gracefully(self):
         files = [{"path": "clean.py", "patch": "+x = 1\n+y = 2"}]
-        assert isinstance(run_semgrep(files), list)
+        assert isinstance(run_opengrep(files), list)
 
-    @skip_no_semgrep
+    @skip_no_opengrep
     def test_detects_pickle_loads(self):
         files = [{"path": "app.py", "patch": "+import pickle\n+data = pickle.loads(user_input)"}]
-        result = run_semgrep(files)
+        result = run_opengrep(files)
         assert any("pickle" in f["rule_id"] for f in result)
 
-    @skip_no_semgrep
+    @skip_no_opengrep
     def test_detects_eval_with_user_input(self):
         files = [{"path": "handler.js", "patch": "+const result = eval(req.body.code)"}]
-        result = run_semgrep(files)
+        result = run_opengrep(files)
         assert any("eval" in f["rule_id"] for f in result)
 
-    @skip_no_semgrep
+    @skip_no_opengrep
     def test_finding_has_required_fields(self):
         files = [{"path": "vuln.py", "patch": "+import pickle\n+obj = pickle.loads(raw_data)"}]
-        result = run_semgrep(files)
+        result = run_opengrep(files)
         assert len(result) > 0
         f = result[0]
         for key in ("rule_id", "fingerprint", "severity", "file_path", "line_start",
                      "title", "category", "cwe_id", "confidence"):
             assert key in f, f"Missing key: {key}"
-        assert f["rule_id"].startswith("semgrep.")
+        assert f["rule_id"].startswith("opengrep.")
         assert f["severity"] in ("critical", "high", "medium", "low")
 
-    @skip_no_semgrep
+    @skip_no_opengrep
     def test_detects_csharp_binary_formatter(self):
         files = [{
             "path": "app.cs",
             "patch": "+var secret = new BinaryFormatter().Deserialize(stream);"
         }]
-        result = run_semgrep(files)
+        result = run_opengrep(files)
         assert any("csharp-deserialization" in f["rule_id"] for f in result), "C# BinaryFormatter pattern should trigger"
 
     def test_tier1_catches_generic_deserialize(self):
-        """Generic Deserialize<T> can't be parsed by semgrep C# — Tier 1 regex covers it."""
+        """Generic Deserialize<T> can't be parsed by OpenGrep C# — Tier 1 regex covers it."""
         rule = _find("deserialize.untrusted_data")
         assert rule.pattern.search("new JavaScriptSerializer().Deserialize<object>(input)")
 
@@ -127,7 +127,7 @@ class TestRunSemgrep:
 # ── Rule YAML validation ────────────────────────────────────────────────
 
 class TestRuleYAMLValidity:
-    """Verify all Semgrep rule files have valid structure."""
+    """Verify all OpenGrep rule files have valid structure."""
 
     @pytest.fixture
     def rule_files(self):
@@ -137,7 +137,7 @@ class TestRuleYAMLValidity:
         assert RULES_DIR.exists()
 
     def test_rule_files_exist(self, rule_files):
-        assert len(rule_files) > 0, "No Semgrep rule files found"
+        assert len(rule_files) > 0, "No OpenGrep rule files found"
 
     def test_rule_files_contain_rules_key(self, rule_files):
         for f in rule_files:
@@ -178,15 +178,15 @@ class TestRuleYAMLValidity:
             assert len(severities) == len(ids), \
                 f"{f.name} has {len(ids)} rules but {len(severities)} severity entries"
 
-    @skip_no_semgrep
-    def test_semgrep_validates_rules(self, rule_files):
+    @skip_no_opengrep
+    def test_opengrep_validates_rules(self, rule_files):
         for f in rule_files:
             result = subprocess.run(
                 ["semgrep", "--validate", "--config", str(f)],
                 capture_output=True, text=True, timeout=30,
             )
             assert result.returncode == 0, \
-                f"Semgrep validation failed for {f.name}: {result.stderr[:300]}"
+                f"OpenGrep validation failed for {f.name}: {result.stderr[:300]}"
 
 
 # ── Combined pipeline test ───────────────────────────────────────────────
@@ -195,7 +195,7 @@ class TestCombinedPipeline:
     """Test Tier 1 + Tier 2 clustering and evidence quality."""
 
     def test_clusters_duplicate_detectors(self):
-        """Semgrep and deterministic detections for the same issue should collapse."""
+        """OpenGrep and deterministic detections for the same issue should collapse."""
         from security_rules import SECURITY_RULES
         from main import generate_finding
         from finding_quality import cluster_findings
@@ -207,9 +207,9 @@ class TestCombinedPipeline:
                 tier1_findings.append(generate_finding(rule, "app.py", patch))
         assert tier1_findings
 
-        # Tier 2: Semgrep match (simulated)
+        # Tier 2: OpenGrep match (simulated)
         tier2_findings = [{
-            "rule_id": "semgrep.cwe-502.pickle-loads",
+            "rule_id": "opengrep.cwe-502.pickle-loads",
             "internal_type": tier1_findings[0]["internal_type"],
             "title": "pickle.loads() deserializes arbitrary Python objects",
             "category": "insecure deserialization",
@@ -218,13 +218,13 @@ class TestCombinedPipeline:
             "confidence": 0.95,
             "file_path": "app.py",
             "line_start": 2,
-            "fingerprint": "unique_semgrep_fingerprint_123",
+            "fingerprint": "unique_opengrep_fingerprint_123",
             "description": "test",
             "exploitability": "high",
             "owasp_category": "A08:2021",
             "line_end": 2,
             "code_snippet": "pickle.loads(user_input)",
-            "evidence": "Semgrep AST match",
+            "evidence": "OpenGrep AST match",
             "exploit_scenario": "",
             "remediation": "Use safe alternatives",
             "remediation_patch": "",
@@ -233,7 +233,7 @@ class TestCombinedPipeline:
         merged = cluster_findings(tier1_findings + tier2_findings)
 
         assert len(merged) == 1
-        assert merged[0]["rule_id"].startswith("semgrep.")
+        assert merged[0]["rule_id"].startswith("opengrep.")
         assert "Supporting detections:" in merged[0]["evidence"]
 
     def test_tier1_findings_present(self):
@@ -264,7 +264,7 @@ class TestCombinedPipeline:
         merged = cluster_findings(findings)
         assert len(merged) == 2, "Adjacent hardcoded secrets should remain separate findings"
 
-    def test_semgrep_primary_keeps_deterministic_review_anchor(self):
+    def test_opengrep_primary_keeps_deterministic_review_anchor(self):
         from security_rules import SECURITY_RULES
         from main import generate_finding
         from finding_quality import cluster_findings
@@ -283,10 +283,10 @@ class TestCombinedPipeline:
         tier1 = generate_finding(rule, "user_service.rb", patch)
 
         tier2 = {
-            "rule_id": "semgrep.ruby-sql-injection",
+            "rule_id": "opengrep.ruby-sql-injection",
             "internal_type": tier1["internal_type"],
             "title": "Potential SQL injection",
-            "description": "Semgrep AST match",
+            "description": "OpenGrep AST match",
             "category": tier1["category"],
             "cwe_id": tier1["cwe_id"],
             "severity": "critical",
@@ -294,11 +294,11 @@ class TestCombinedPipeline:
             "file_path": "user_service.rb",
             "line_start": 13,
             "line_end": 13,
-            "fingerprint": "semgrep-fingerprint",
+            "fingerprint": "opengrep-fingerprint",
             "exploitability": "high",
             "owasp_category": tier1["owasp_category"],
             "code_snippet": 'query = "SELECT * FROM users WHERE id=" + user_id',
-            "evidence": "Semgrep AST match",
+            "evidence": "OpenGrep AST match",
             "exploit_scenario": "",
             "remediation": "Use parameterized queries",
             "remediation_patch": "",
@@ -307,7 +307,7 @@ class TestCombinedPipeline:
         merged = cluster_findings([tier1, tier2])
 
         assert len(merged) == 1
-        assert merged[0]["rule_id"].startswith("semgrep.")
+        assert merged[0]["rule_id"].startswith("opengrep.")
         assert merged[0]["line_start"] == 12
         assert 'query = "SELECT * FROM users WHERE id=" + user_id' in merged[0]["code_snippet"]
 

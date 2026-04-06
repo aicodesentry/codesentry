@@ -82,6 +82,9 @@ build/
 *.egg-info/
 .eggs/
 
+# Benchmark results (generated)
+benchmarks/results/*.json
+
 # Misc
 .cache/
 .temp/

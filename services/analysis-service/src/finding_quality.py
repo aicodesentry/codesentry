@@ -20,7 +20,7 @@ TRANSCRIPT_LINE_RE = re.compile(
 TRANSCRIPT_INLINE_MARKERS = (
     '"patch": "+',
     '"diff_hunk"',
-    "Semgrep validation failed",
+    "OpenGrep validation failed",
     "pytest",
     "gh pr create",
     "git add ",
@@ -37,8 +37,8 @@ SEVERITY_RANK = {
 
 def detector_kind(finding: Dict[str, Any]) -> str:
     rule_id = str(finding.get("rule_id") or "")
-    if rule_id.startswith("semgrep."):
-        return "semgrep"
+    if rule_id.startswith("opengrep."):
+        return "opengrep"
     if rule_id.startswith("dependency."):
         return "dependency"
     return "deterministic"
@@ -236,9 +236,9 @@ def _choose_primary(current: Dict[str, Any], candidate: Dict[str, Any]) -> Dict[
     current_kind = detector_kind(current)
     candidate_kind = detector_kind(candidate)
 
-    if current_kind != "semgrep" and candidate_kind == "semgrep":
+    if current_kind != "opengrep" and candidate_kind == "opengrep":
         return candidate
-    if current_kind == "semgrep" and candidate_kind != "semgrep":
+    if current_kind == "opengrep" and candidate_kind != "opengrep":
         return current
 
     current_severity = SEVERITY_RANK.get(str(current.get("severity") or "").lower(), 0)
@@ -255,11 +255,11 @@ def _choose_primary(current: Dict[str, Any], candidate: Dict[str, Any]) -> Dict[
 
 def _choose_review_anchor(cluster: List[Dict[str, Any]], primary: Dict[str, Any]) -> Dict[str, Any]:
     primary_kind = detector_kind(primary)
-    if primary_kind != "semgrep":
+    if primary_kind != "opengrep":
         return primary
 
     for finding in cluster:
-        if detector_kind(finding) == "semgrep":
+        if detector_kind(finding) == "opengrep":
             continue
         if finding.get("file_path") != primary.get("file_path"):
             continue

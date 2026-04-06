@@ -1,0 +1,46 @@
+[
+  {
+    "id": "tp-java-001",
+    "rule_source": "cwe-89.sql-injection-concat (opengrep) + sql.injection.raw_query (regex)",
+    "language": "java",
+    "cwe": "CWE-89",
+    "owasp": "A03:2021",
+    "severity": "high",
+    "expected_verdict": "vulnerable",
+    "description": "SQL injection via string concatenation in executeQuery",
+    "code": "public User getUser(HttpServletRequest request) throws SQLException {\n    String userId = request.getParameter(\"id\");\n    String query = \"SELECT * FROM users WHERE id = '\" + userId + \"'\";\n    Statement stmt = connection.createStatement();\n    ResultSet rs = stmt.executeQuery(query);\n    return mapUser(rs);\n}"
+  },
+  {
+    "id": "tp-java-002",
+    "rule_source": "cwe-502.java-deserialization (opengrep) + deserialize.untrusted_data (regex)",
+    "language": "java",
+    "cwe": "CWE-502",
+    "owasp": "A08:2021",
+    "severity": "critical",
+    "expected_verdict": "vulnerable",
+    "description": "Insecure deserialization from user-uploaded object stream",
+    "code": "public Object loadSession(InputStream input) throws Exception {\n    ObjectInputStream ois = new ObjectInputStream(input);\n    Object obj = ois.readObject();\n    ois.close();\n    return obj;\n}"
+  },
+  {
+    "id": "tp-java-003",
+    "rule_source": "cwe-327.weak-crypto-java (opengrep) + crypto.weak.hash (regex)",
+    "language": "java",
+    "cwe": "CWE-327",
+    "owasp": "A02:2021",
+    "severity": "medium",
+    "expected_verdict": "vulnerable",
+    "description": "Weak MD5 hash used for password storage",
+    "code": "import java.security.MessageDigest;\n\npublic String hashPassword(String password) throws Exception {\n    MessageDigest md = MessageDigest.getInstance(\"MD5\");\n    byte[] hash = md.digest(password.getBytes());\n    return Base64.getEncoder().encodeToString(hash);\n}"
+  },
+  {
+    "id": "tp-java-004",
+    "rule_source": "cwe-611.xxe-document-builder (opengrep) + xxe.xml_parsing (regex)",
+    "language": "java",
+    "cwe": "CWE-611",
+    "owasp": "A05:2021",
+    "severity": "high",
+    "expected_verdict": "vulnerable",
+    "description": "XXE via DocumentBuilder without disabling external entities",
+    "code": "import javax.xml.parsers.*;\nimport org.w3c.dom.Document;\n\npublic Document parseXml(InputStream input) throws Exception {\n    DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();\n    DocumentBuilder builder = factory.newDocumentBuilder();\n    return builder.parse(input);\n}"
+  }
+]

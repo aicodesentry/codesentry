@@ -1,0 +1,38 @@
+[
+  {
+    "id": "tn-go-001",
+    "rule_source": "cwe-89 (SQL injection)",
+    "language": "go",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "Parameterized SQL query with $1 placeholder — safe",
+    "why_safe": "Uses database/sql parameterized query, driver handles escaping",
+    "code": "func GetUser(w http.ResponseWriter, r *http.Request) {\n\tid := r.URL.Query().Get(\"id\")\n\trow := db.QueryRow(\"SELECT * FROM users WHERE id = $1\", id)\n\tvar user User\n\tif err := row.Scan(&user.ID, &user.Name); err != nil {\n\t\thttp.Error(w, \"not found\", 404)\n\t\treturn\n\t}\n\tjson.NewEncoder(w).Encode(user)\n}"
+  },
+  {
+    "id": "tn-go-002",
+    "rule_source": "cwe-22 (path traversal)",
+    "language": "go",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "File path cleaned and validated against base directory",
+    "why_safe": "filepath.Clean + strings.HasPrefix prevents directory escape",
+    "code": "func ServeFile(w http.ResponseWriter, r *http.Request) {\n\tfilename := r.URL.Query().Get(\"file\")\n\tcleaned := filepath.Clean(filename)\n\tfullPath := filepath.Join(\"/var/data\", cleaned)\n\tif !strings.HasPrefix(fullPath, \"/var/data/\") {\n\t\thttp.Error(w, \"forbidden\", 403)\n\t\treturn\n\t}\n\thttp.ServeFile(w, r, fullPath)\n}"
+  },
+  {
+    "id": "tn-go-003",
+    "rule_source": "cwe-327 (weak crypto)",
+    "language": "go",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "SHA-256 used for hashing — strong algorithm",
+    "why_safe": "sha256 is a strong hash, appropriate for non-password integrity checks",
+    "code": "package auth\n\nimport (\n\t\"crypto/sha256\"\n\t\"fmt\"\n)\n\nfunc GenerateFingerprint(data string) string {\n\thash := sha256.Sum256([]byte(data))\n\treturn fmt.Sprintf(\"%x\", hash)\n}"
+  }
+]

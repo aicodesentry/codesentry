@@ -1,0 +1,90 @@
+[
+  {
+    "id": "tp-js-001",
+    "rule_source": "cwe-79.xss-innerhtml (opengrep) + xss.unsafe_html_render (regex)",
+    "language": "javascript",
+    "cwe": "CWE-79",
+    "owasp": "A03:2021",
+    "severity": "high",
+    "expected_verdict": "vulnerable",
+    "description": "XSS via innerHTML assignment from user input",
+    "code": "app.get('/search', (req, res) => {\n  const query = req.query.q;\n  res.send(`<div id=\"results\">\n    <script>document.getElementById('results').innerHTML = '${query}';</script>\n  </div>`);\n});"
+  },
+  {
+    "id": "tp-js-002",
+    "rule_source": "cwe-89.sql-template-literal (opengrep) + sql.injection.raw_query (regex)",
+    "language": "javascript",
+    "cwe": "CWE-89",
+    "owasp": "A03:2021",
+    "severity": "high",
+    "expected_verdict": "vulnerable",
+    "description": "SQL injection via template literal in database query",
+    "code": "const express = require('express');\nconst db = require('./db');\n\napp.get('/users', async (req, res) => {\n  const name = req.query.name;\n  const users = await db.query(`SELECT * FROM users WHERE name = '${name}'`);\n  res.json(users);\n});"
+  },
+  {
+    "id": "tp-js-003",
+    "rule_source": "cwe-78.child-process-exec (opengrep) + cmd.injection.shell_true (regex)",
+    "language": "javascript",
+    "cwe": "CWE-78",
+    "owasp": "A03:2021",
+    "severity": "critical",
+    "expected_verdict": "vulnerable",
+    "description": "Command injection via child_process.exec with user input",
+    "code": "const { exec } = require('child_process');\nconst express = require('express');\nconst app = express();\n\napp.get('/ping', (req, res) => {\n  const host = req.query.host;\n  exec(`ping -c 3 ${host}`, (err, stdout) => {\n    res.send(stdout);\n  });\n});"
+  },
+  {
+    "id": "tp-js-004",
+    "rule_source": "cwe-943.nosql-injection (opengrep) + nosql.injection (regex)",
+    "language": "javascript",
+    "cwe": "CWE-943",
+    "owasp": "A03:2021",
+    "severity": "high",
+    "expected_verdict": "vulnerable",
+    "description": "NoSQL injection by passing req.body directly to MongoDB find",
+    "code": "const express = require('express');\nconst app = express();\n\napp.post('/login', async (req, res) => {\n  const user = await db.collection('users').findOne(req.body);\n  if (user) {\n    res.json({ success: true, user });\n  } else {\n    res.status(401).json({ success: false });\n  }\n});"
+  },
+  {
+    "id": "tp-js-005",
+    "rule_source": "cwe-295.tls-disabled (opengrep) + config.tls_disabled (regex)",
+    "language": "javascript",
+    "cwe": "CWE-295",
+    "owasp": "A05:2021",
+    "severity": "high",
+    "expected_verdict": "vulnerable",
+    "description": "TLS verification disabled globally",
+    "code": "process.env.NODE_TLS_REJECT_UNAUTHORIZED = \"0\";\n\nconst https = require('https');\nhttps.get('https://internal-api.company.com/data', (res) => {\n  // handle response\n});"
+  },
+  {
+    "id": "tp-js-006",
+    "rule_source": "cwe-601.open-redirect (opengrep) + redirect.open (regex)",
+    "language": "javascript",
+    "cwe": "CWE-601",
+    "owasp": "A01:2021",
+    "severity": "medium",
+    "expected_verdict": "vulnerable",
+    "description": "Open redirect from user-controlled query parameter",
+    "code": "const express = require('express');\nconst app = express();\n\napp.get('/redirect', (req, res) => {\n  const url = req.query.next;\n  res.redirect(url);\n});"
+  },
+  {
+    "id": "tp-js-007",
+    "rule_source": "cwe-798.hardcoded-secret-js (opengrep) + secret.hardcoded.credential (regex)",
+    "language": "javascript",
+    "cwe": "CWE-798",
+    "owasp": "A07:2021",
+    "severity": "critical",
+    "expected_verdict": "vulnerable",
+    "description": "Hardcoded API secret in source code",
+    "code": "const secretKey = \"sk_live_4eC39HqLyjWDarjtT1zdp7dc\";\n\nfunction verifyPayment(sessionId) {\n  return fetch('https://api.stripe.com/v1/checkout/sessions/' + sessionId, {\n    headers: { 'Authorization': `Bearer ${secretKey}` }\n  });\n}"
+  },
+  {
+    "id": "tp-js-008",
+    "rule_source": "cwe-918.ssrf-axios (opengrep) + ssrf.untrusted_url_fetch (regex)",
+    "language": "javascript",
+    "cwe": "CWE-918",
+    "owasp": "A10:2021",
+    "severity": "high",
+    "expected_verdict": "vulnerable",
+    "description": "SSRF via user-controlled URL in axios request",
+    "code": "const axios = require('axios');\nconst express = require('express');\nconst app = express();\n\napp.post('/proxy', async (req, res) => {\n  const response = await axios.get(req.body.url);\n  res.json(response.data);\n});"
+  }
+]

@@ -1,7 +1,7 @@
 """
-Tier 2: Semgrep-based AST analysis runner.
+Tier 2: OpenGrep-based AST analysis runner.
 
-Writes PR diff files to a temp directory, runs Semgrep with custom rules,
+Writes PR diff files to a temp directory, runs OpenGrep with custom rules,
 and returns findings in the same format as Tier 1 (security_rules.py).
 """
 
@@ -15,9 +15,9 @@ from typing import Any, Dict, List, Optional
 from finding_quality import is_transcript_artifact_line
 from taxonomy import build_taxonomy_metadata
 
-RULES_DIR = Path(__file__).parent / "semgrep_rules"
+RULES_DIR = Path(__file__).parent / "opengrep_rules"
 
-# Map Semgrep severity to our severity levels
+# Map OpenGrep severity to our severity levels
 SEVERITY_MAP = {
     "ERROR": "critical",
     "WARNING": "high",
@@ -51,16 +51,16 @@ def _file_extension(path: str) -> Optional[str]:
     return ext if ext else None
 
 
-# Languages Semgrep should scan, mapped by file extension
+# Languages OpenGrep should scan, mapped by file extension
 SUPPORTED_EXTENSIONS = {
     ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".go", ".rb", ".php",
     ".cs", ".c", ".cpp", ".h", ".hpp", ".rs", ".swift", ".kt",
 }
 
 
-def run_semgrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def run_opengrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Run Semgrep on PR files and return findings.
+    Run OpenGrep on PR files and return findings.
 
     Args:
         files: List of {path, patch, additions, ...} from the PR diff.
@@ -106,24 +106,23 @@ def run_semgrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 capture_output=True,
                 text=True,
                 timeout=120,
-                env={**os.environ, "SEMGREP_SEND_METRICS": "off"},
             )
         except subprocess.TimeoutExpired:
-            print("Semgrep timed out after 120s")
+            print("OpenGrep timed out after 120s")
             return []
         except FileNotFoundError:
-            print("Semgrep not installed — skipping Tier 2 analysis")
+            print("OpenGrep not installed — skipping Tier 2 analysis")
             return []
 
         if result.returncode not in (0, 1):
             # returncode 1 = findings found, 0 = no findings
-            print(f"Semgrep error (rc={result.returncode}): {result.stderr[:500]}")
+            print(f"OpenGrep error (rc={result.returncode}): {result.stderr[:500]}")
             return []
 
         try:
             output = json.loads(result.stdout)
         except json.JSONDecodeError:
-            print(f"Semgrep output not valid JSON: {result.stdout[:200]}")
+            print(f"OpenGrep output not valid JSON: {result.stdout[:200]}")
             return []
 
         for match in output.get("results", []):
@@ -132,9 +131,9 @@ def run_semgrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             file_path = match.get("path", "").replace(tmpdir + "/", "")
             line_start = match.get("start", {}).get("line", 1)
             code_snippet = match.get("extra", {}).get("lines", "")[:500]
-            semgrep_severity = match.get("extra", {}).get("severity", "WARNING")
+            opengrep_severity = match.get("extra", {}).get("severity", "WARNING")
             taxonomy = build_taxonomy_metadata(
-                rule_id=f"semgrep.{check_id}",
+                rule_id=f"opengrep.{check_id}",
                 category=metadata.get("category", "security"),
                 cwe_id=metadata.get("cwe", None),
                 owasp_category=metadata.get("owasp", None),
@@ -148,7 +147,7 @@ def run_semgrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             )
 
             findings.append({
-                "rule_id": f"semgrep.{check_id}",
+                "rule_id": f"opengrep.{check_id}",
                 "internal_type": taxonomy["internal_type"],
                 "title": match.get("extra", {}).get("message", check_id),
                 "description": match.get("extra", {}).get("message", ""),
@@ -157,19 +156,19 @@ def run_semgrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "owasp_category": taxonomy["primary_owasp_category"],
                 "taxonomy_mappings": taxonomy["taxonomy_mappings"],
                 "taxonomy_versions": taxonomy["taxonomy_versions"],
-                "severity": SEVERITY_MAP.get(semgrep_severity, "medium"),
+                "severity": SEVERITY_MAP.get(opengrep_severity, "medium"),
                 "confidence": float(metadata.get("confidence", 0.8)),
                 "exploitability": "medium",
                 "file_path": file_path,
                 "line_start": line_start,
                 "line_end": match.get("end", {}).get("line", line_start),
                 "code_snippet": code_snippet,
-                "evidence": f"Semgrep AST match on rule `{check_id}`",
+                "evidence": f"OpenGrep AST match on rule `{check_id}`",
                 "exploit_scenario": "",
                 "remediation": match.get("extra", {}).get("message", ""),
                 "remediation_patch": "",
                 "fingerprint": make_fingerprint(
-                    f"semgrep.{check_id}", file_path, line_start, code_snippet
+                    f"opengrep.{check_id}", file_path, line_start, code_snippet
                 ),
             })
 

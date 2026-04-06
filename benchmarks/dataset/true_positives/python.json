@@ -1,0 +1,90 @@
+[
+  {
+    "id": "tp-py-001",
+    "rule_source": "cwe-89.sql-injection-fstring (opengrep) + sql.injection.raw_query (regex)",
+    "language": "python",
+    "cwe": "CWE-89",
+    "owasp": "A03:2021",
+    "severity": "high",
+    "expected_verdict": "vulnerable",
+    "description": "SQL injection via f-string interpolation",
+    "code": "from flask import request\nimport psycopg2\n\ndef get_user(conn):\n    user_id = request.args.get('id')\n    query = f\"SELECT * FROM users WHERE id = {user_id}\"\n    cursor = conn.cursor()\n    cursor.execute(query)\n    return cursor.fetchone()"
+  },
+  {
+    "id": "tp-py-002",
+    "rule_source": "cwe-78.command-injection-input (opengrep) + cmd.injection.shell_true (regex)",
+    "language": "python",
+    "cwe": "CWE-78",
+    "owasp": "A03:2021",
+    "severity": "critical",
+    "expected_verdict": "vulnerable",
+    "description": "Command injection via subprocess with shell=True and user input",
+    "code": "import subprocess\nfrom flask import request\n\ndef run_tool():\n    filename = request.args.get('file')\n    result = subprocess.run(f\"grep -r {filename} /var/logs\", shell=True, capture_output=True)\n    return result.stdout.decode()"
+  },
+  {
+    "id": "tp-py-003",
+    "rule_source": "cwe-502.pickle-loads (opengrep) + deserialize.untrusted_data (regex)",
+    "language": "python",
+    "cwe": "CWE-502",
+    "owasp": "A08:2021",
+    "severity": "critical",
+    "expected_verdict": "vulnerable",
+    "description": "Insecure deserialization via pickle.loads on user-uploaded data",
+    "code": "import pickle\nfrom flask import request\n\ndef load_model():\n    data = request.files['model'].read()\n    model = pickle.loads(data)\n    return model.predict([])"
+  },
+  {
+    "id": "tp-py-004",
+    "rule_source": "cwe-22.path-traversal-open (opengrep) + path.traversal.user_path (regex)",
+    "language": "python",
+    "cwe": "CWE-22",
+    "owasp": "A01:2021",
+    "severity": "high",
+    "expected_verdict": "vulnerable",
+    "description": "Path traversal via user-controlled filename in open()",
+    "code": "from flask import request\n\ndef download_file():\n    filename = request.args.get('name')\n    with open('/uploads/' + filename, 'rb') as f:\n        return f.read()"
+  },
+  {
+    "id": "tp-py-005",
+    "rule_source": "cwe-798.hardcoded-secret-assignment (opengrep) + secret.hardcoded.credential (regex)",
+    "language": "python",
+    "cwe": "CWE-798",
+    "owasp": "A07:2021",
+    "severity": "critical",
+    "expected_verdict": "vulnerable",
+    "description": "Hardcoded API key in source code",
+    "code": "import requests\n\napi_key = \"sk-proj-a8f3kL9mNpQr2sTuVwXyZ1bCdEfGhIjK\"\n\ndef call_service(data):\n    headers = {\"Authorization\": f\"Bearer {api_key}\"}\n    return requests.post(\"https://api.example.com/v1/run\", json=data, headers=headers)"
+  },
+  {
+    "id": "tp-py-006",
+    "rule_source": "cwe-502.yaml-unsafe-load (opengrep)",
+    "language": "python",
+    "cwe": "CWE-502",
+    "owasp": "A08:2021",
+    "severity": "critical",
+    "expected_verdict": "vulnerable",
+    "description": "Unsafe yaml.load without SafeLoader",
+    "code": "import yaml\nfrom flask import request\n\ndef parse_config():\n    raw = request.data.decode('utf-8')\n    config = yaml.load(raw)\n    return config"
+  },
+  {
+    "id": "tp-py-007",
+    "rule_source": "cwe-918.ssrf-requests (opengrep) + ssrf.untrusted_url_fetch (regex)",
+    "language": "python",
+    "cwe": "CWE-918",
+    "owasp": "A10:2021",
+    "severity": "high",
+    "expected_verdict": "vulnerable",
+    "description": "SSRF via user-supplied URL passed to requests.get",
+    "code": "import requests\nfrom flask import request\n\ndef fetch_url():\n    url = request.args.get('url')\n    response = requests.get(url)\n    return response.text"
+  },
+  {
+    "id": "tp-py-008",
+    "rule_source": "cwe-489.flask-debug (opengrep) + config.debug_enabled (regex)",
+    "language": "python",
+    "cwe": "CWE-489",
+    "owasp": "A05:2021",
+    "severity": "medium",
+    "expected_verdict": "vulnerable",
+    "description": "Flask debug mode enabled in production",
+    "code": "from flask import Flask\n\napp = Flask(__name__)\n\n@app.route('/')\ndef index():\n    return 'Hello'\n\nif __name__ == '__main__':\n    app.run(host='0.0.0.0', port=8080, debug=True)"
+  }
+]

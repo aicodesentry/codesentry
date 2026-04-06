@@ -1,0 +1,46 @@
+[
+  {
+    "id": "tp-go-001",
+    "rule_source": "cwe-89.go-sql-sprintf (opengrep) + sql.injection.raw_query (regex)",
+    "language": "go",
+    "cwe": "CWE-89",
+    "owasp": "A03:2021",
+    "severity": "high",
+    "expected_verdict": "vulnerable",
+    "description": "SQL injection via fmt.Sprintf in database query",
+    "code": "func GetUser(w http.ResponseWriter, r *http.Request) {\n\tid := r.URL.Query().Get(\"id\")\n\tquery := fmt.Sprintf(\"SELECT * FROM users WHERE id = '%s'\", id)\n\trows, err := db.Query(query)\n\tif err != nil {\n\t\thttp.Error(w, err.Error(), 500)\n\t\treturn\n\t}\n\tdefer rows.Close()\n}"
+  },
+  {
+    "id": "tp-go-002",
+    "rule_source": "cwe-295.go-tls-insecure (opengrep) + config.tls_disabled (regex)",
+    "language": "go",
+    "cwe": "CWE-295",
+    "owasp": "A05:2021",
+    "severity": "high",
+    "expected_verdict": "vulnerable",
+    "description": "TLS verification skipped via InsecureSkipVerify",
+    "code": "package main\n\nimport (\n\t\"crypto/tls\"\n\t\"net/http\"\n)\n\nfunc newClient() *http.Client {\n\treturn &http.Client{\n\t\tTransport: &http.Transport{\n\t\t\tTLSClientConfig: &tls.Config{InsecureSkipVerify: true},\n\t\t},\n\t}\n}"
+  },
+  {
+    "id": "tp-go-003",
+    "rule_source": "cwe-22.go-path-traversal (opengrep) + path.traversal.user_path (regex)",
+    "language": "go",
+    "cwe": "CWE-22",
+    "owasp": "A01:2021",
+    "severity": "high",
+    "expected_verdict": "vulnerable",
+    "description": "Path traversal via user-controlled filepath.Join",
+    "code": "func ServeFile(w http.ResponseWriter, r *http.Request) {\n\tfilename := r.URL.Query().Get(\"file\")\n\tpath := filepath.Join(\"/var/data\", filename)\n\thttp.ServeFile(w, r, path)\n}"
+  },
+  {
+    "id": "tp-go-004",
+    "rule_source": "cwe-327.go-weak-crypto (opengrep) + crypto.weak.hash (regex)",
+    "language": "go",
+    "cwe": "CWE-327",
+    "owasp": "A02:2021",
+    "severity": "medium",
+    "expected_verdict": "vulnerable",
+    "description": "Weak MD5 hash used for token generation",
+    "code": "package auth\n\nimport (\n\t\"crypto/md5\"\n\t\"fmt\"\n)\n\nfunc GenerateToken(userID string) string {\n\thash := md5.Sum([]byte(userID))\n\treturn fmt.Sprintf(\"%x\", hash)\n}"
+  }
+]
