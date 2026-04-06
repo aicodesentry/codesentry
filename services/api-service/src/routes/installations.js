@@ -9,6 +9,16 @@ const repositoriesDb = require('../db/repositories');
 
 const router = express.Router();
 
+function installationBelongsToUser(installation, githubUsername) {
+  if (!installation) return false;
+
+  const accountType = String(installation.account?.type || installation.account_type || '').toLowerCase();
+  if (accountType !== 'user') return true;
+
+  const accountLogin = String(installation.account?.login || installation.account_login || '').toLowerCase();
+  return accountLogin && accountLogin === String(githubUsername || '').toLowerCase();
+}
+
 async function syncRepoPullRequests({ repoFullName, repoId, githubToken }) {
   const prs = [];
   for (const state of ['open', 'closed']) {
@@ -145,11 +155,12 @@ router.get('/', authenticateToken, async (req, res) => {
 router.post('/sync', authenticateToken, async (req, res) => {
   try {
     const userResult = await pool.query(
-      'SELECT github_token FROM users WHERE id = $1',
+      'SELECT github_token, github_username FROM users WHERE id = $1',
       [req.user.user_id]
     );
 
     const rawToken = userResult.rows[0]?.github_token;
+    const githubUsername = userResult.rows[0]?.github_username;
     if (!rawToken) {
       return res.status(400).json({ error: 'GitHub account is not connected. Please sign in again.' });
     }
@@ -168,6 +179,9 @@ router.post('/sync', authenticateToken, async (req, res) => {
     let syncedRepos = 0;
     const syncErrors = [];
     for (const installation of response.data.installations || []) {
+      if (!installationBelongsToUser(installation, githubUsername)) {
+        continue;
+      }
       await installationsDb.upsertInstallation(pool, installation, 'active');
       await installationsDb.linkUserInstallation(pool, req.user.user_id, installation.id);
       await installationsDb.removeSameAccountStaleLinks(pool, req.user.user_id, installation);
