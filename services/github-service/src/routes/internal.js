@@ -156,6 +156,43 @@ router.post('/github/reviews/submit', async (req, res) => {
   }
 });
 
+router.post('/github/comments/inline', async (req, res) => {
+  const { owner, repo, pr_number, installation_id, commit_sha, path, line, body } = req.body || {};
+  if (!owner || !repo || !pr_number || !installation_id || !commit_sha || !path || !line || !body) {
+    return res.status(400).json({ error: 'owner, repo, pr_number, installation_id, commit_sha, path, line and body are required' });
+  }
+  if (!/^[a-zA-Z0-9_.-]+$/.test(owner) || !/^[a-zA-Z0-9_.-]+$/.test(repo)) {
+    return res.status(400).json({ error: 'Invalid owner or repo format' });
+  }
+
+  try {
+    const token = await githubAppAuth.getInstallationToken(installation_id);
+    const response = await githubRequest(
+      'post',
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${pr_number}/comments`,
+      token,
+      {
+        body,
+        commit_id: commit_sha,
+        path,
+        line,
+        side: 'RIGHT',
+      }
+    );
+
+    return res.json({
+      comment_id: response.data.id,
+      url: response.data.html_url,
+      success: true,
+    });
+  } catch (error) {
+    return res.status(502).json({
+      error: 'Failed to post inline comment',
+      detail: error.response?.data || error.message,
+    });
+  }
+});
+
 router.post('/github/check-runs', async (req, res) => {
   const { owner, repo, installation_id, head_sha, conclusion, title, summary } = req.body || {};
   if (!owner || !repo || !installation_id || !head_sha || !conclusion || !title || !summary) {
