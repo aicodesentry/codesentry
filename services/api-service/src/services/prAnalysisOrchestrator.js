@@ -114,39 +114,68 @@ async function submitReviewWithFallback({
   commitSha,
   reviewBody,
   event,
-  reviewComments,
 }) {
-  try {
-    return await githubServiceRequest('/internal/github/reviews/submit', {
-      owner,
-      repo,
-      pr_number: prNumber,
-      installation_id: installationId,
-      commit_sha: commitSha,
-      body: reviewBody,
-      event,
-      comments: reviewComments,
-    });
-  } catch (error) {
-    if (!reviewComments.length) throw error;
+  return githubServiceRequest('/internal/github/reviews/submit', {
+    owner,
+    repo,
+    pr_number: prNumber,
+    installation_id: installationId,
+    commit_sha: commitSha,
+    body: reviewBody,
+    event,
+    comments: [],
+  });
+}
 
-    logger.error('Failed to submit PR review with inline comments, retrying summary-only review', {
-      prNumber,
-      error: error.message,
-      attemptedComments: reviewComments.length,
-    });
-
-    return githubServiceRequest('/internal/github/reviews/submit', {
-      owner,
-      repo,
-      pr_number: prNumber,
-      installation_id: installationId,
-      commit_sha: commitSha,
-      body: `${reviewBody}\n\n<sub>Inline annotations were skipped because GitHub rejected one or more review comments for this diff.</sub>`,
-      event,
-      comments: [],
-    });
+function dedupeInlineComments(reviewComments) {
+  const seen = new Set();
+  const deduped = [];
+  for (const comment of reviewComments) {
+    const key = `${comment.path}:${comment.line}:${comment.body}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(comment);
   }
+  return deduped;
+}
+
+async function postInlineCommentsIndividually({
+  owner,
+  repo,
+  prNumber,
+  installationId,
+  commitSha,
+  reviewComments,
+  runId,
+}) {
+  const dedupedComments = dedupeInlineComments(reviewComments).slice(0, 40);
+  let posted = 0;
+
+  for (const comment of dedupedComments) {
+    try {
+      await githubServiceRequest('/internal/github/comments/inline', {
+        owner,
+        repo,
+        pr_number: prNumber,
+        installation_id: installationId,
+        commit_sha: commitSha,
+        path: comment.path,
+        line: comment.line,
+        body: comment.body,
+      });
+      posted += 1;
+    } catch (error) {
+      logger.error('Failed to post inline PR comment', {
+        runId,
+        prNumber,
+        path: comment.path,
+        line: comment.line,
+        error: error.message,
+      });
+    }
+  }
+
+  return { attempted: dedupedComments.length, posted };
 }
 
 function analysisServiceHeaders() {
@@ -292,8 +321,26 @@ async function runAnalysisJob(payload) {
         commitSha,
         reviewBody,
         event: highOrCritical > 0 ? 'REQUEST_CHANGES' : 'COMMENT',
-        reviewComments,
       });
+
+      const inlineResult = await postInlineCommentsIndividually({
+        owner,
+        repo,
+        prNumber,
+        installationId,
+        commitSha,
+        reviewComments,
+        runId,
+      });
+
+      if (inlineResult.attempted > inlineResult.posted) {
+        logger.warn('Some inline PR comments were skipped after GitHub rejection', {
+          runId,
+          prNumber,
+          attempted: inlineResult.attempted,
+          posted: inlineResult.posted,
+        });
+      }
     } catch (reviewErr) {
       logger.error('Failed to submit PR review', { runId, error: reviewErr.message });
     }

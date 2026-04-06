@@ -249,6 +249,7 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     pool.query.mockResolvedValueOnce({ rowCount: 0 });
     pool.query.mockResolvedValueOnce({ rows: [] });
     axios.post.mockResolvedValueOnce({ data: { review_id: 1 } });
+    axios.post.mockResolvedValueOnce({ data: { comment_id: 11, success: true } });
     axios.post.mockResolvedValueOnce({ data: { check_run_id: 2 } });
     pool.query.mockResolvedValueOnce({ rowCount: 1 });
     pool.query.mockResolvedValueOnce({ rowCount: 1 });
@@ -263,11 +264,17 @@ describe('PR Analysis Orchestrator — pipeline', () => {
       (call) => typeof call[0] === 'string' && call[0].includes('reviews/submit')
     );
     expect(reviewCall).toBeTruthy();
-    expect(reviewCall[1].comments).toHaveLength(1);
+    expect(reviewCall[1].comments).toHaveLength(0);
     expect(reviewCall[1].event).toBe('REQUEST_CHANGES');
+    const inlineCall = axios.post.mock.calls.find(
+      (call) => typeof call[0] === 'string' && call[0].includes('comments/inline')
+    );
+    expect(inlineCall).toBeTruthy();
+    expect(inlineCall[1].path).toBe('test_vuln.js');
+    expect(inlineCall[1].line).toBe(2);
   });
 
-  test('retries review submission without inline comments when GitHub rejects annotations', async () => {
+  test('continues posting remaining inline comments when one annotation is rejected', async () => {
     axios.post.mockResolvedValueOnce({
       data: { files: [{ path: 'test_vuln.js', patch: '@@ -0,0 +1,2 @@\n+const apiKey = "secret123456789";\n+eval(req.body.code);', additions: 2 }] },
     });
@@ -289,16 +296,35 @@ describe('PR Analysis Orchestrator — pipeline', () => {
           evidence: 'Matched deterministic rule `code.injection.eval` on `eval(`.',
           remediation: 'Replace eval/exec with safe alternatives.',
           fingerprint: 'fp-1',
+        }, {
+          rule_id: 'code.injection.eval',
+          internal_type: 'code_injection',
+          title: 'Another eval issue',
+          description: 'Dynamic code execution can run attacker-controlled payloads.',
+          category: 'code injection',
+          severity: 'critical',
+          confidence: 0.92,
+          exploitability: 'high',
+          file_path: 'test_vuln.js',
+          line_start: 1,
+          line_end: 1,
+          code_snippet: 'const apiKey = "secret123456789";',
+          evidence: 'Matched deterministic rule on line 1.',
+          remediation: 'Remove hardcoded secrets.',
+          fingerprint: 'fp-2',
         }],
       },
     });
     pool.query.mockResolvedValueOnce({ rows: [{ count: 1 }] });
     pool.query.mockResolvedValueOnce({ rows: [] });
     pool.query.mockResolvedValueOnce({ rows: [PERSISTED_FINDING] });
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    pool.query.mockResolvedValueOnce({ rows: [{ ...PERSISTED_FINDING, id: 'finding-2', fingerprint: 'fp-2', line_start: 1, title: 'Another eval issue', evidence: 'Matched deterministic rule on line 1.' }] });
     pool.query.mockResolvedValueOnce({ rowCount: 0 });
     pool.query.mockResolvedValueOnce({ rows: [] });
-    axios.post.mockRejectedValueOnce(new Error('Validation failed'));
     axios.post.mockResolvedValueOnce({ data: { review_id: 99 } });
+    axios.post.mockRejectedValueOnce(new Error('Validation failed'));
+    axios.post.mockResolvedValueOnce({ data: { comment_id: 12, success: true } });
     axios.post.mockResolvedValueOnce({ data: { check_run_id: 2 } });
     pool.query.mockResolvedValueOnce({ rowCount: 1 });
 
@@ -308,13 +334,23 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     });
     await flushAsync();
 
-    const reviewCalls = axios.post.mock.calls.filter(
+    const reviewCall = axios.post.mock.calls.find(
       (call) => typeof call[0] === 'string' && call[0].includes('reviews/submit')
     );
-    expect(reviewCalls).toHaveLength(2);
-    expect(reviewCalls[0][1].comments).toHaveLength(1);
-    expect(reviewCalls[1][1].comments).toHaveLength(0);
-    expect(reviewCalls[1][1].body).toContain('Inline annotations were skipped');
+    expect(reviewCall).toBeTruthy();
+    expect(reviewCall[1].comments).toHaveLength(0);
+    const inlineCalls = axios.post.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].includes('comments/inline')
+    );
+    expect(inlineCalls).toHaveLength(2);
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to post inline PR comment',
+      expect.objectContaining({ path: 'test_vuln.js' })
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Some inline PR comments were skipped after GitHub rejection',
+      expect.objectContaining({ attempted: 2, posted: 1 })
+    );
   });
 
   test('only submits inline comments for lines that are actually added in the patch', async () => {
@@ -372,6 +408,7 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     pool.query.mockResolvedValueOnce({ rowCount: 0 });
     pool.query.mockResolvedValueOnce({ rows: [] });
     axios.post.mockResolvedValueOnce({ data: { review_id: 1 } });
+    axios.post.mockResolvedValueOnce({ data: { comment_id: 11, success: true } });
     axios.post.mockResolvedValueOnce({ data: { check_run_id: 2 } });
     pool.query.mockResolvedValueOnce({ rowCount: 1 });
 
@@ -385,7 +422,11 @@ describe('PR Analysis Orchestrator — pipeline', () => {
       (call) => typeof call[0] === 'string' && call[0].includes('reviews/submit')
     );
     expect(reviewCall).toBeTruthy();
-    expect(reviewCall[1].comments).toHaveLength(1);
-    expect(reviewCall[1].comments[0].line).toBe(12);
+    expect(reviewCall[1].comments).toHaveLength(0);
+    const inlineCalls = axios.post.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].includes('comments/inline')
+    );
+    expect(inlineCalls).toHaveLength(1);
+    expect(inlineCalls[0][1].line).toBe(12);
   });
 });
