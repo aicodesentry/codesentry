@@ -16,6 +16,7 @@ from finding_quality import (
 )
 from security_rules import DEPENDENCY_RISK_PATTERNS, SECURITY_RULES, likely_llm_repo
 from opengrep_runner import run_opengrep
+from llm_triage import triage_findings
 from taxonomy import build_taxonomy_metadata
 
 
@@ -230,6 +231,13 @@ async def analyze_pr(payload: AnalyzePRRequest, request: Request):
         findings.extend(opengrep_findings)
     except Exception as e:
         print(f"OpenGrep analysis failed (non-blocking): {e}")
+
+    # Tier 3: LLM triage (non-blocking)
+    try:
+        file_patches = {f.path: f.patch for f in payload.files}
+        findings = triage_findings(findings, file_patches)
+    except Exception as e:
+        print(f"LLM triage failed (non-blocking): {e}")
 
     normalized = cluster_findings(findings)
     for finding in normalized:
