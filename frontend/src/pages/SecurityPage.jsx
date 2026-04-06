@@ -17,7 +17,7 @@ const sections = [
     points: [
       'Findings persist only the evidence needed for review and auditability.',
       'Deterministic analysis stays at the core of the review pipeline.',
-      'AI explanations and remediation remain optional product layers.',
+      'AI explanations and remediation are additive product layers, with developers retaining approval over changes.',
       'Taxonomy metadata helps map findings into reporting workflows.',
     ],
   },
@@ -28,7 +28,7 @@ export default function SecurityPage() {
     <TrustPage
       eyebrow="Security"
       title="How Mitig8it handles code, reviews, and model boundaries"
-      intro="A security product should explain its own posture clearly. This page covers the current deployment model and the boundaries around review data."
+      intro="A security collaborator should explain its own posture clearly. This page covers the current deployment model and the boundaries around review data and AI-assisted remediation."
       sections={sections}
       ctaTitle="Open the product"
       ctaText="The dashboard and reports reflect the current review pipeline."

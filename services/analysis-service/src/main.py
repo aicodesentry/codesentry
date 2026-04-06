@@ -9,7 +9,11 @@ from pydantic import BaseModel, Field
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from starlette.responses import Response
 
-from finding_quality import cluster_findings, extract_match_context
+from finding_quality import (
+    cluster_findings,
+    extract_match_context,
+    pattern_matches_reviewable_content,
+)
 from security_rules import DEPENDENCY_RISK_PATTERNS, SECURITY_RULES, likely_llm_repo
 from semgrep_runner import run_semgrep
 from taxonomy import build_taxonomy_metadata
@@ -77,6 +81,10 @@ def generate_finding(rule, file_path: str, patch: str) -> Dict[str, Any]:
         category=rule.category,
         cwe_id=rule.cwe_id,
         owasp_category=rule.owasp_category,
+        title=rule.title,
+        description=rule.description,
+        file_path=file_path,
+        code_snippet=context["matched_text"] or context["code_snippet"],
     )
 
     return {
@@ -119,7 +127,7 @@ def dependency_findings(path: str, patch: str) -> List[Dict[str, Any]]:
         return findings
 
     for pattern, message, severity in DEPENDENCY_RISK_PATTERNS:
-        if pattern.search(patch):
+        if pattern_matches_reviewable_content(patch, pattern):
             context = extract_match_context(patch, pattern)
             taxonomy = build_taxonomy_metadata(
                 rule_id="dependency.risk.version",
@@ -127,6 +135,10 @@ def dependency_findings(path: str, patch: str) -> List[Dict[str, Any]]:
                 cwe_id="CWE-1104",
                 owasp_category="A06:2021",
                 internal_type="dependency_version_risk",
+                title="Potential vulnerable dependency version",
+                description=message,
+                file_path=path,
+                code_snippet=context["matched_text"] or context["code_snippet"],
             )
             findings.append(
                 {
@@ -206,7 +218,7 @@ async def analyze_pr(payload: AnalyzePRRequest, request: Request):
         for rule in SECURITY_RULES:
             if rule.category == "unsafe LLM/prompt injection patterns" and not repo_has_llm_flow:
                 continue
-            if rule.pattern.search(patch):
+            if pattern_matches_reviewable_content(patch, rule.pattern):
                 findings.append(generate_finding(rule, path, patch))
 
         findings.extend(dependency_findings(path, patch))

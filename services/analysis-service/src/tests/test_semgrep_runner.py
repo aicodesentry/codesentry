@@ -49,6 +49,16 @@ class TestExtractFileContent:
     def test_empty_patch(self):
         assert _extract_file_content("") == ""
 
+    def test_skips_transcript_artifact_lines(self):
+        patch = "\n".join(
+            [
+                "@@ -1,2 +1,3 @@",
+                '+    218 +        patch = "+API_KEY = \'sk_live_1234567890abcdef\'"',
+                '+api_key = "sk_live_4eC39HqLyjWDarjtT1zdp7dc"',
+            ]
+        )
+        assert _extract_file_content(patch) == 'api_key = "sk_live_4eC39HqLyjWDarjtT1zdp7dc"'
+
 
 class TestMakeFingerprint:
     def test_deterministic(self):

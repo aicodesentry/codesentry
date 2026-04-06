@@ -30,17 +30,17 @@ const pillars = [
   {
     icon: GitPullRequest,
     title: 'GitHub-native',
-    desc: 'Findings land as inline comments and summary checks inside the PR.',
+    desc: 'Reviews show up as inline comments, summary checks, and workflow context inside GitHub.',
   },
   {
     icon: ShieldAlert,
-    title: 'Security-only',
-    desc: 'Focused on security bugs with severity and taxonomy context.',
+    title: 'Security collaborator',
+    desc: 'Focused on exploitable vulnerabilities with severity, taxonomy, and remediation context.',
   },
   {
     icon: Filter,
     title: 'Low-noise output',
-    desc: 'Cross-validation, deduping, and confidence scoring keep review usable.',
+    desc: 'Cross-validation, deduping, and confidence scoring keep the reviewer dependable.',
   },
 ]
 
@@ -51,11 +51,11 @@ const workflow = [
   },
   {
     title: 'Open a pull request',
-    desc: 'Mitig8it reads the changed files, applies static + semantic detection, and clusters duplicate findings.',
+    desc: 'Mitig8it reviews changed files, applies multi-engine security analysis, and clusters duplicate findings.',
   },
   {
-    title: 'Review actionable output',
-    desc: 'Developers get GitHub-native comments, a run summary, and a report trail inside the dashboard.',
+    title: 'Fix with the developer in control',
+    desc: 'Developers get GitHub-native comments, a run summary, and remediation guidance while staying in control of every fix.',
   },
 ]
 
@@ -96,17 +96,17 @@ const HomePage = () => {
           <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_0.95fr] lg:items-center lg:px-8 lg:py-20">
             <div className="max-w-xl">
               <p className="text-xs font-medium uppercase tracking-[0.25em] text-neutral-500">
-                Security review for pull requests
+                GitHub-native AI security collaborator
               </p>
               <h1 className="mt-4 text-4xl font-bold leading-[1.15] tracking-tight sm:text-5xl">
-                Catch vulnerabilities
-                <span className="block text-neutral-400">before they merge.</span>
+                Review code like a security
+                <span className="block text-neutral-400">collaborator before merge.</span>
               </h1>
               <p className="mt-5 text-[15px] leading-7 text-neutral-400">
-                Mitig8it posts inline security findings on every pull request. No CI config, no extra console — just GitHub-native review where developers already work.
+                Mitig8it detects exploitable vulnerabilities in pull requests today and is evolving toward full-repository analysis with AI-assisted remediation, all inside GitHub where developers already work.
               </p>
               <div className="mt-4 inline-flex rounded-md border border-neutral-700 bg-neutral-900 px-3.5 py-2 text-[13px] text-neutral-300">
-                In beta — 16 users, live GitHub App, PR findings, dashboard.
+                In beta — live GitHub App, PR findings, dashboard, full-repo analysis on the roadmap.
               </div>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 {user ? (
@@ -137,11 +137,11 @@ const HomePage = () => {
               <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-neutral-500">
                 <span className="inline-flex items-center gap-1.5">
                   <CheckCircle2 className="h-3.5 w-3.5 text-neutral-400" />
-                  GitHub-native comments
+                  GitHub-native review
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <Shield className="h-3.5 w-3.5 text-neutral-400" />
-                  CWE-mapped findings
+                  Developer-controlled fixes
                 </span>
               </div>
             </div>
@@ -203,7 +203,7 @@ const HomePage = () => {
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
             <div className="mb-8 max-w-2xl">
               <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-neutral-500">Why teams care</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight">Security review where developers already work</h2>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight">Security review that behaves like a trusted collaborator</h2>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
               {pillars.map((pillar) => (
@@ -226,7 +226,7 @@ const HomePage = () => {
               <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-neutral-500">Signal over noise</p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight">How we reduce false positives</h2>
               <p className="mt-3 text-sm leading-relaxed text-neutral-400">
-                Most scanners spam pull requests. Mitig8it surfaces fewer, stronger findings by cross-validating across detection engines.
+                Most scanners create noise. Mitig8it surfaces fewer, stronger findings by cross-validating across detection engines and collapsing overlapping detections.
               </p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
