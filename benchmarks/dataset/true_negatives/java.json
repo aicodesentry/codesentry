@@ -1,0 +1,38 @@
+[
+  {
+    "id": "tn-java-001",
+    "rule_source": "cwe-89 (SQL injection)",
+    "language": "java",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "PreparedStatement with parameter binding — safe from SQL injection",
+    "why_safe": "PreparedStatement handles escaping, user input never touches query string",
+    "code": "public User getUser(HttpServletRequest request) throws SQLException {\n    String userId = request.getParameter(\"id\");\n    PreparedStatement stmt = connection.prepareStatement(\n        \"SELECT * FROM users WHERE id = ?\"\n    );\n    stmt.setString(1, userId);\n    ResultSet rs = stmt.executeQuery();\n    return mapUser(rs);\n}"
+  },
+  {
+    "id": "tn-java-002",
+    "rule_source": "cwe-611 (XXE)",
+    "language": "java",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "XML parser with external entities disabled — XXE prevented",
+    "why_safe": "disallow-doctype-decl feature blocks all DTD processing",
+    "code": "import javax.xml.parsers.*;\nimport org.w3c.dom.Document;\n\npublic Document parseXml(InputStream input) throws Exception {\n    DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();\n    factory.setFeature(\"http://apache.org/xml/features/disallow-doctype-decl\", true);\n    factory.setFeature(\"http://xml.org/sax/features/external-general-entities\", false);\n    DocumentBuilder builder = factory.newDocumentBuilder();\n    return builder.parse(input);\n}"
+  },
+  {
+    "id": "tn-java-003",
+    "rule_source": "cwe-327 (weak crypto)",
+    "language": "java",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "AES-GCM encryption — strong algorithm and mode",
+    "why_safe": "AES/GCM provides both confidentiality and integrity",
+    "code": "import javax.crypto.Cipher;\nimport javax.crypto.spec.GCMParameterSpec;\n\npublic byte[] encrypt(byte[] data, SecretKey key, byte[] iv) throws Exception {\n    Cipher cipher = Cipher.getInstance(\"AES/GCM/NoPadding\");\n    GCMParameterSpec spec = new GCMParameterSpec(128, iv);\n    cipher.init(Cipher.ENCRYPT_MODE, key, spec);\n    return cipher.doFinal(data);\n}"
+  }
+]

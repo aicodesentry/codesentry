@@ -17,7 +17,7 @@ class TestTaxonomyMappings:
 
     def test_preserves_explicit_attack_and_capec(self):
         taxonomy = build_taxonomy_metadata(
-            rule_id="semgrep.custom.rule",
+            rule_id="opengrep.custom.rule",
             category="security",
             cwe_id=["CWE-502"],
             owasp_category=["A08:2021"],
@@ -59,7 +59,7 @@ class TestTaxonomyMappings:
 
     def test_ssl_context_protocol_maps_to_weak_tls_protocol(self):
         taxonomy = build_taxonomy_metadata(
-            rule_id="semgrep.cwe-295.tls-trust-all",
+            rule_id="opengrep.cwe-295.tls-trust-all",
             category="security",
             cwe_id="CWE-295",
             file_path="TestVuln.java",

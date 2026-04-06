@@ -23,11 +23,11 @@ const SupportPage = () => {
     },
     {
       question: 'How does the analysis work?',
-      answer: 'Multi-engine static analysis (regex + Semgrep AST) scans changed files, cross-validates findings, and maps each to a CWE ID with remediation context.'
+      answer: 'A 3-tier pipeline scans changed files: Tier 1 regex for fast pattern matching, Tier 2 OpenGrep for AST-level taint tracking, and Tier 3 LLM triage to filter false positives. Findings are cross-validated, mapped to CWE/OWASP/ATT&CK taxonomies, and posted as inline PR annotations with remediation guidance.'
     },
     {
       question: 'Can I customize the analysis rules?',
-      answer: 'Custom rule support is on the roadmap. Currently the engine runs 35+ CWE-focused patterns plus Semgrep rules for Python and JavaScript.'
+      answer: 'Custom rule support is on the roadmap. Currently the engine runs 35+ CWE-focused regex patterns plus OpenGrep AST rules across Python, JavaScript, TypeScript, Java, Go, Ruby, PHP, and C#.'
     },
   ]
 

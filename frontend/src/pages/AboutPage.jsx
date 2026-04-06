@@ -62,8 +62,8 @@ const AboutPage = () => {
                   desc: 'Mitig8it reviews, explains, and guides fixes without taking developers out of control.',
                 },
                 {
-                  title: 'Multi-engine analysis',
-                  desc: 'Regex pattern matching and Semgrep AST analysis cross-validate to reduce false positives.',
+                  title: '3-tier detection pipeline',
+                  desc: 'Regex pattern matching, OpenGrep AST analysis with taint tracking, and LLM-powered triage work together to maximize accuracy and minimize false positives.',
                 },
               ].map((item) => (
                 <div key={item.title} className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">

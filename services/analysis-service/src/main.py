@@ -15,7 +15,7 @@ from finding_quality import (
     pattern_matches_reviewable_content,
 )
 from security_rules import DEPENDENCY_RISK_PATTERNS, SECURITY_RULES, likely_llm_repo
-from semgrep_runner import run_semgrep
+from opengrep_runner import run_opengrep
 from taxonomy import build_taxonomy_metadata
 
 
@@ -223,13 +223,13 @@ async def analyze_pr(payload: AnalyzePRRequest, request: Request):
 
         findings.extend(dependency_findings(path, patch))
 
-    # Tier 2: Semgrep AST analysis
+    # Tier 2: OpenGrep AST analysis
     try:
-        semgrep_files = [{"path": f.path, "patch": f.patch} for f in payload.files]
-        semgrep_findings = run_semgrep(semgrep_files)
-        findings.extend(semgrep_findings)
+        opengrep_files = [{"path": f.path, "patch": f.patch} for f in payload.files]
+        opengrep_findings = run_opengrep(opengrep_files)
+        findings.extend(opengrep_findings)
     except Exception as e:
-        print(f"Semgrep analysis failed (non-blocking): {e}")
+        print(f"OpenGrep analysis failed (non-blocking): {e}")
 
     normalized = cluster_findings(findings)
     for finding in normalized:

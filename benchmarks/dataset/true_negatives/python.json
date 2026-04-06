@@ -1,0 +1,74 @@
+[
+  {
+    "id": "tn-py-001",
+    "rule_source": "cwe-89 (SQL injection)",
+    "language": "python",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "Parameterized SQL query — looks like injection but is safe",
+    "why_safe": "Uses %s placeholder with parameter tuple, not string interpolation",
+    "code": "import psycopg2\n\ndef get_user(conn, user_id):\n    query = \"SELECT * FROM users WHERE id = %s\"\n    cursor = conn.cursor()\n    cursor.execute(query, (user_id,))\n    return cursor.fetchone()"
+  },
+  {
+    "id": "tn-py-002",
+    "rule_source": "cwe-78 (command injection)",
+    "language": "python",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "Subprocess with argument list and no shell — safe execution",
+    "why_safe": "shell=False (default) with list args prevents shell injection",
+    "code": "import subprocess\n\ndef run_lint(filepath):\n    result = subprocess.run(\n        ['flake8', '--max-line-length', '120', filepath],\n        capture_output=True, text=True\n    )\n    return result.stdout"
+  },
+  {
+    "id": "tn-py-003",
+    "rule_source": "cwe-502 (deserialization)",
+    "language": "python",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "yaml.safe_load used instead of yaml.load — safe deserialization",
+    "why_safe": "safe_load restricts to simple Python types, no code execution",
+    "code": "import yaml\n\ndef load_config(path):\n    with open(path) as f:\n        config = yaml.safe_load(f)\n    return config"
+  },
+  {
+    "id": "tn-py-004",
+    "rule_source": "cwe-798 (hardcoded secrets)",
+    "language": "python",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "API key loaded from environment variable — not hardcoded",
+    "why_safe": "Secret comes from env var, not a literal string in source",
+    "code": "import os\nimport requests\n\ndef call_service(data):\n    api_key = os.environ['API_KEY']\n    headers = {'Authorization': f'Bearer {api_key}'}\n    return requests.post('https://api.example.com/v1/run', json=data, headers=headers)"
+  },
+  {
+    "id": "tn-py-005",
+    "rule_source": "cwe-22 (path traversal)",
+    "language": "python",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "File path validated against base directory — traversal prevented",
+    "why_safe": "realpath resolves symlinks/traversals, startswith checks containment",
+    "code": "import os\nfrom flask import request, abort\n\nBASE_DIR = '/var/uploads'\n\ndef download_file():\n    filename = request.args.get('name')\n    safe_path = os.path.realpath(os.path.join(BASE_DIR, filename))\n    if not safe_path.startswith(BASE_DIR):\n        abort(403)\n    with open(safe_path, 'rb') as f:\n        return f.read()"
+  },
+  {
+    "id": "tn-py-006",
+    "rule_source": "cwe-918 (SSRF)",
+    "language": "python",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "URL validated against allowlist before fetching — SSRF prevented",
+    "why_safe": "Strict domain allowlist check before making the request",
+    "code": "import requests\nfrom urllib.parse import urlparse\nfrom flask import request, abort\n\nALLOWED_HOSTS = {'api.example.com', 'cdn.example.com'}\n\ndef fetch_url():\n    url = request.args.get('url')\n    parsed = urlparse(url)\n    if parsed.hostname not in ALLOWED_HOSTS:\n        abort(403)\n    return requests.get(url).text"
+  }
+]

@@ -234,9 +234,9 @@ const HomePage = () => {
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-800">
                   <Layers className="h-5 w-5 text-neutral-300" />
                 </div>
-                <h3 className="mt-4 text-sm font-semibold text-white">Multi-engine cross-validation</h3>
+                <h3 className="mt-4 text-sm font-semibold text-white">3-tier detection pipeline</h3>
                 <p className="mt-2 text-sm leading-relaxed text-neutral-400">
-                  Regex pattern matching and Semgrep AST analysis run together. When both flag the same location, confidence goes up. Single-engine hits are downranked.
+                  Tier 1: fast regex pattern matching (&lt;100ms). Tier 2: OpenGrep AST analysis with taint tracking. Tier 3: LLM-powered triage to filter false positives. When multiple tiers flag the same location, confidence goes up.
                 </p>
               </div>
               <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6 transition hover:border-neutral-700">

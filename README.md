@@ -1,6 +1,6 @@
 # Mitig8it
 
-A platform to plug into GitHub, analyze every pull request, and deliver actionable security reviews with multi-source context (regex, Semgrep, dependency checks plus LLM-ready BYOK hints).
+A platform to plug into GitHub, analyze every pull request, and deliver actionable security reviews with a 3-tier detection pipeline (regex, OpenGrep AST analysis, LLM-powered triage) plus dependency checks.
 
 ## How It Works
 
@@ -14,19 +14,22 @@ No CI config. No manual scans. Just install, invite the Mitig8it App, and merge 
 ## Highlights
 
 - **Multi-taxonomy findings** – every issue carries internal typing plus CWE, OWASP, ATT&CK, and CAPEC mappings so compliance reports stay consistent.
-- **Clusters, not noise** – Tier 1 regex hits, dependency detectors, and Semgrep runs now dedupe/cluster into single reviewer-facing findings with stronger evidence snippets.
-- **Federated BYOK roadmap** – we keep user LLM keys encrypted and scoped so you can opt into explanations/remediations without exposing secrets.
+- **Clusters, not noise** – Tier 1 regex hits, dependency detectors, and OpenGrep runs dedupe/cluster into single reviewer-facing findings with stronger evidence snippets.
+- **LLM-powered triage** – Tier 3 LLM analysis filters false positives and enriches findings with context, keeping signal-to-noise ratio high.
 - **Guided onboarding** – empty states and first-run checklist explain how to connect GitHub, trigger the first analysis, and view the review summary.
 
 ## Detection Engine
 
-Two-tier analysis pipeline:
+Three-tier analysis pipeline:
 
-**Tier 1 — Static Pattern Matching** (< 100ms, 35 rules)
-Regex-based detection covering CWE Top 25 and OWASP Top 10.
+**Tier 1 — Regex Pattern Matching** (< 100ms, 35 rules)
+Fast deterministic detection covering CWE Top 25 and OWASP Top 10.
 
-**Tier 2 — AST Analysis via Semgrep** (2-5s, 25 rules)
-Language-aware analysis with taint tracking and data flow for Python and JavaScript.
+**Tier 2 — OpenGrep AST Analysis** (2-5s, 25 rules)
+Language-aware analysis with taint tracking and data flow across Python, JavaScript, TypeScript, Java, Go, Ruby, PHP, and C#.
+
+**Tier 3 — LLM Triage** (10-30s)
+AI-powered review of Tier 1+2 findings to filter false positives, validate exploitability, and adjust severity based on code context.
 
 ### Coverage (35 CWEs)
 
@@ -53,7 +56,7 @@ GitHub PR webhook
     v
 API Service (Node.js) ── orchestrates analysis, persists findings
     |
-    +── Analysis Service (Python/FastAPI) ── Tier 1 regex + Tier 2 Semgrep
+    +── Analysis Service (Python/FastAPI) ── Tier 1 regex + Tier 2 OpenGrep + Tier 3 LLM triage
     |
     +── GitHub Service (Node.js) ── posts PR reviews, check runs
     |
@@ -65,7 +68,7 @@ PostgreSQL ── findings, analysis runs, repositories, users
 - **Frontend** — React + Vite dashboard. OAuth login, repo management, analysis reports.
 - **API Service** — Webhook ingestion, analysis orchestration, REST APIs.
 - **GitHub Service** — GitHub App auth, PR file fetching, review posting.
-- **Analysis Service** — Security rule engine (regex + Semgrep).
+- **Analysis Service** — Security rule engine (regex + OpenGrep + LLM triage).
 
 **Infrastructure:**
 - PostgreSQL (sole data store)

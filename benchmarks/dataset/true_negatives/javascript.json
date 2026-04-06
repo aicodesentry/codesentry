@@ -1,0 +1,74 @@
+[
+  {
+    "id": "tn-js-001",
+    "rule_source": "cwe-89 (SQL injection)",
+    "language": "javascript",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "Parameterized query with placeholder — safe from SQL injection",
+    "why_safe": "Uses $1 placeholder with parameter array, database driver handles escaping",
+    "code": "const express = require('express');\nconst db = require('./db');\n\napp.get('/users', async (req, res) => {\n  const name = req.query.name;\n  const users = await db.query('SELECT * FROM users WHERE name = $1', [name]);\n  res.json(users.rows);\n});"
+  },
+  {
+    "id": "tn-js-002",
+    "rule_source": "cwe-79 (XSS)",
+    "language": "javascript",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "React JSX expression — auto-escaped by framework",
+    "why_safe": "React auto-escapes JSX expressions, no dangerouslySetInnerHTML",
+    "code": "function SearchResults({ query, results }) {\n  return (\n    <div>\n      <h1>Results for: {query}</h1>\n      <ul>\n        {results.map(r => <li key={r.id}>{r.title}</li>)}\n      </ul>\n    </div>\n  );\n}"
+  },
+  {
+    "id": "tn-js-003",
+    "rule_source": "cwe-78 (command injection)",
+    "language": "javascript",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "execFile with argument array — safe from shell injection",
+    "why_safe": "execFile does not spawn a shell, arguments are passed directly",
+    "code": "const { execFile } = require('child_process');\n\nfunction pingHost(host) {\n  return new Promise((resolve, reject) => {\n    execFile('ping', ['-c', '3', host], (err, stdout) => {\n      if (err) reject(err);\n      else resolve(stdout);\n    });\n  });\n}"
+  },
+  {
+    "id": "tn-js-004",
+    "rule_source": "cwe-943 (NoSQL injection)",
+    "language": "javascript",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "MongoDB query with explicit field extraction — no operator injection",
+    "why_safe": "Only string values extracted from req.body, not the raw object",
+    "code": "app.post('/login', async (req, res) => {\n  const { username, password } = req.body;\n  const user = await db.collection('users').findOne({\n    username: String(username),\n    password_hash: await bcrypt.hash(String(password), 10)\n  });\n  res.json({ success: !!user });\n});"
+  },
+  {
+    "id": "tn-js-005",
+    "rule_source": "cwe-601 (open redirect)",
+    "language": "javascript",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "Redirect validated against allowlist — no open redirect",
+    "why_safe": "URL checked against trusted domains before redirect",
+    "code": "const ALLOWED_REDIRECTS = ['/dashboard', '/profile', '/settings'];\n\napp.get('/redirect', (req, res) => {\n  const next = req.query.next;\n  if (ALLOWED_REDIRECTS.includes(next)) {\n    res.redirect(next);\n  } else {\n    res.redirect('/dashboard');\n  }\n});"
+  },
+  {
+    "id": "tn-js-006",
+    "rule_source": "cwe-798 (hardcoded secrets)",
+    "language": "javascript",
+    "cwe": null,
+    "owasp": null,
+    "severity": null,
+    "expected_verdict": "safe",
+    "description": "Secret loaded from environment — not hardcoded",
+    "why_safe": "process.env used for secret, no literal in source",
+    "code": "const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);\n\nasync function createCharge(amount, token) {\n  return stripe.charges.create({\n    amount,\n    currency: 'usd',\n    source: token,\n  });\n}"
+  }
+]
