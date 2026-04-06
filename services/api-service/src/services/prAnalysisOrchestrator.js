@@ -251,6 +251,72 @@ async function applySuppressions(findingRows, repositoryId) {
   return result;
 }
 
+async function callAnalysisTier(tierPath, payload, timeout) {
+  const baseUrl = process.env.ANALYSIS_SERVICE_URL || 'http://analysis-service:8001';
+  const response = await axios.post(`${baseUrl}${tierPath}`, payload, {
+    timeout,
+    headers: analysisServiceHeaders(),
+  });
+  return response.data;
+}
+
+async function persistAndFilter({ findings, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha, baselineSet }) {
+  const completedCount = await analysisRunsDb.countCompletedRuns(repositoryId, runId);
+  const shouldMarkBaselineSet = !baselineSet && completedCount === 0;
+
+  const persisted = [];
+  for (const finding of findings) {
+    const saved = await upsertFinding({
+      finding, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha,
+      isBaseline: false,
+    });
+    persisted.push(saved);
+  }
+
+  const activeFingerprints = persisted.map((f) => f.fingerprint);
+  await findingsDb.markFixed({ repositoryId, pullRequestId, activeFingerprints });
+
+  const postSuppression = await applySuppressions(persisted, repositoryId);
+  const actionable = postSuppression.filter((f) => f.status === 'open' && !f.is_baseline);
+
+  return { actionable, shouldMarkBaselineSet };
+}
+
+async function postReviewToGitHub({ actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel }) {
+  const counts = summarizeFindings(actionable).counts;
+  const highOrCritical = (counts.critical || 0) + (counts.high || 0);
+
+  let reviewResp = {};
+  try {
+    const reviewBody = buildReviewBody(actionable, runId);
+    const reviewableLinesByFile = new Map(files.map((f) => [f.path, extractReviewableLines(f.patch)]));
+    const reviewComments = actionable
+      .filter((f) => Number(f.confidence) >= 0.7 && reviewableLinesByFile.has(f.file_path))
+      .filter((f) => reviewableLinesByFile.get(f.file_path)?.has(f.line_start || 1))
+      .map((f) => ({ path: f.file_path, line: f.line_start || 1, body: buildReviewComment(f) }));
+
+    reviewResp = await submitReviewWithFallback({
+      owner, repo, prNumber, installationId, commitSha,
+      reviewBody,
+      event: highOrCritical > 0 ? 'REQUEST_CHANGES' : 'COMMENT',
+    });
+
+    const inlineResult = await postInlineCommentsIndividually({
+      owner, repo, prNumber, installationId, commitSha, reviewComments, runId,
+    });
+
+    if (inlineResult.attempted > inlineResult.posted) {
+      logger.warn(`${tierLabel}: some inline comments skipped`, {
+        runId, prNumber, attempted: inlineResult.attempted, posted: inlineResult.posted,
+      });
+    }
+  } catch (reviewErr) {
+    logger.error(`${tierLabel}: failed to submit PR review`, { runId, error: reviewErr.message });
+  }
+
+  return { reviewResp, counts, highOrCritical };
+}
+
 async function runAnalysisJob(payload) {
   const {
     analysis_run_id: runId,
@@ -263,102 +329,121 @@ async function runAnalysisJob(payload) {
     baseline_set: baselineSet,
   } = payload;
   const [owner, repo] = repositoryFullName.split('/');
+  const analysisPayload = { repository_full_name: repositoryFullName, pull_request_number: prNumber, commit_sha: commitSha };
+
+  let allFindings = [];
+  let files = [];
+  let lastCounts = {};
+  let lastHighOrCritical = 0;
+  let reviewResp = {};
+  let checkRunResp = {};
+  let shouldMarkBaselineSet = false;
 
   try {
+    // ── Fetch PR files ────────────────────────────────────────────────
     const filesResp = await githubServiceRequest('/internal/github/pulls/files', {
       repository_full_name: repositoryFullName,
       pull_request_number: prNumber,
       installation_id: installationId,
     });
-    const files = filesResp.files || [];
+    files = filesResp.files || [];
 
-    const analysisResp = await axios.post(
-      `${process.env.ANALYSIS_SERVICE_URL || 'http://analysis-service:8001'}/analyze/pr`,
-      { repository_full_name: repositoryFullName, pull_request_number: prNumber, commit_sha: commitSha, files },
-      {
-        timeout: 90000,
-        headers: analysisServiceHeaders(),
-      }
-    );
-
-    const findings = analysisResp.data.findings || [];
-    const completedCount = await analysisRunsDb.countCompletedRuns(repositoryId, runId);
-    const shouldMarkBaselineSet = !baselineSet && completedCount === 0;
-
-    const persisted = [];
-    for (const finding of findings) {
-      const saved = await upsertFinding({
-        finding, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha,
-        isBaseline: false,
-      });
-      persisted.push(saved);
-    }
-
-    const activeFingerprints = persisted.map((f) => f.fingerprint);
-    await findingsDb.markFixed({ repositoryId, pullRequestId, activeFingerprints });
-
-    const postSuppression = await applySuppressions(persisted, repositoryId);
-    const actionable = postSuppression.filter((f) => f.status === 'open' && !f.is_baseline);
-
-    const counts = summarizeFindings(actionable).counts;
-    const highOrCritical = (counts.critical || 0) + (counts.high || 0);
-    let reviewResp = {};
-    let checkRunResp = {};
-
+    // ── Tier 1: Regex (<100ms) — post initial review immediately ─────
     try {
-      const reviewBody = buildReviewBody(actionable, runId);
-      const reviewableLinesByFile = new Map(files.map((f) => [f.path, extractReviewableLines(f.patch)]));
-      const reviewComments = actionable
-        .filter((f) => Number(f.confidence) >= 0.7 && reviewableLinesByFile.has(f.file_path))
-        .filter((f) => reviewableLinesByFile.get(f.file_path)?.has(f.line_start || 1))
-        .map((f) => ({ path: f.file_path, line: f.line_start || 1, body: buildReviewComment(f) }));
+      const tier1 = await callAnalysisTier('/analyze/pr/tier1', { ...analysisPayload, files }, 30000);
+      allFindings = tier1.findings || [];
 
-      reviewResp = await submitReviewWithFallback({
-        owner,
-        repo,
-        prNumber,
-        installationId,
-        commitSha,
-        reviewBody,
-        event: highOrCritical > 0 ? 'REQUEST_CHANGES' : 'COMMENT',
-      });
-
-      const inlineResult = await postInlineCommentsIndividually({
-        owner,
-        repo,
-        prNumber,
-        installationId,
-        commitSha,
-        reviewComments,
-        runId,
-      });
-
-      if (inlineResult.attempted > inlineResult.posted) {
-        logger.warn('Some inline PR comments were skipped after GitHub rejection', {
-          runId,
-          prNumber,
-          attempted: inlineResult.attempted,
-          posted: inlineResult.posted,
+      if (allFindings.length > 0) {
+        const { actionable, shouldMarkBaselineSet: sbs } = await persistAndFilter({
+          findings: allFindings, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha, baselineSet,
         });
+        shouldMarkBaselineSet = sbs;
+
+        const result = await postReviewToGitHub({
+          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 1',
+        });
+        reviewResp = result.reviewResp;
+        lastCounts = result.counts;
+        lastHighOrCritical = result.highOrCritical;
       }
-    } catch (reviewErr) {
-      logger.error('Failed to submit PR review', { runId, error: reviewErr.message });
+    } catch (tier1Err) {
+      logger.error('Tier 1 analysis failed', { runId, error: tier1Err.message });
     }
 
+    // ── Tier 2: OpenGrep (2-5s) — update review with AST findings ────
     try {
+      const tier2 = await callAnalysisTier('/analyze/pr/tier2', { ...analysisPayload, files }, 60000);
+      const tier2Findings = tier2.findings || [];
+
+      if (tier2Findings.length > 0) {
+        allFindings = allFindings.concat(tier2Findings);
+
+        const { actionable, shouldMarkBaselineSet: sbs } = await persistAndFilter({
+          findings: allFindings, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha, baselineSet,
+        });
+        shouldMarkBaselineSet = shouldMarkBaselineSet || sbs;
+
+        const result = await postReviewToGitHub({
+          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 2',
+        });
+        reviewResp = result.reviewResp;
+        lastCounts = result.counts;
+        lastHighOrCritical = result.highOrCritical;
+      }
+    } catch (tier2Err) {
+      logger.error('Tier 2 analysis failed (non-blocking)', { runId, error: tier2Err.message });
+    }
+
+    // ── Tier 3: LLM triage (10-30s) — update review with refined findings
+    try {
+      const filePatchMap = {};
+      for (const f of files) { filePatchMap[f.path] = f.patch || ''; }
+
+      const tier3 = await callAnalysisTier('/analyze/pr/tier3', {
+        ...analysisPayload,
+        findings: allFindings,
+        file_patches: filePatchMap,
+      }, 120000);
+
+      const triaged = tier3.findings || [];
+      const filteredCount = tier3.filtered_count || 0;
+
+      if (filteredCount > 0 || triaged.length !== allFindings.length) {
+        allFindings = triaged;
+
+        const { actionable, shouldMarkBaselineSet: sbs } = await persistAndFilter({
+          findings: allFindings, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha, baselineSet,
+        });
+        shouldMarkBaselineSet = shouldMarkBaselineSet || sbs;
+
+        const result = await postReviewToGitHub({
+          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 3',
+        });
+        reviewResp = result.reviewResp;
+        lastCounts = result.counts;
+        lastHighOrCritical = result.highOrCritical;
+      }
+    } catch (tier3Err) {
+      logger.error('Tier 3 LLM triage failed (non-blocking)', { runId, error: tier3Err.message });
+    }
+
+    // ── Check run + completion ────────────────────────────────────────
+    try {
+      const finalCounts = Object.keys(lastCounts).length > 0 ? lastCounts : { critical: 0, high: 0, medium: 0, low: 0 };
+      const finalTotal = allFindings.length;
       checkRunResp = await githubServiceRequest('/internal/github/check-runs', {
         owner, repo, installation_id: installationId, head_sha: commitSha,
-        conclusion: highOrCritical > 0 ? 'failure' : 'success',
-        title: highOrCritical > 0 ? `${highOrCritical} critical/high finding${highOrCritical === 1 ? '' : 's'}` : 'No blocking security findings',
-        summary: `Mitig8it found ${actionable.length} finding${actionable.length === 1 ? '' : 's'} (${counts.critical || 0} critical, ${counts.high || 0} high, ${counts.medium || 0} medium, ${counts.low || 0} low).`,
+        conclusion: lastHighOrCritical > 0 ? 'failure' : 'success',
+        title: lastHighOrCritical > 0 ? `${lastHighOrCritical} critical/high finding${lastHighOrCritical === 1 ? '' : 's'}` : 'No blocking security findings',
+        summary: `Mitig8it found ${finalTotal} finding${finalTotal === 1 ? '' : 's'} (${finalCounts.critical || 0} critical, ${finalCounts.high || 0} high, ${finalCounts.medium || 0} medium, ${finalCounts.low || 0} low).`,
       });
     } catch (checkErr) {
       logger.error('Failed to create check run', { runId, error: checkErr.message });
     }
 
     await analysisRunsDb.markCompleted(runId, {
-      findingsCount: actionable.length,
-      counts,
+      findingsCount: allFindings.length,
+      counts: lastCounts,
       filesAnalyzed: files.length,
       checkRunId: checkRunResp.check_run_id,
       reviewId: reviewResp.review_id,

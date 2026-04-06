@@ -35,6 +35,14 @@ class AnalyzePRRequest(BaseModel):
     files: List[ChangedFile] = Field(default_factory=list)
 
 
+class TriageRequest(BaseModel):
+    repository_full_name: str
+    pull_request_number: int
+    commit_sha: str
+    findings: List[Dict[str, Any]] = Field(default_factory=list)
+    file_patches: Dict[str, str] = Field(default_factory=dict)
+
+
 REQUEST_COUNT = Counter("codesentry_analysis_requests_total", "Total analysis requests")
 FINDING_COUNT = Counter(
     "codesentry_analysis_findings_total",
@@ -249,6 +257,96 @@ async def analyze_pr(payload: AnalyzePRRequest, request: Request):
         "commit_sha": payload.commit_sha,
         "files_analyzed": len(payload.files),
         "findings": normalized,
+    }
+
+
+@app.post("/analyze/pr/tier1")
+async def analyze_pr_tier1(payload: AnalyzePRRequest, request: Request):
+    """Tier 1: Regex pattern matching + dependency checks. Fast (<100ms)."""
+    require_internal_auth(request)
+    if len(payload.files) > 300:
+        raise HTTPException(status_code=413, detail="Too many files in PR payload")
+
+    findings: List[Dict[str, Any]] = []
+    repo_has_llm_flow = any(likely_llm_repo(f.path, f.patch) for f in payload.files)
+
+    for changed_file in payload.files:
+        path = changed_file.path
+        patch = changed_file.patch or ""
+        if len(patch) > 200_000:
+            continue
+        for rule in SECURITY_RULES:
+            if rule.category == "unsafe LLM/prompt injection patterns" and not repo_has_llm_flow:
+                continue
+            if pattern_matches_reviewable_content(patch, rule.pattern):
+                findings.append(generate_finding(rule, path, patch))
+        findings.extend(dependency_findings(path, patch))
+
+    normalized = cluster_findings(findings)
+    return {
+        "repository_full_name": payload.repository_full_name,
+        "pull_request_number": payload.pull_request_number,
+        "commit_sha": payload.commit_sha,
+        "files_analyzed": len(payload.files),
+        "tier": 1,
+        "findings": normalized,
+    }
+
+
+@app.post("/analyze/pr/tier2")
+async def analyze_pr_tier2(payload: AnalyzePRRequest, request: Request):
+    """Tier 2: OpenGrep AST analysis with taint tracking (2-5s)."""
+    require_internal_auth(request)
+    if len(payload.files) > 300:
+        raise HTTPException(status_code=413, detail="Too many files in PR payload")
+
+    findings: List[Dict[str, Any]] = []
+    try:
+        opengrep_files = [{"path": f.path, "patch": f.patch} for f in payload.files]
+        findings = run_opengrep(opengrep_files)
+    except Exception as e:
+        print(f"OpenGrep analysis failed (non-blocking): {e}")
+
+    normalized = cluster_findings(findings)
+    return {
+        "repository_full_name": payload.repository_full_name,
+        "pull_request_number": payload.pull_request_number,
+        "commit_sha": payload.commit_sha,
+        "files_analyzed": len(payload.files),
+        "tier": 2,
+        "findings": normalized,
+    }
+
+
+@app.post("/analyze/pr/tier3")
+async def analyze_pr_tier3(payload: TriageRequest, request: Request):
+    """Tier 3: LLM triage of existing findings. Filters false positives."""
+    require_internal_auth(request)
+
+    findings = payload.findings
+    if not findings:
+        return {
+            "repository_full_name": payload.repository_full_name,
+            "pull_request_number": payload.pull_request_number,
+            "commit_sha": payload.commit_sha,
+            "tier": 3,
+            "findings": [],
+            "filtered_count": 0,
+        }
+
+    original_count = len(findings)
+    try:
+        findings = triage_findings(findings, payload.file_patches)
+    except Exception as e:
+        print(f"LLM triage failed (non-blocking): {e}")
+
+    return {
+        "repository_full_name": payload.repository_full_name,
+        "pull_request_number": payload.pull_request_number,
+        "commit_sha": payload.commit_sha,
+        "tier": 3,
+        "findings": findings,
+        "filtered_count": original_count - len(findings),
     }
 
 
