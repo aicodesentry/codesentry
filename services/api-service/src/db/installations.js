@@ -11,10 +11,15 @@ async function listByUser(userId) {
        COUNT(DISTINCT r.id) FILTER (WHERE r.is_active = true) AS repository_count
      FROM installations i
      JOIN user_installations ui ON ui.installation_id = i.id
+     JOIN users u ON u.id = $1
      LEFT JOIN repositories r ON r.installation_id = i.id
      LEFT JOIN repository_access ra ON ra.repository_id = r.id AND ra.user_id = $1
      WHERE ui.user_id = $1
        AND i.status = 'active'
+       AND (
+         COALESCE(i.account_type, '') <> 'User'
+         OR LOWER(COALESCE(i.account_login, '')) = LOWER(COALESCE(u.github_username, ''))
+       )
        AND (r.id IS NULL OR ra.user_id = $1)
      GROUP BY i.id
      ORDER BY i.updated_at DESC`,

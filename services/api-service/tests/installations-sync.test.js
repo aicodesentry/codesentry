@@ -153,4 +153,55 @@ describe('installation sync', () => {
     expect(installationsDb.reconcileUserInstallations).toHaveBeenCalledWith(pool, 'user-1', []);
     expect(installationsDb.deleteUnreferencedInstallations).toHaveBeenCalledWith(pool);
   });
+
+  test('ignores user-owned installations that do not match the authenticated GitHub username', async () => {
+    const app = createApp();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ github_token: 'plain-github-token', github_username: 'nebullii' }],
+      });
+
+    installationsDb.upsertInstallation.mockResolvedValue({});
+    installationsDb.linkUserInstallation.mockResolvedValue({});
+    installationsDb.removeSameAccountStaleLinks.mockResolvedValue({});
+    installationsDb.reconcileUserInstallations.mockResolvedValue({});
+    installationsDb.deleteUnreferencedInstallations.mockResolvedValue({});
+
+    axios.get.mockResolvedValueOnce({
+      data: {
+        installations: [
+          {
+            id: 119013181,
+            account: { login: 'aicodesentry', type: 'User' },
+            target_type: 'User',
+            html_url: 'https://github.com/settings/installations/119013181',
+            permissions: { contents: 'read' },
+            events: ['pull_request'],
+          },
+          {
+            id: 119431307,
+            account: { login: 'virajrch', type: 'User' },
+            target_type: 'User',
+            html_url: 'https://github.com/settings/installations/119431307',
+            permissions: { contents: 'read' },
+            events: ['pull_request'],
+          },
+        ],
+      },
+    });
+
+    const response = await request(app)
+      .post('/api/installations/sync')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.synced_installations).toBe(0);
+    expect(response.body.synced_repositories).toBe(0);
+    expect(installationsDb.upsertInstallation).not.toHaveBeenCalled();
+    expect(installationsDb.linkUserInstallation).not.toHaveBeenCalled();
+    expect(installationsDb.reconcileUserInstallations).toHaveBeenCalledWith(pool, 'user-1', []);
+    expect(installationsDb.deleteUnreferencedInstallations).toHaveBeenCalledWith(pool);
+  });
 });
