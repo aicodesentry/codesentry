@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Union
 
 
@@ -141,9 +142,70 @@ def _first(items: Iterable[str]) -> Optional[str]:
     return None
 
 
-def _derive_internal_type(rule_id: Optional[str], category: Optional[str], explicit: Optional[str]) -> str:
-    if explicit:
+def canonicalize_internal_type(
+    *,
+    rule_id: Optional[str],
+    category: Optional[str],
+    explicit: Optional[str],
+    cwe_id: Optional[object] = None,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    file_path: Optional[str] = None,
+    code_snippet: Optional[str] = None,
+) -> str:
+    text = " ".join(
+        part for part in [
+            rule_id or "",
+            category or "",
+            explicit or "",
+            title or "",
+            description or "",
+            code_snippet or "",
+        ] if part
+    ).lower()
+    ext = Path(file_path or "").suffix.lower()
+    cwe_ids = set(_as_list(cwe_id))
+
+    if any(token in text for token in ('sslcontext.getinstance("ssl")', "tlsv1", "sslv3", "weak tls", "weak ssl")):
+        return "weak_tls_protocol"
+    if ext in {".js", ".ts", ".jsx", ".tsx", ".php"} and "exec(" in text:
+        return "command_injection"
+    if any(token in text for token in ("process.start", "runtime.getruntime().exec", "child_process.exec", "system(", "shell_exec(", "passthru(", "exec.command", "os.system")):
+        return "command_injection"
+    if any(token in text for token in ("eval(", "assert(", "new function", "render_template_string")):
+        return "dynamic_code_execution"
+    if any(token in text for token in ("insecureskipverify", "verify=false", "rejectunauthorized", "servercertificatevalidationcallback", "trust-all", "trust_all")):
+        return "tls_validation_disabled"
+    if explicit and explicit not in {"exec", "eval", "security", "security_issue"}:
         return explicit
+
+    if "CWE-798" in cwe_ids:
+        return "hardcoded_secret"
+    if "CWE-502" in cwe_ids:
+        return "unsafe_deserialization"
+    if "CWE-89" in cwe_ids:
+        return "sql_injection"
+    if "CWE-78" in cwe_ids:
+        return "command_injection"
+    if "CWE-95" in cwe_ids:
+        return "dynamic_code_execution"
+    if "CWE-295" in cwe_ids:
+        if 'sslcontext.getinstance("ssl")' in text:
+            return "weak_tls_protocol"
+        return "tls_validation_disabled"
+    if "CWE-79" in cwe_ids:
+        return "cross_site_scripting"
+    if "CWE-22" in cwe_ids:
+        return "path_traversal"
+    if "CWE-918" in cwe_ids:
+        return "server_side_request_forgery"
+    if "CWE-943" in cwe_ids:
+        return "nosql_injection"
+    if "CWE-90" in cwe_ids:
+        return "ldap_injection"
+    if "CWE-601" in cwe_ids:
+        return "open_redirect"
+
     override = RULE_TAXONOMY_OVERRIDES.get(rule_id or "", {})
     if override.get("internal_type"):
         return str(override["internal_type"])
@@ -161,6 +223,10 @@ def build_taxonomy_metadata(
     cwe_id: Optional[object] = None,
     owasp_category: Optional[object] = None,
     internal_type: Optional[str] = None,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    file_path: Optional[str] = None,
+    code_snippet: Optional[str] = None,
     attack_techniques: Optional[object] = None,
     capec_ids: Optional[object] = None,
 ) -> Dict[str, object]:
@@ -187,7 +253,16 @@ def build_taxonomy_metadata(
     }
 
     return {
-        "internal_type": _derive_internal_type(rule_id, category, internal_type),
+        "internal_type": canonicalize_internal_type(
+            rule_id=rule_id,
+            category=category,
+            explicit=internal_type,
+            cwe_id=mappings["cwe"],
+            title=title,
+            description=description,
+            file_path=file_path,
+            code_snippet=code_snippet,
+        ),
         "primary_cwe_id": _first(mappings["cwe"]),
         "primary_owasp_category": _first(mappings["owasp"]),
         "taxonomy_mappings": mappings,

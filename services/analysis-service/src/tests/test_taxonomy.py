@@ -45,3 +45,25 @@ class TestTaxonomyMappings:
             "attack": [],
             "capec": [],
         }
+
+    def test_exec_in_javascript_maps_to_command_injection(self):
+        taxonomy = build_taxonomy_metadata(
+            rule_id="code.injection.eval",
+            category="code injection",
+            cwe_id="CWE-95",
+            file_path="test_vuln.js",
+            code_snippet="exec(req.query.cmd);",
+        )
+
+        assert taxonomy["internal_type"] == "command_injection"
+
+    def test_ssl_context_protocol_maps_to_weak_tls_protocol(self):
+        taxonomy = build_taxonomy_metadata(
+            rule_id="semgrep.cwe-295.tls-trust-all",
+            category="security",
+            cwe_id="CWE-295",
+            file_path="TestVuln.java",
+            code_snippet='SSLContext ctx = SSLContext.getInstance("SSL");',
+        )
+
+        assert taxonomy["internal_type"] == "weak_tls_protocol"

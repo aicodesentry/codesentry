@@ -24,7 +24,7 @@ const Footer = ({ variant = 'landing' }) => {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <Logo variant="dark" />
-            <p className="mt-2 text-xs text-neutral-500">Security vulnerability reviewer for pull requests.</p>
+            <p className="mt-2 text-xs text-neutral-500">GitHub-native AI security collaborator for safer code review.</p>
           </div>
 
           {/* Product */}

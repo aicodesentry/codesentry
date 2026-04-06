@@ -3,6 +3,29 @@ from typing import Any, Dict, Iterable, List, Optional
 
 
 HUNK_RE = re.compile(r"@@ -(?P<old_start>\d+)(?:,\d+)? \+(?P<new_start>\d+)(?:,\d+)? @@")
+TRANSCRIPT_LINE_RE = re.compile(
+    r"^\s*(?:"
+    r"\d+\s+[+-]\s+|"
+    r"@@\s|"
+    r"diff --git|"
+    r"\+\+\+\s|---\s|"
+    r"[⏺⎿❯✻]|"
+    r"(?:Bash|Update|Write|Read)\(|"
+    r"Summary of the two tiers|"
+    r"PR #\d+ created:|"
+    r"Want me to|"
+    r"Ready for PR"
+    r")"
+)
+TRANSCRIPT_INLINE_MARKERS = (
+    '"patch": "+',
+    '"diff_hunk"',
+    "Semgrep validation failed",
+    "pytest",
+    "gh pr create",
+    "git add ",
+    "git checkout ",
+)
 
 SEVERITY_RANK = {
     "critical": 4,
@@ -19,6 +42,16 @@ def detector_kind(finding: Dict[str, Any]) -> str:
     if rule_id.startswith("dependency."):
         return "dependency"
     return "deterministic"
+
+
+def is_transcript_artifact_line(line: str) -> bool:
+    text = str(line or "")
+    stripped = text.strip()
+    if not stripped:
+        return False
+    if TRANSCRIPT_LINE_RE.search(text):
+        return True
+    return any(marker in text for marker in TRANSCRIPT_INLINE_MARKERS)
 
 
 def parse_patch_entries(patch: str) -> List[Dict[str, Any]]:
@@ -69,6 +102,26 @@ def parse_patch_entries(patch: str) -> List[Dict[str, Any]]:
     return entries
 
 
+def find_pattern_match_entry(patch: str, pattern) -> Optional[Dict[str, Any]]:
+    entries = parse_patch_entries(patch)
+    if not entries:
+        return None
+
+    for require_added in (True, False):
+        for entry in entries:
+            if require_added and entry["kind"] != "add":
+                continue
+            if is_transcript_artifact_line(entry["content"]):
+                continue
+            if pattern.search(entry["content"]):
+                return entry
+    return None
+
+
+def pattern_matches_reviewable_content(patch: str, pattern) -> bool:
+    return find_pattern_match_entry(patch, pattern) is not None
+
+
 def extract_match_context(
     patch: str,
     pattern,
@@ -86,17 +139,11 @@ def extract_match_context(
             "matched_text": "",
         }
 
+    match_entry = find_pattern_match_entry(patch, pattern)
     match_index = None
-    for index, entry in enumerate(entries):
-        if entry["kind"] != "add":
-            continue
-        if pattern.search(entry["content"]):
-            match_index = index
-            break
-
-    if match_index is None:
+    if match_entry is not None:
         for index, entry in enumerate(entries):
-            if pattern.search(entry["content"]):
+            if entry == match_entry:
                 match_index = index
                 break
 

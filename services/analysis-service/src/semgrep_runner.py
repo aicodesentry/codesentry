@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from finding_quality import is_transcript_artifact_line
 from taxonomy import build_taxonomy_metadata
 
 RULES_DIR = Path(__file__).parent / "semgrep_rules"
@@ -36,9 +37,12 @@ def _extract_file_content(patch: str) -> str:
     lines = []
     for line in patch.split("\n"):
         if line.startswith("+") and not line.startswith("+++"):
-            lines.append(line[1:])  # strip the leading +
+            candidate = line[1:]
+            if not is_transcript_artifact_line(candidate):
+                lines.append(candidate)
         elif not line.startswith("-") and not line.startswith("@@"):
-            lines.append(line)
+            if not is_transcript_artifact_line(line):
+                lines.append(line)
     return "\n".join(lines)
 
 
@@ -135,6 +139,10 @@ def run_semgrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 cwe_id=metadata.get("cwe", None),
                 owasp_category=metadata.get("owasp", None),
                 internal_type=metadata.get("internal_type", check_id),
+                title=match.get("extra", {}).get("message", check_id),
+                description=match.get("extra", {}).get("message", ""),
+                file_path=file_path,
+                code_snippet=code_snippet,
                 attack_techniques=metadata.get("attack", None),
                 capec_ids=metadata.get("capec", None),
             )

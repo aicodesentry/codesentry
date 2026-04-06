@@ -12,11 +12,11 @@ const AboutPage = () => {
           <div className="mx-auto max-w-4xl px-4 py-20 sm:px-6 lg:px-8">
             <p className="text-xs font-medium uppercase tracking-[0.25em] text-neutral-500">About Mitig8it</p>
             <h1 className="mt-4 text-4xl font-bold tracking-tight sm:text-5xl">
-              Detect vulnerabilities in pull requests
-              <span className="block text-neutral-400">before they merge.</span>
+              An AI security collaborator for code
+              <span className="block text-neutral-400">review and safer merges.</span>
             </h1>
             <p className="mt-6 max-w-2xl text-[15px] leading-7 text-neutral-400">
-              Mitig8it is a GitHub-native security platform designed to help engineering teams detect exploitable vulnerabilities during code review — before they reach production.
+              Mitig8it is a GitHub-native AI security collaborator built to help engineering teams detect exploitable vulnerabilities in pull requests today, then grow toward full-repository analysis and AI-assisted remediation over time.
             </p>
           </div>
         </section>
@@ -41,13 +41,13 @@ const AboutPage = () => {
         <section className="border-b border-neutral-800/60 py-16">
           <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
             <p className="text-xs font-medium uppercase tracking-[0.25em] text-neutral-500">What we're building</p>
-            <h2 className="mt-3 text-2xl font-semibold tracking-tight">Security review that lives inside the pull request</h2>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight">Security review that starts in the pull request and expands into the repository</h2>
             <div className="mt-6 space-y-4 text-[15px] leading-7 text-neutral-400">
               <p>
-                Mitig8it integrates directly into the pull request workflow to analyze code before it merges. It combines multiple analysis approaches and maps findings to standards like CWE, delivering actionable feedback directly inside GitHub.
+                Mitig8it integrates directly into the pull request workflow to analyze code before it merges. It combines multiple analysis approaches, maps findings to standards like CWE, and delivers actionable feedback directly inside GitHub.
               </p>
               <p>
-                Instead of scanning in isolation, Mitig8it focuses on the exact moment where developers make decisions — during review.
+                The long-term goal is broader than PR comments alone: full-repository analysis, stronger context across code changes, and AI-assisted fixes with developers staying in control.
               </p>
             </div>
 
@@ -55,15 +55,15 @@ const AboutPage = () => {
               {[
                 {
                   title: 'GitHub-native',
-                  desc: 'Findings appear as inline PR comments and check runs. No separate dashboard to monitor.',
+                  desc: 'Findings appear as inline PR comments and check runs where teams already review code.',
+                },
+                {
+                  title: 'Collaborative by design',
+                  desc: 'Mitig8it reviews, explains, and guides fixes without taking developers out of control.',
                 },
                 {
                   title: 'Multi-engine analysis',
                   desc: 'Regex pattern matching and Semgrep AST analysis cross-validate to reduce false positives.',
-                },
-                {
-                  title: 'Zero config',
-                  desc: 'Install the GitHub App and the next PR gets reviewed. No CI changes, no YAML, no sidecar jobs.',
                 },
               ].map((item) => (
                 <div key={item.title} className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
@@ -85,8 +85,29 @@ const AboutPage = () => {
                 Most security tools fail because they operate outside the developer workflow. They run in separate pipelines, surface results in separate dashboards, and require context-switching that slows teams down.
               </p>
               <p>
-                Mitig8it is built around a different principle: integrate into pull requests, reduce noise through cross-validation and dedup clustering, and make security practical instead of disruptive.
+                Mitig8it is built around a different principle: integrate into code review, reduce noise through cross-validation and dedup clustering, and become useful enough to earn developer trust instead of demanding it.
               </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-b border-neutral-800/60 py-16">
+          <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+            <p className="text-xs font-medium uppercase tracking-[0.25em] text-neutral-500">Roadmap</p>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight">What Mitig8it does now and where it is going</h2>
+            <div className="mt-8 grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+                <p className="text-sm font-semibold text-white">Today</p>
+                <p className="mt-2 text-sm leading-relaxed text-neutral-400">
+                  GitHub-native pull request security review with inline findings, check runs, dashboard visibility, deduping, and developer-controlled remediation.
+                </p>
+              </div>
+              <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+                <p className="text-sm font-semibold text-white">Future direction</p>
+                <p className="mt-2 text-sm leading-relaxed text-neutral-400">
+                  Full-repository analysis, richer codebase context, and AI-assisted fixes that help teams merge safer code without removing human approval.
+                </p>
+              </div>
             </div>
           </div>
         </section>
@@ -118,7 +139,7 @@ const AboutPage = () => {
             <h2 className="mt-3 text-2xl font-semibold tracking-tight">Early stage, live product</h2>
             <div className="mt-6 space-y-4 text-[15px] leading-7 text-neutral-400">
               <p>
-                Mitig8it is live and in beta. The GitHub App, PR analysis pipeline, inline findings, and dashboard are all functional. The current focus is on understanding how teams handle code security, identifying gaps in existing tools, and refining the balance between accuracy and developer experience.
+                Mitig8it is live and in beta. The GitHub App, PR analysis pipeline, inline findings, and dashboard are all functional. The current focus is improving reliability, reducing false positives, and building toward a security collaborator developers can depend on inside their normal workflow.
               </p>
             </div>
             <div className="mt-8 grid gap-4 md:grid-cols-4">
@@ -126,7 +147,7 @@ const AboutPage = () => {
                 { label: 'GitHub App', status: 'Live' },
                 { label: 'PR analysis', status: 'Live' },
                 { label: 'Dashboard', status: 'Live' },
-                { label: 'LLM fixes', status: 'Roadmap' },
+                { label: 'Repo analysis + AI fixes', status: 'Roadmap' },
               ].map((item) => (
                 <div key={item.label} className="rounded-xl border border-neutral-800 bg-neutral-950 p-4 text-center">
                   <p className="text-lg font-semibold text-white">{item.status}</p>
