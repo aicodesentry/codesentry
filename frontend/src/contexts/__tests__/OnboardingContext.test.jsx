@@ -136,6 +136,31 @@ describe('OnboardingProvider', () => {
     })
   })
 
+  it('treats deleted installations as disconnected for onboarding state', async () => {
+    installationsListMock.mockResolvedValue({
+      installations: [{ id: 1, status: 'deleted' }],
+    })
+    repositoriesListMock.mockResolvedValue({
+      repositories: [],
+    })
+    summaryMock.mockResolvedValue({
+      summary: { total_analyses: 0, completed: 0, failed: 0, recent_7_days: 0 },
+    })
+
+    render(
+      <OnboardingProvider>
+        <Probe />
+      </OnboardingProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('installs:0')).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('needsOnboarding:true')).toBeInTheDocument()
+    expect(screen.getByText('nextStep:install')).toBeInTheDocument()
+  })
+
   it('deduplicates repository rows before deriving counts', async () => {
     repositoriesListMock.mockResolvedValue({
       repositories: [

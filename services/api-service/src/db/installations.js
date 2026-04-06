@@ -14,6 +14,7 @@ async function listByUser(userId) {
      LEFT JOIN repositories r ON r.installation_id = i.id
      LEFT JOIN repository_access ra ON ra.repository_id = r.id AND ra.user_id = $1
      WHERE ui.user_id = $1
+       AND i.status = 'active'
        AND (r.id IS NULL OR ra.user_id = $1)
      GROUP BY i.id
      ORDER BY i.updated_at DESC`,
@@ -66,13 +67,14 @@ async function linkUserInstallation(client, userId, installationId) {
 
 async function reconcileUserInstallations(client, userId, activeInstallationIds) {
   const dbClient = client || pool;
-  if (!activeInstallationIds.length) return;
-
   return dbClient.query(
-    `DELETE FROM user_installations
-     WHERE user_id = $1
-       AND installation_id != ALL($2::bigint[])`,
-    [userId, activeInstallationIds]
+    activeInstallationIds.length
+      ? `DELETE FROM user_installations
+         WHERE user_id = $1
+           AND installation_id != ALL($2::bigint[])`
+      : `DELETE FROM user_installations
+         WHERE user_id = $1`,
+    activeInstallationIds.length ? [userId, activeInstallationIds] : [userId]
   );
 }
 

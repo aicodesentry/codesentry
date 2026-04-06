@@ -49,6 +49,10 @@ function normalizeRepositories(items = []) {
   return Array.from(repositoriesById.values())
 }
 
+function countActiveInstallations(items = []) {
+  return items.filter((installation) => !installation?.status || installation.status === 'active').length
+}
+
 export function OnboardingProvider({ children }) {
   const [installations, setInstallations] = useState([])
   const [repositories, setRepositories] = useState([])
@@ -111,7 +115,10 @@ export function OnboardingProvider({ children }) {
   }, [refresh])
 
   const value = useMemo(() => {
-    const installationCount = installations.length
+    const activeInstallations = installations.filter(
+      (installation) => !installation?.status || installation.status === 'active'
+    )
+    const installationCount = activeInstallations.length
     // Use the server-provided total_count which reflects GitHub's authoritative count,
     // not just the local DB snapshot length.
     const repositoryCount = githubRepoCount || repositories.length
@@ -173,12 +180,12 @@ export function OnboardingProvider({ children }) {
 
   useEffect(() => {
     if (loading || syncing) return
-    if (installations.length > 0) return
+    if (countActiveInstallations(installations) > 0) return
     if (didAttemptBackgroundSyncRef.current) return
 
     didAttemptBackgroundSyncRef.current = true
     refresh({ sync: true, background: true })
-  }, [installations.length, loading, refresh, syncing])
+  }, [installations, loading, refresh, syncing])
 
   return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>
 }
