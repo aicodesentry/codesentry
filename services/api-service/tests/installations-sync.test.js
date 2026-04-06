@@ -124,4 +124,33 @@ describe('installation sync', () => {
     expect(repoUpsertSql).toContain('VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false)');
     expect(repoUpsertSql).not.toContain('is_active = true');
   });
+
+  test('clears stale installation links when GitHub returns zero installations', async () => {
+    const app = createApp();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ github_token: 'plain-github-token' }],
+      });
+
+    installationsDb.reconcileUserInstallations.mockResolvedValue({});
+    installationsDb.deleteUnreferencedInstallations.mockResolvedValue({});
+
+    axios.get.mockResolvedValueOnce({
+      data: {
+        installations: [],
+      },
+    });
+
+    const response = await request(app)
+      .post('/api/installations/sync')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.synced_installations).toBe(0);
+    expect(response.body.synced_repositories).toBe(0);
+    expect(installationsDb.reconcileUserInstallations).toHaveBeenCalledWith(pool, 'user-1', []);
+    expect(installationsDb.deleteUnreferencedInstallations).toHaveBeenCalledWith(pool);
+  });
 });
