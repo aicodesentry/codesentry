@@ -68,6 +68,22 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     remediation: 'Replace eval/exec with safe alternatives.',
     cwe_id: 'CWE-95',
   };
+  const PERSISTED_CONTEXT_FINDING = {
+    ...PERSISTED_FINDING,
+    id: 'finding-context',
+    fingerprint: 'fp-context',
+    line_start: 10,
+    code_snippet: 'const untouched = true;',
+    evidence: 'Matched deterministic rule on unchanged context.',
+  };
+  const PERSISTED_ADDED_FINDING = {
+    ...PERSISTED_FINDING,
+    id: 'finding-added',
+    fingerprint: 'fp-added',
+    line_start: 12,
+    code_snippet: 'eval(req.body.code);',
+    evidence: 'Matched deterministic rule `code.injection.eval` on `eval(`.',
+  };
 
   function flushAsync() {
     return new Promise((resolve) => setTimeout(resolve, 300));
@@ -299,5 +315,77 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     expect(reviewCalls[0][1].comments).toHaveLength(1);
     expect(reviewCalls[1][1].comments).toHaveLength(0);
     expect(reviewCalls[1][1].body).toContain('Inline annotations were skipped');
+  });
+
+  test('only submits inline comments for lines that are actually added in the patch', async () => {
+    axios.post.mockResolvedValueOnce({
+      data: {
+        files: [{
+          path: 'test_vuln.js',
+          patch: '@@ -10,1 +10,3 @@\n const untouched = true;\n+const apiKey = "secret123456789";\n+eval(req.body.code);\n',
+          additions: 2,
+        }],
+      },
+    });
+    axios.post.mockResolvedValueOnce({
+      data: {
+        findings: [{
+          rule_id: 'code.injection.eval',
+          internal_type: 'code_injection',
+          title: 'Code injection via eval or dynamic execution',
+          description: 'Dynamic code execution can run attacker-controlled payloads.',
+          category: 'code injection',
+          severity: 'critical',
+          confidence: 0.92,
+          exploitability: 'high',
+          file_path: 'test_vuln.js',
+          line_start: 10,
+          line_end: 10,
+          code_snippet: 'const untouched = true;',
+          evidence: 'Matched deterministic rule on unchanged context.',
+          remediation: 'Replace eval/exec with safe alternatives.',
+          fingerprint: 'fp-context',
+        }, {
+          rule_id: 'code.injection.eval',
+          internal_type: 'code_injection',
+          title: 'Code injection via eval or dynamic execution',
+          description: 'Dynamic code execution can run attacker-controlled payloads.',
+          category: 'code injection',
+          severity: 'critical',
+          confidence: 0.92,
+          exploitability: 'high',
+          file_path: 'test_vuln.js',
+          line_start: 12,
+          line_end: 12,
+          code_snippet: 'eval(req.body.code);',
+          evidence: 'Matched deterministic rule `code.injection.eval` on `eval(`.',
+          remediation: 'Replace eval/exec with safe alternatives.',
+          fingerprint: 'fp-added',
+        }],
+      },
+    });
+    pool.query.mockResolvedValueOnce({ rows: [{ count: 1 }] });
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    pool.query.mockResolvedValueOnce({ rows: [PERSISTED_CONTEXT_FINDING] });
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    pool.query.mockResolvedValueOnce({ rows: [PERSISTED_ADDED_FINDING] });
+    pool.query.mockResolvedValueOnce({ rowCount: 0 });
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    axios.post.mockResolvedValueOnce({ data: { review_id: 1 } });
+    axios.post.mockResolvedValueOnce({ data: { check_run_id: 2 } });
+    pool.query.mockResolvedValueOnce({ rowCount: 1 });
+
+    jest.isolateModules(() => {
+      const mod = require('../src/services/prAnalysisOrchestrator');
+      mod.triggerAnalysisJob(BASE_PAYLOAD);
+    });
+    await flushAsync();
+
+    const reviewCall = axios.post.mock.calls.find(
+      (call) => typeof call[0] === 'string' && call[0].includes('reviews/submit')
+    );
+    expect(reviewCall).toBeTruthy();
+    expect(reviewCall[1].comments).toHaveLength(1);
+    expect(reviewCall[1].comments[0].line).toBe(12);
   });
 });

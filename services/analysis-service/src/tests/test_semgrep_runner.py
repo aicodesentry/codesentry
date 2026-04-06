@@ -254,6 +254,53 @@ class TestCombinedPipeline:
         merged = cluster_findings(findings)
         assert len(merged) == 2, "Adjacent hardcoded secrets should remain separate findings"
 
+    def test_semgrep_primary_keeps_deterministic_review_anchor(self):
+        from security_rules import SECURITY_RULES
+        from main import generate_finding
+        from finding_quality import cluster_findings
+
+        patch = "\n".join(
+            [
+                "@@ -10,3 +10,6 @@",
+                " def find_user(user_id)",
+                '+  logger.info("querying")',
+                '+  query = "SELECT * FROM users WHERE id=" + user_id',
+                '+  DB.execute(query)',
+                " end",
+            ]
+        )
+        rule = next(rule for rule in SECURITY_RULES if rule.rule_id == "sql.injection.raw_query")
+        tier1 = generate_finding(rule, "user_service.rb", patch)
+
+        tier2 = {
+            "rule_id": "semgrep.ruby-sql-injection",
+            "internal_type": tier1["internal_type"],
+            "title": "Potential SQL injection",
+            "description": "Semgrep AST match",
+            "category": tier1["category"],
+            "cwe_id": tier1["cwe_id"],
+            "severity": "critical",
+            "confidence": 0.95,
+            "file_path": "user_service.rb",
+            "line_start": 13,
+            "line_end": 13,
+            "fingerprint": "semgrep-fingerprint",
+            "exploitability": "high",
+            "owasp_category": tier1["owasp_category"],
+            "code_snippet": 'query = "SELECT * FROM users WHERE id=" + user_id',
+            "evidence": "Semgrep AST match",
+            "exploit_scenario": "",
+            "remediation": "Use parameterized queries",
+            "remediation_patch": "",
+        }
+
+        merged = cluster_findings([tier1, tier2])
+
+        assert len(merged) == 1
+        assert merged[0]["rule_id"].startswith("semgrep.")
+        assert merged[0]["line_start"] == 12
+        assert 'query = "SELECT * FROM users WHERE id=" + user_id' in merged[0]["code_snippet"]
+
     def test_findings_have_consistent_format(self):
         """Both tiers should produce findings with the same keys."""
         required_keys = {

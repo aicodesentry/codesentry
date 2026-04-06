@@ -206,6 +206,23 @@ def _choose_primary(current: Dict[str, Any], candidate: Dict[str, Any]) -> Dict[
     return current
 
 
+def _choose_review_anchor(cluster: List[Dict[str, Any]], primary: Dict[str, Any]) -> Dict[str, Any]:
+    primary_kind = detector_kind(primary)
+    if primary_kind != "semgrep":
+        return primary
+
+    for finding in cluster:
+        if detector_kind(finding) == "semgrep":
+            continue
+        if finding.get("file_path") != primary.get("file_path"):
+            continue
+        if int(finding.get("line_start") or 0) <= 0:
+            continue
+        return finding
+
+    return primary
+
+
 def cluster_findings(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     exact_seen = set()
     deduped: List[Dict[str, Any]] = []
@@ -247,10 +264,14 @@ def cluster_findings(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         supporting_detectors = _merge_unique([detector_kind(finding) for finding in cluster if detector_kind(finding) != detector_kind(primary)])
 
         merged = dict(primary)
+        anchor = _choose_review_anchor(cluster, primary)
         merged["confidence"] = min(
             0.99,
             max(float(finding.get("confidence") or 0) for finding in cluster) + 0.05,
         )
+        merged["line_start"] = anchor.get("line_start") or merged.get("line_start")
+        merged["line_end"] = anchor.get("line_end") or merged.get("line_end")
+        merged["code_snippet"] = anchor.get("code_snippet") or merged.get("code_snippet")
         merged["taxonomy_mappings"] = _merge_taxonomy(cluster)
         merged["taxonomy_versions"] = _merge_taxonomy_versions(cluster)
         if merged["taxonomy_mappings"].get("cwe"):

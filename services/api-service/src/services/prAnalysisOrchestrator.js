@@ -65,6 +65,34 @@ function buildReviewComment(finding) {
   ].filter(Boolean).join('\n');
 }
 
+function extractReviewableLines(patch) {
+  const reviewable = new Set();
+  if (!patch) return reviewable;
+
+  let newLine = 0;
+  for (const rawLine of String(patch).split('\n')) {
+    if (rawLine.startsWith('@@')) {
+      const match = rawLine.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+      if (match) newLine = Number(match[1]);
+      continue;
+    }
+    if (rawLine.startsWith('+++ ') || rawLine.startsWith('--- ')) {
+      continue;
+    }
+    if (rawLine.startsWith('+')) {
+      reviewable.add(newLine || 1);
+      newLine += 1;
+      continue;
+    }
+    if (rawLine.startsWith('-')) {
+      continue;
+    }
+    newLine += 1;
+  }
+
+  return reviewable;
+}
+
 async function githubServiceRequest(path, payload) {
   const baseUrl = process.env.GITHUB_SERVICE_URL || 'http://github-service:3002';
   const internalSecret = process.env.GITHUB_SERVICE_INTERNAL_SECRET;
@@ -250,10 +278,10 @@ async function runAnalysisJob(payload) {
 
     try {
       const reviewBody = buildReviewBody(actionable, runId);
-      const fileMaxLines = new Map(files.map((f) => [f.path, f.additions || 1]));
+      const reviewableLinesByFile = new Map(files.map((f) => [f.path, extractReviewableLines(f.patch)]));
       const reviewComments = actionable
-        .filter((f) => Number(f.confidence) >= 0.7 && fileMaxLines.has(f.file_path))
-        .filter((f) => (f.line_start || 1) <= (fileMaxLines.get(f.file_path) || 1))
+        .filter((f) => Number(f.confidence) >= 0.7 && reviewableLinesByFile.has(f.file_path))
+        .filter((f) => reviewableLinesByFile.get(f.file_path)?.has(f.line_start || 1))
         .map((f) => ({ path: f.file_path, line: f.line_start || 1, body: buildReviewComment(f) }));
 
       reviewResp = await submitReviewWithFallback({
