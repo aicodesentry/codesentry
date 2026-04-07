@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const { calculateFingerprint, normalizeFinding } = require('./findingUtils');
 const findingsDb = require('../db/findings');
 const analysisRunsDb = require('../db/analysisRuns');
+const repositoriesDb = require('../db/repositories');
 
 function markdownEscape(text) {
   return String(text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -53,16 +54,22 @@ function buildReviewBody(findings, runId) {
 }
 
 function buildReviewComment(finding) {
-  return [
+  const lines = [
     `${severityIcon(finding.severity)} **${finding.severity.toUpperCase()}** — ${markdownEscape(finding.title)}`,
     '',
     `> ${markdownEscape(finding.evidence || finding.description)}`,
     '',
     finding.cwe_id ? `**CWE:** ${finding.cwe_id}` : null,
     `**Confidence:** ${Math.round(Number(finding.confidence) * 100)}%`,
-    '',
-    `**Fix:** ${markdownEscape(finding.remediation || 'Apply input validation and secure handling.')}`,
-  ].filter(Boolean).join('\n');
+  ];
+
+  if (finding.remediation_patch) {
+    lines.push('', '```suggestion', finding.remediation_patch, '```');
+  } else {
+    lines.push('', `**Fix:** ${markdownEscape(finding.remediation || 'Apply input validation and secure handling.')}`);
+  }
+
+  return lines.filter(Boolean).join('\n');
 }
 
 function extractReviewableLines(patch) {
@@ -399,10 +406,25 @@ async function runAnalysisJob(payload) {
       const filePatchMap = {};
       for (const f of files) { filePatchMap[f.path] = f.patch || ''; }
 
+      // Fetch repo profile if available
+      let repoProfile = {};
+      try {
+        const profileRow = await repositoriesDb.getProfile(repositoryId);
+        if (profileRow && profileRow.profile_status === 'ready') {
+          repoProfile = profileRow.profile_data || {};
+        } else {
+          // No profile — queue urgent profiling for next time
+          await repositoriesDb.queueUrgentProfiling(repositoryId, { run_id: runId, pr_number: prNumber });
+        }
+      } catch (profileErr) {
+        logger.warn('Failed to fetch repo profile', { runId, error: profileErr.message });
+      }
+
       const tier3 = await callAnalysisTier('/analyze/pr/tier3', {
         ...analysisPayload,
         findings: allFindings,
         file_patches: filePatchMap,
+        repo_profile: repoProfile,
       }, 120000);
 
       const triaged = tier3.findings || [];

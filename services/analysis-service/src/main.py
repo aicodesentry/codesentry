@@ -41,6 +41,7 @@ class TriageRequest(BaseModel):
     commit_sha: str
     findings: List[Dict[str, Any]] = Field(default_factory=list)
     file_patches: Dict[str, str] = Field(default_factory=dict)
+    repo_profile: Dict[str, Any] = Field(default_factory=dict)
 
 
 REQUEST_COUNT = Counter("codesentry_analysis_requests_total", "Total analysis requests")
@@ -243,7 +244,7 @@ async def analyze_pr(payload: AnalyzePRRequest, request: Request):
     # Tier 3: LLM triage (non-blocking)
     try:
         file_patches = {f.path: f.patch for f in payload.files}
-        findings = triage_findings(findings, file_patches)
+        findings = triage_findings(findings, file_patches, None)
     except Exception as e:
         print(f"LLM triage failed (non-blocking): {e}")
 
@@ -336,7 +337,7 @@ async def analyze_pr_tier3(payload: TriageRequest, request: Request):
 
     original_count = len(findings)
     try:
-        findings = triage_findings(findings, payload.file_patches)
+        findings = triage_findings(findings, payload.file_patches, payload.repo_profile)
     except Exception as e:
         print(f"LLM triage failed (non-blocking): {e}")
 

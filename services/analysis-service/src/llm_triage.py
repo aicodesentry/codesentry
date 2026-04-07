@@ -45,7 +45,13 @@ SEVERITY_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1}
 
 SYSTEM_PROMPT = """You are a security code reviewer triaging static analysis findings.
 
-For each finding, you have the detection metadata and the code context from the PR diff.
+For each finding, you have the detection metadata, the code context from the PR diff, and optionally a repository profile describing the repo's framework, auth patterns, database usage, and security posture.
+
+Use the repository context to make informed decisions:
+- If the repo uses parameterized queries, check if THIS specific code follows that pattern or bypasses it.
+- If auth middleware exists, check if the affected endpoint has it applied.
+- If a validation library is present, check if it covers this input path.
+
 Assess whether each finding is a true positive, false positive, or uncertain.
 
 Consider:
@@ -60,6 +66,12 @@ Respond with ONLY a JSON array. Each element must have:
 - "reasoning": 1-2 sentence explanation
 - "adjusted_severity": null or one of "critical", "high", "medium", "low"
 - "adjusted_confidence": null or a float 0.0-1.0
+- "fixed_code": null or the exact replacement code lines (only for true_positive findings where you are confident in the fix)
+
+For fixed_code:
+- Match the repo's existing code patterns and conventions
+- Provide a drop-in replacement for the flagged lines
+- Only include the fixed lines, not surrounding context
 
 Do not include any text outside the JSON array."""
 
@@ -120,10 +132,36 @@ def _build_finding_context(
 def _build_triage_prompt(
     findings: List[Dict[str, Any]],
     file_patches: Dict[str, str],
+    repo_profile: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """Build the user prompt with findings and code context."""
+    """Build the user prompt with findings, code context, and repo profile."""
+    parts = []
+
+    if repo_profile and (repo_profile.get("deterministic") or repo_profile.get("interpreted")):
+        det = repo_profile.get("deterministic", {})
+        interp = repo_profile.get("interpreted", {})
+        parts.append("## Repository Profile\n")
+        if det.get("framework"):
+            parts.append(f"- Framework: {det['framework']}")
+        if det.get("languages"):
+            parts.append(f"- Languages: {', '.join(det['languages'])}")
+        if det.get("database"):
+            parts.append(f"- Database: {json.dumps(det['database'])}")
+        if det.get("security_libraries"):
+            libs = [f"{l['library']} ({l['purpose']})" for l in det["security_libraries"]]
+            parts.append(f"- Security libraries: {', '.join(libs)}")
+        if interp.get("auth_strategy"):
+            parts.append(f"- Auth: {interp['auth_strategy']}")
+        if interp.get("database_pattern"):
+            parts.append(f"- Query pattern: {interp['database_pattern']}")
+        if interp.get("risk_areas"):
+            parts.append(f"- Risk areas: {', '.join(interp['risk_areas'])}")
+        parts.append("")
+
     contexts = [_build_finding_context(f, file_patches) for f in findings]
-    return "## Findings to triage\n\n" + json.dumps(contexts, indent=2)
+    parts.append("## Findings to triage\n\n" + json.dumps(contexts, indent=2))
+
+    return "\n".join(parts)
 
 
 def _call_openai(user_prompt: str) -> Tuple[str, int, int]:
@@ -173,12 +211,17 @@ def _parse_triage_response(
             continue
         if verdict not in ("true_positive", "false_positive", "uncertain"):
             continue
+        fixed_code = item.get("fixed_code")
+        if fixed_code is not None:
+            fixed_code = str(fixed_code)[:2000]
+
         verdicts.append({
             "fingerprint": fp,
             "verdict": verdict,
             "reasoning": str(item.get("reasoning", ""))[:500],
             "adjusted_severity": item.get("adjusted_severity"),
             "adjusted_confidence": item.get("adjusted_confidence"),
+            "fixed_code": fixed_code,
         })
 
     return verdicts
@@ -227,6 +270,10 @@ def _apply_verdicts(
         if adj_conf is not None and isinstance(adj_conf, (int, float)) and 0 <= adj_conf <= 1:
             enriched["confidence"] = round(adj_conf, 2)
 
+        fixed_code = verdict.get("fixed_code")
+        if fixed_code and verdict["verdict"] == "true_positive":
+            enriched["remediation_patch"] = fixed_code
+
         result.append(enriched)
 
     return result
@@ -235,6 +282,7 @@ def _apply_verdicts(
 def triage_findings(
     findings: List[Dict[str, Any]],
     file_patches: Dict[str, str],
+    repo_profile: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Run LLM triage on findings. Non-blocking: returns original findings on failure."""
     if not is_llm_triage_enabled():
@@ -251,7 +299,7 @@ def triage_findings(
     try:
         start = time.perf_counter()
 
-        user_prompt = _build_triage_prompt(to_triage, file_patches)
+        user_prompt = _build_triage_prompt(to_triage, file_patches, repo_profile)
         raw_response, input_tokens, output_tokens = _call_openai(user_prompt)
 
         LLM_TRIAGE_TOKENS.labels(direction="input").inc(input_tokens)

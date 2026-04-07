@@ -232,6 +232,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
             ]
           );
           await grantRepositoryAccess(pool, upserted.rows[0].id, [req.user.user_id]);
+          await repositoriesDb.queueForProfiling(upserted.rows[0].id, 0);
           syncedRepos += 1;
         }
 

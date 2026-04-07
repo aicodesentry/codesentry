@@ -4,6 +4,7 @@ const { verifyWebhookSignature } = require('../services/githubApp');
 const { triggerAnalysisJob } = require('../services/prAnalysisOrchestrator');
 const logger = require('../utils/logger');
 const installationsDb = require('../db/installations');
+const repositoriesDb = require('../db/repositories');
 
 const router = express.Router();
 
@@ -102,6 +103,7 @@ router.post('/github', async (req, res) => {
           ]
         );
         await grantRepositoryAccess(pool, repoResult.rows[0].id, payload.installation.id);
+        await repositoriesDb.queueForProfiling(repoResult.rows[0].id, 0);
       }
     }
 
@@ -117,6 +119,18 @@ router.post('/github', async (req, res) => {
            AND pr_number = $4`,
         [newState, mergedAt, repository.id, pr.number]
       );
+
+      // Mark profile stale if security-relevant files were changed in a merged PR
+      if (pr.merged) {
+        const { shouldRetriggerProfile } = require('../services/profileWorker');
+        const changedFiles = (pr.changed_files_list || []).map((f) => f.filename || f);
+        if (changedFiles.length > 0 && shouldRetriggerProfile(changedFiles)) {
+          const repoRow = await pool.query('SELECT id FROM repositories WHERE github_id = $1', [repository.id]);
+          if (repoRow.rows[0]) {
+            await repositoriesDb.markProfileStale(repoRow.rows[0].id);
+          }
+        }
+      }
     }
 
     if (event === 'pull_request' && ['opened', 'synchronize', 'reopened'].includes(payload.action)) {

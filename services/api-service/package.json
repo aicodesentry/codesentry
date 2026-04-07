@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "jest --detectOpenHandles",
+    "test": "NODE_ENV=test jest --detectOpenHandles --forceExit",
     "db:migrate": "node src/scripts/runMigrations.js",
     "db:verify": "node src/scripts/verifyMigrations.js"
   },
