@@ -29,6 +29,10 @@ async function start() {
     logger.info('API service started', { port: PORT });
   });
 
+  // Start background profile worker (processes one repo per minute)
+  const { startWorkerLoop } = require('./services/profileWorker');
+  const profileWorkerInterval = startWorkerLoop(60000);
+
   const shutdown = async () => {
     logger.info('API service shutting down');
     server.close(async () => {

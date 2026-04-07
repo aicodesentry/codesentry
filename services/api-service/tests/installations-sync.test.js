@@ -22,6 +22,7 @@ jest.mock('../src/db/installations', () => ({
 }));
 jest.mock('../src/db/repositories', () => ({
   revokeMissingAccessForInstallation: jest.fn(),
+  queueForProfiling: jest.fn(),
 }));
 
 const axios = require('axios');

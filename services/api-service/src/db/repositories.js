@@ -127,4 +127,103 @@ async function disconnect(repoId, userId) {
   return updated.rowCount > 0 ? updated.rows[0] : null;
 }
 
-module.exports = { list, getById, updateBaseline, connect, disconnect, revokeMissingAccessForInstallation };
+// ── Repo profiling ──────────────────────────────────────────────────────
+
+async function queueForProfiling(repoId, priority = 0) {
+  await pool.query(
+    `UPDATE repositories
+     SET profile_status = CASE
+           WHEN profile_status = 'profiling' THEN profile_status
+           ELSE 'queued'
+         END,
+         profile_priority = GREATEST(profile_priority, $2),
+         profile_queued_at = COALESCE(profile_queued_at, NOW())
+     WHERE id = $1`,
+    [repoId, priority]
+  );
+}
+
+async function queueUrgentProfiling(repoId, pendingRetriage) {
+  await pool.query(
+    `UPDATE repositories
+     SET profile_status = CASE
+           WHEN profile_status IN ('ready', 'profiling') THEN profile_status
+           ELSE 'urgent'
+         END,
+         profile_priority = GREATEST(profile_priority, 2),
+         profile_queued_at = COALESCE(profile_queued_at, NOW()),
+         settings = settings || $2::jsonb
+     WHERE id = $1`,
+    [repoId, JSON.stringify({ pending_retriage: pendingRetriage })]
+  );
+}
+
+async function markProfileStale(repoId) {
+  await pool.query(
+    `UPDATE repositories
+     SET profile_status = CASE
+           WHEN profile_status = 'profiling' THEN profile_status
+           ELSE 'stale'
+         END,
+         profile_priority = GREATEST(profile_priority, 1),
+         profile_queued_at = NOW()
+     WHERE id = $1 AND profile_status = 'ready'`,
+    [repoId]
+  );
+}
+
+async function claimNextProfileJob() {
+  const result = await pool.query(
+    `UPDATE repositories
+     SET profile_status = 'profiling'
+     WHERE id = (
+       SELECT id FROM repositories
+       WHERE profile_status IN ('queued', 'stale', 'urgent')
+       ORDER BY profile_priority DESC, profile_queued_at ASC
+       LIMIT 1
+       FOR UPDATE SKIP LOCKED
+     )
+     RETURNING id, github_id, installation_id, full_name, default_branch, settings`
+  );
+  return result.rows[0] || null;
+}
+
+async function saveProfile(repoId, profileData, confidence) {
+  await pool.query(
+    `UPDATE repositories
+     SET profile_status = 'ready',
+         profile_data = $2,
+         profile_confidence = $3,
+         profile_priority = 0,
+         profile_updated_at = NOW(),
+         settings = settings - 'pending_retriage'
+     WHERE id = $1`,
+    [repoId, JSON.stringify(profileData), confidence]
+  );
+}
+
+async function markProfileFailed(repoId, errorMessage) {
+  await pool.query(
+    `UPDATE repositories
+     SET profile_status = 'failed',
+         profile_priority = 0,
+         settings = settings || $2::jsonb
+     WHERE id = $1`,
+    [repoId, JSON.stringify({ profile_error: errorMessage })]
+  );
+}
+
+async function getProfile(repoId) {
+  const result = await pool.query(
+    `SELECT profile_status, profile_data, profile_confidence, profile_updated_at
+     FROM repositories WHERE id = $1`,
+    [repoId]
+  );
+  return result.rows[0] || null;
+}
+
+module.exports = {
+  list, getById, updateBaseline, connect, disconnect, revokeMissingAccessForInstallation,
+  queueForProfiling, queueUrgentProfiling, markProfileStale,
+  claimNextProfileJob, saveProfile, markProfileFailed, getProfile,
+};
