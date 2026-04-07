@@ -30,8 +30,10 @@ async function start() {
   });
 
   // Start background profile worker (processes one repo per minute)
-  const { startWorkerLoop } = require('./services/profileWorker');
-  const profileWorkerInterval = startWorkerLoop(60000);
+  if (process.env.NODE_ENV !== 'test') {
+    const { startWorkerLoop } = require('./services/profileWorker');
+    startWorkerLoop(60000);
+  }
 
   const shutdown = async () => {
     logger.info('API service shutting down');
