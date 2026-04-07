@@ -78,7 +78,7 @@ jobs:
               GITHUB_SERVICE_URL=${{ vars.CODESENTRY_GH_SERVICE_URL }},\
               ANALYSIS_SERVICE_URL=${{ vars.CODESENTRY_ANALYSIS_URL }},\
               GITHUB_CALLBACK_URL=${{ vars.CODESENTRY_FRONTEND_URL }}/auth/github/callback,\
-              GITHUB_APP_SLUG=aicodesentry,\
+              GITHUB_APP_SLUG=mitig8it,\
               GITHUB_SERVICE_INTERNAL_SECRET=${{ secrets.CODESENTRY_INTERNAL_SECRET }}" \
             --set-secrets "\
               JWT_SECRET=codesentry-jwt-secret:latest,\

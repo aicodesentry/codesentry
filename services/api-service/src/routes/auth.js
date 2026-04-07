@@ -16,7 +16,7 @@ router.use((_req, res, next) => {
 });
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
-const DEFAULT_GITHUB_APP_SLUG = 'aicodesentry';
+const DEFAULT_GITHUB_APP_SLUG = 'mitig8it';
 
 // In-memory store for OAuth state (short-lived)
 const pendingStates = new Map();
