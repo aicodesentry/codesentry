@@ -36,8 +36,12 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    const errorCode = error?.response?.data?.code
+    const requestUrl = error?.config?.url || ''
     if (
       error?.response?.status === 401 &&
+      errorCode !== 'GITHUB_TOKEN_INVALID' &&
+      !requestUrl.includes('/api/installations/sync') &&
       (window.location.pathname.startsWith('/app') || window.location.pathname.startsWith('/dashboard'))
     ) {
       clearAuthToken()

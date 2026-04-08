@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { pool } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { encrypt } = require('../utils/encryption');
+const { persistGithubTokens } = require('../services/githubUserAuth');
 
 const router = express.Router();
 
@@ -151,9 +152,21 @@ router.get('/github/callback', async (req, res) => {
       }
     }
 
+    const encryptedGithubToken = encrypt(githubToken);
+    const encryptedRefreshToken = tokenResp.data.refresh_token ? encrypt(tokenResp.data.refresh_token) : null;
+    const githubTokenExpiresAt = tokenResp.data.expires_in
+      ? new Date(Date.now() + Number(tokenResp.data.expires_in) * 1000)
+      : null;
+    const githubRefreshTokenExpiresAt = tokenResp.data.refresh_token_expires_in
+      ? new Date(Date.now() + Number(tokenResp.data.refresh_token_expires_in) * 1000)
+      : null;
+
     const upsert = await pool.query(
-      `INSERT INTO users (github_id, github_username, github_email, avatar_url, name, github_token)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO users (
+         github_id, github_username, github_email, avatar_url, name, github_token,
+         github_refresh_token, github_token_expires_at, github_refresh_token_expires_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (github_id)
        DO UPDATE SET
          github_username = EXCLUDED.github_username,
@@ -161,6 +174,9 @@ router.get('/github/callback', async (req, res) => {
          avatar_url = EXCLUDED.avatar_url,
          name = EXCLUDED.name,
          github_token = EXCLUDED.github_token,
+         github_refresh_token = EXCLUDED.github_refresh_token,
+         github_token_expires_at = EXCLUDED.github_token_expires_at,
+         github_refresh_token_expires_at = EXCLUDED.github_refresh_token_expires_at,
          updated_at = NOW()
        RETURNING id, github_id, github_username, github_email, avatar_url, name`,
       [
@@ -169,11 +185,17 @@ router.get('/github/callback', async (req, res) => {
         email,
         ghUser.data.avatar_url,
         ghUser.data.name,
-        encrypt(githubToken),
+        encryptedGithubToken,
+        encryptedRefreshToken,
+        githubTokenExpiresAt,
+        githubRefreshTokenExpiresAt,
       ]
     );
 
     const user = upsert.rows[0];
+    if (tokenResp.data.refresh_token || tokenResp.data.expires_in || tokenResp.data.refresh_token_expires_in) {
+      await persistGithubTokens(user.id, tokenResp.data);
+    }
     const jwtToken = jwt.sign(
       { user_id: user.id, github_id: user.github_id, github_username: user.github_username },
       process.env.JWT_SECRET,

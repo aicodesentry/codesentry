@@ -3,7 +3,7 @@ const axios = require('axios');
 const { pool } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { getInstallationToken } = require('../services/githubApp');
-const { decrypt, isEncrypted } = require('../utils/encryption');
+const { getGithubAccessTokenForUser } = require('../services/githubUserAuth');
 const installationsDb = require('../db/installations');
 const repositoriesDb = require('../db/repositories');
 
@@ -154,25 +154,54 @@ router.get('/', authenticateToken, async (req, res) => {
 
 router.post('/sync', authenticateToken, async (req, res) => {
   try {
-    const userResult = await pool.query(
-      'SELECT github_token, github_username FROM users WHERE id = $1',
-      [req.user.user_id]
-    );
+    let authState;
+    try {
+      authState = await getGithubAccessTokenForUser(req.user.user_id);
+    } catch (authError) {
+      if (authError.code === 'GITHUB_NOT_CONNECTED') {
+        return res.status(400).json({ error: 'GitHub account is not connected. Please sign in again.' });
+      }
+      throw authError;
+    }
 
-    const rawToken = userResult.rows[0]?.github_token;
-    const githubUsername = userResult.rows[0]?.github_username;
-    if (!rawToken) {
+    let githubToken = authState.token;
+    const githubUsername = authState.githubUsername;
+    if (!githubToken) {
       return res.status(400).json({ error: 'GitHub account is not connected. Please sign in again.' });
     }
-    const githubToken = isEncrypted(rawToken) ? decrypt(rawToken) : rawToken;
 
-    const response = await axios.get('https://api.github.com/user/installations', {
-      headers: {
-        Authorization: `Bearer ${githubToken}`,
-        Accept: 'application/vnd.github+json',
-      },
-      timeout: 20000,
-    });
+    let response;
+    try {
+      response = await axios.get('https://api.github.com/user/installations', {
+        headers: {
+          Authorization: `Bearer ${githubToken}`,
+          Accept: 'application/vnd.github+json',
+        },
+        timeout: 20000,
+      });
+    } catch (githubError) {
+      if (githubError.response?.status === 401) {
+        try {
+          const refreshed = await getGithubAccessTokenForUser(req.user.user_id, { forceRefresh: true });
+          githubToken = refreshed.token;
+          response = await axios.get('https://api.github.com/user/installations', {
+            headers: {
+              Authorization: `Bearer ${githubToken}`,
+              Accept: 'application/vnd.github+json',
+            },
+            timeout: 20000,
+          });
+        } catch (_) {
+          return res.status(401).json({
+            error: 'GitHub connection expired or is invalid. Please sign in again.',
+            code: 'GITHUB_TOKEN_INVALID',
+            details: githubError.response?.data || null,
+          });
+        }
+      } else {
+        throw githubError;
+      }
+    }
 
     const activeInstallationIds = [];
     let synced = 0;
