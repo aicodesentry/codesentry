@@ -12,6 +12,9 @@ jest.mock('axios');
 jest.mock('../src/services/githubApp', () => ({
   getInstallationToken: jest.fn(),
 }));
+jest.mock('../src/services/githubUserAuth', () => ({
+  getGithubAccessTokenForUser: jest.fn(),
+}));
 jest.mock('../src/db/installations', () => ({
   listByUser: jest.fn(),
   upsertInstallation: jest.fn(),
@@ -28,6 +31,7 @@ jest.mock('../src/db/repositories', () => ({
 const axios = require('axios');
 const { pool } = require('../src/config/database');
 const { getInstallationToken } = require('../src/services/githubApp');
+const { getGithubAccessTokenForUser } = require('../src/services/githubUserAuth');
 const installationsDb = require('../src/db/installations');
 const repositoriesDb = require('../src/db/repositories');
 const { createApp } = require('../src/app');
@@ -40,15 +44,17 @@ describe('installation sync', () => {
     process.env.JWT_SECRET = 'test-secret';
     process.env.ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
     token = jwt.sign({ user_id: 'user-1' }, process.env.JWT_SECRET);
+    getGithubAccessTokenForUser.mockResolvedValue({
+      token: 'plain-github-token',
+      githubUsername: 'nebullii',
+      refreshed: false,
+    });
   });
 
   test('preserves connection state during sync and does not reset repositories inactive', async () => {
     const app = createApp();
 
     pool.query
-      .mockResolvedValueOnce({
-        rows: [{ github_token: 'plain-github-token' }],
-      })
       .mockResolvedValueOnce({
         rows: [{ id: 'repo-1' }],
       })
@@ -129,11 +135,6 @@ describe('installation sync', () => {
   test('clears stale installation links when GitHub returns zero installations', async () => {
     const app = createApp();
 
-    pool.query
-      .mockResolvedValueOnce({
-        rows: [{ github_token: 'plain-github-token' }],
-      });
-
     installationsDb.reconcileUserInstallations.mockResolvedValue({});
     installationsDb.deleteUnreferencedInstallations.mockResolvedValue({});
 
@@ -157,11 +158,6 @@ describe('installation sync', () => {
 
   test('ignores user-owned installations that do not match the authenticated GitHub username', async () => {
     const app = createApp();
-
-    pool.query
-      .mockResolvedValueOnce({
-        rows: [{ github_token: 'plain-github-token', github_username: 'nebullii' }],
-      });
 
     installationsDb.upsertInstallation.mockResolvedValue({});
     installationsDb.linkUserInstallation.mockResolvedValue({});
@@ -204,5 +200,42 @@ describe('installation sync', () => {
     expect(installationsDb.linkUserInstallation).not.toHaveBeenCalled();
     expect(installationsDb.reconcileUserInstallations).toHaveBeenCalledWith(pool, 'user-1', []);
     expect(installationsDb.deleteUnreferencedInstallations).toHaveBeenCalledWith(pool);
+  });
+
+  test('returns a reconnect message when the stored GitHub token is invalid', async () => {
+    const app = createApp();
+    getGithubAccessTokenForUser
+      .mockResolvedValueOnce({
+        token: 'plain-github-token',
+        githubUsername: 'nebullii',
+        refreshed: false,
+      })
+      .mockRejectedValueOnce(Object.assign(new Error('refresh unavailable'), { code: 'GITHUB_REFRESH_UNAVAILABLE' }));
+
+    axios.get.mockRejectedValueOnce({
+      response: {
+        status: 401,
+        data: {
+          message: 'Bad credentials',
+          documentation_url: 'https://docs.github.com/rest',
+          status: '401',
+        },
+      },
+    });
+
+    const response = await request(app)
+      .post('/api/installations/sync')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({
+      error: 'GitHub connection expired or is invalid. Please sign in again.',
+      code: 'GITHUB_TOKEN_INVALID',
+      details: {
+        message: 'Bad credentials',
+        documentation_url: 'https://docs.github.com/rest',
+        status: '401',
+      },
+    });
   });
 });

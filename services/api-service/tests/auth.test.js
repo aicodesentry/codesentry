@@ -7,9 +7,13 @@ jest.mock('../src/config/database', () => ({
 }));
 
 jest.mock('axios');
+jest.mock('../src/services/githubUserAuth', () => ({
+  persistGithubTokens: jest.fn(),
+}));
 const axios = require('axios');
 const { pool } = require('../src/config/database');
 const { createApp } = require('../src/app');
+const { persistGithubTokens } = require('../src/services/githubUserAuth');
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -98,6 +102,7 @@ describe('GET /auth/github/callback', () => {
     pool.query.mockResolvedValueOnce({
       rows: [mockDbUser],
     });
+    persistGithubTokens.mockResolvedValue({});
   }
 
   async function getValidState(app) {
@@ -172,6 +177,7 @@ describe('GET /auth/github/callback', () => {
         ],
       });
     pool.query.mockResolvedValueOnce({ rows: [mockDbUser] });
+    persistGithubTokens.mockResolvedValue({});
 
     const app = createApp();
     const state = await getValidState(app);
@@ -227,6 +233,43 @@ describe('GET /auth/github/callback', () => {
 
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain('error=oauth_callback_failed');
+  });
+
+  test('stores GitHub refresh-token metadata when GitHub returns expiring user tokens', async () => {
+    axios.post.mockResolvedValueOnce({
+      data: {
+        access_token: 'gho_test_token_123',
+        refresh_token: 'ghr_refresh_123',
+        expires_in: 28800,
+        refresh_token_expires_in: 15811200,
+      },
+    });
+    axios.get.mockResolvedValueOnce({
+      data: mockGitHubUser,
+    });
+    pool.query.mockResolvedValueOnce({
+      rows: [mockDbUser],
+    });
+    persistGithubTokens.mockResolvedValue({});
+
+    const app = createApp();
+    const state = await getValidState(app);
+    const res = await request(app).get(`/auth/github/callback?code=test-code&state=${state}`);
+
+    expect(res.status).toBe(302);
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining('github_refresh_token'),
+      expect.arrayContaining([12345, 'testuser', 'test@example.com'])
+    );
+    expect(persistGithubTokens).toHaveBeenCalledWith(
+      'uuid-123',
+      expect.objectContaining({
+        access_token: 'gho_test_token_123',
+        refresh_token: 'ghr_refresh_123',
+        expires_in: 28800,
+        refresh_token_expires_in: 15811200,
+      })
+    );
   });
 });
 
