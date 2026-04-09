@@ -43,7 +43,7 @@ LLM_TRIAGE_MAX_FINDINGS = int(os.getenv("LLM_TRIAGE_MAX_FINDINGS", "20"))
 
 SEVERITY_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1}
 
-SYSTEM_PROMPT = """You are a security code reviewer triaging static analysis findings.
+SYSTEM_PROMPT = """You are a security code reviewer triaging static analysis findings and proposing minimal inline fixes.
 
 For each finding, you have the detection metadata, the code context from the PR diff, and optionally a repository profile describing the repo's framework, auth patterns, database usage, and security posture.
 
@@ -60,6 +60,12 @@ Consider:
 - Is this test code, example code, or dead code?
 - Could the severity be different than what the tool assigned?
 
+When proposing a fix, use the finding metadata, the changed code, and the repository profile together:
+- Match the repository's framework, language, and validation/auth/query patterns.
+- Prefer the smallest safe replacement that can be applied directly on the changed line or small block.
+- Do not invent helper functions, imports, or large refactors unless they already exist in the changed lines.
+- If you are not confident the fix can be expressed as a drop-in replacement for the flagged lines, return null for fixed_code.
+
 Respond with ONLY a JSON array. Each element must have:
 - "fingerprint": the finding's fingerprint (string, copied from input)
 - "verdict": one of "true_positive", "false_positive", "uncertain"
@@ -72,6 +78,9 @@ For fixed_code:
 - Match the repo's existing code patterns and conventions
 - Provide a drop-in replacement for the flagged lines
 - Only include the fixed lines, not surrounding context
+- Return at most 8 lines
+- Do not wrap the code in markdown fences
+- Do not include explanations or comments unless the existing code style already uses them on that line/block
 
 Do not include any text outside the JSON array."""
 
@@ -118,15 +127,51 @@ def _build_finding_context(
         "fingerprint": finding.get("fingerprint", ""),
         "rule_id": finding.get("rule_id", ""),
         "title": finding.get("title", ""),
+        "category": finding.get("category", ""),
         "severity": finding.get("severity", ""),
         "confidence": finding.get("confidence", 0),
         "cwe_id": finding.get("cwe_id", ""),
         "file_path": file_path,
         "line_start": finding.get("line_start", 0),
+        "line_end": finding.get("line_end", 0),
         "code_snippet": finding.get("code_snippet", ""),
         "evidence": finding.get("evidence", ""),
+        "description": finding.get("description", ""),
+        "remediation_hint": finding.get("remediation", ""),
+        "exploit_scenario": finding.get("exploit_scenario", ""),
         "surrounding_code": "\n".join(patch_lines),
     }
+
+
+def _normalize_fixed_code(fixed_code: Any, original_snippet: str) -> Optional[str]:
+    if fixed_code is None:
+        return None
+
+    normalized = str(fixed_code).strip()
+    if not normalized:
+        return None
+
+    if normalized.startswith("```"):
+        parts = normalized.split("```")
+        if len(parts) >= 3:
+            normalized = parts[1]
+            if normalized.startswith("json") or normalized.startswith("javascript") or normalized.startswith("python"):
+                normalized = normalized.split("\n", 1)[1] if "\n" in normalized else ""
+        normalized = normalized.strip()
+
+    if "```" in normalized:
+        return None
+
+    normalized = normalized.replace("\r\n", "\n")
+    fixed_lines = normalized.split("\n")
+    if len(fixed_lines) > 8:
+        return None
+
+    snippet_lines = [line for line in str(original_snippet or "").split("\n") if line.strip()]
+    if len(fixed_lines) > max(1, len(snippet_lines)) + 3:
+        return None
+
+    return normalized[:2000]
 
 
 def _build_triage_prompt(
@@ -211,9 +256,7 @@ def _parse_triage_response(
             continue
         if verdict not in ("true_positive", "false_positive", "uncertain"):
             continue
-        fixed_code = item.get("fixed_code")
-        if fixed_code is not None:
-            fixed_code = str(fixed_code)[:2000]
+        fixed_code = _normalize_fixed_code(item.get("fixed_code"), "")
 
         verdicts.append({
             "fingerprint": fp,
@@ -270,7 +313,7 @@ def _apply_verdicts(
         if adj_conf is not None and isinstance(adj_conf, (int, float)) and 0 <= adj_conf <= 1:
             enriched["confidence"] = round(adj_conf, 2)
 
-        fixed_code = verdict.get("fixed_code")
+        fixed_code = _normalize_fixed_code(verdict.get("fixed_code"), finding.get("code_snippet", ""))
         if fixed_code and verdict["verdict"] == "true_positive":
             enriched["remediation_patch"] = fixed_code
 

@@ -9,6 +9,7 @@ import pytest
 from llm_triage import (
     _apply_verdicts,
     _build_finding_context,
+    _normalize_fixed_code,
     _parse_triage_response,
     _select_findings_for_triage,
     is_llm_triage_enabled,
@@ -77,6 +78,27 @@ class TestBuildFindingContext:
         ctx = _build_finding_context(_make_finding(), {"app.py": long_patch})
         lines = ctx["surrounding_code"].split("\n")
         assert len(lines) <= 60
+
+    def test_includes_fix_generation_fields(self):
+        ctx = _build_finding_context(_make_finding(description="desc", exploit_scenario="boom"), {"app.py": "+some code"})
+        assert ctx["category"] == "SQL injection"
+        assert ctx["description"] == "desc"
+        assert ctx["remediation_hint"] == "Use parameterized queries"
+        assert ctx["exploit_scenario"] == "boom"
+
+
+class TestNormalizeFixedCode:
+    def test_accepts_small_inline_patch(self):
+        fixed = _normalize_fixed_code("cursor.execute(\"SELECT * FROM users WHERE id = %s\", (user_id,))", 'query = f"SELECT * FROM users WHERE id = {user_id}"')
+        assert fixed == 'cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))'
+
+    def test_strips_markdown_fences(self):
+        fixed = _normalize_fixed_code("```python\ncursor.execute(\"SELECT 1\")\n```", "query = 'SELECT 1'")
+        assert fixed == 'cursor.execute("SELECT 1")'
+
+    def test_rejects_large_patches(self):
+        fixed = _normalize_fixed_code("\n".join([f"line {i}" for i in range(9)]), "eval(user_input)")
+        assert fixed is None
 
 
 class TestParseTriageResponse:
@@ -173,6 +195,19 @@ class TestApplyVerdicts:
         assert result[0]["llm_triage"]["verdict"] == "true_positive"
         assert "user input" in result[0]["llm_triage"]["reasoning"]
 
+    def test_applies_inline_fix_patch_for_true_positive(self):
+        findings = [_make_finding()]
+        verdicts = [{
+            "fingerprint": "abc123",
+            "verdict": "true_positive",
+            "reasoning": "confirmed",
+            "adjusted_severity": None,
+            "adjusted_confidence": None,
+            "fixed_code": 'cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))',
+        }]
+        result = _apply_verdicts(findings, verdicts)
+        assert result[0]["remediation_patch"] == 'cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))'
+
 
 class TestTriageFindings:
     def test_returns_unchanged_when_disabled(self):
@@ -240,3 +275,23 @@ class TestTriageFindings:
         assert result[0]["confidence"] == 0.8
         assert result[0]["severity"] == "critical"
         assert result[0]["llm_triage"]["verdict"] == "true_positive"
+
+    @patch("llm_triage._call_openai")
+    def test_keeps_llm_generated_fix_patch_end_to_end(self, mock_call):
+        mock_call.return_value = (
+            json.dumps([{
+                "fingerprint": "abc123",
+                "verdict": "true_positive",
+                "reasoning": "User input directly concatenated",
+                "adjusted_severity": None,
+                "adjusted_confidence": 0.91,
+                "fixed_code": 'cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))',
+            }]),
+            500,
+            200,
+        )
+        findings = [_make_finding()]
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
+            result = triage_findings(findings, {"app.py": "+cursor.execute(query)\n"})
+        assert len(result) == 1
+        assert result[0]["remediation_patch"] == 'cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))'
