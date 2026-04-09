@@ -23,6 +23,33 @@ function severityIcon(severity) {
   return { critical: '🔴', high: '🟠', medium: '🟡', low: '🔵' }[severity] || '⚪';
 }
 
+function normalizeSuggestionPatch(patch) {
+  if (!patch) return '';
+
+  let normalized = String(patch).trim();
+  if (!normalized) return '';
+
+  const fencedMatch = normalized.match(/^```[a-zA-Z0-9_-]*\n([\s\S]*?)\n```$/);
+  if (fencedMatch) {
+    normalized = fencedMatch[1].trim();
+  }
+
+  return normalized.replace(/\r\n/g, '\n');
+}
+
+function shouldRenderSuggestion(finding, suggestionPatch) {
+  if (!suggestionPatch) return false;
+  if (suggestionPatch.includes('```')) return false;
+
+  const suggestionLines = suggestionPatch.split('\n');
+  if (suggestionLines.length > 8) return false;
+
+  const snippetLines = String(finding.code_snippet || '').split('\n').filter(Boolean).length || 1;
+  if (suggestionLines.length > snippetLines + 3) return false;
+
+  return true;
+}
+
 function buildReviewBody(findings, runId) {
   const { counts } = summarizeFindings(findings);
   const total = findings.length;
@@ -54,6 +81,7 @@ function buildReviewBody(findings, runId) {
 }
 
 function buildReviewComment(finding) {
+  const suggestionPatch = normalizeSuggestionPatch(finding.remediation_patch);
   const lines = [
     `${severityIcon(finding.severity)} **${finding.severity.toUpperCase()}** — ${markdownEscape(finding.title)}`,
     '',
@@ -63,8 +91,8 @@ function buildReviewComment(finding) {
     `**Confidence:** ${Math.round(Number(finding.confidence) * 100)}%`,
   ];
 
-  if (finding.remediation_patch) {
-    lines.push('', '```suggestion', finding.remediation_patch, '```');
+  if (shouldRenderSuggestion(finding, suggestionPatch)) {
+    lines.push('', '```suggestion', suggestionPatch, '```');
   } else {
     lines.push('', `**Fix:** ${markdownEscape(finding.remediation || 'Apply input validation and secure handling.')}`);
   }
@@ -491,4 +519,11 @@ function triggerAnalysisJob(payload) {
   });
 }
 
-module.exports = { triggerAnalysisJob };
+module.exports = {
+  triggerAnalysisJob,
+  __private: {
+    buildReviewComment,
+    normalizeSuggestionPatch,
+    shouldRenderSuggestion,
+  },
+};

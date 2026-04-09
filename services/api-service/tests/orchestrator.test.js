@@ -22,8 +22,48 @@ beforeEach(() => {
 });
 
 describe('PR Analysis Orchestrator — pure functions', () => {
-  test('summarizeFindings counts correctly', () => {
-    // Pure function test — no async orchestrator involvement
+  test('buildReviewComment renders GitHub suggestion blocks for small concrete patches', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const body = __private.buildReviewComment({
+      severity: 'high',
+      title: 'Code injection via eval',
+      evidence: 'Matched eval call',
+      confidence: 0.92,
+      code_snippet: 'eval(req.body.code);',
+      remediation: 'Replace eval with JSON parsing.',
+      remediation_patch: 'const payload = JSON.parse(req.body.code);',
+    });
+
+    expect(body).toContain('```suggestion');
+    expect(body).toContain('const payload = JSON.parse(req.body.code);');
+  });
+
+  test('buildReviewComment falls back to fix text for oversized patches', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const body = __private.buildReviewComment({
+      severity: 'high',
+      title: 'Code injection via eval',
+      evidence: 'Matched eval call',
+      confidence: 0.92,
+      code_snippet: 'eval(req.body.code);',
+      remediation: 'Replace eval with safer parsing.',
+      remediation_patch: [
+        'function safeParse(input) {',
+        '  const value = JSON.parse(input);',
+        '  if (!value) throw new Error("missing");',
+        '  return value;',
+        '}',
+        '',
+        'const payload = safeParse(req.body.code);',
+        'doSomething(payload);',
+        'logUsage(payload);',
+      ].join('\n'),
+    });
+
+    expect(body).not.toContain('```suggestion');
+    expect(body).toContain('**Fix:** Replace eval with safer parsing.');
   });
 });
 
@@ -54,6 +94,7 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     code_snippet: 'eval(req.body.code);',
     evidence: 'Matched deterministic rule `code.injection.eval` on `eval(`.',
     remediation: 'Replace eval/exec with safe alternatives.',
+    remediation_patch: 'const payload = JSON.parse(req.body.code);',
     fingerprint: 'fp-1',
   };
   const PERSISTED_FINDING = {
@@ -179,7 +220,7 @@ describe('PR Analysis Orchestrator — pipeline', () => {
 
   test('posts review after tier1 returns findings', async () => {
     setupAxiosMocks([
-      { pattern: '/pulls/files', data: { files: [{ path: 'test_vuln.js', patch: '@@ -0,0 +1,2 @@\n+eval(req.body.code);', additions: 1 }] } },
+      { pattern: '/pulls/files', data: { files: [{ path: 'test_vuln.js', patch: '@@ -0,0 +1,2 @@\n+const existing = true;\n+eval(req.body.code);', additions: 2 }] } },
       { pattern: '/tier1', data: { findings: [FINDING], tier: 1 } },
       { pattern: '/tier2', data: { findings: [], tier: 2 } },
       { pattern: '/tier3', data: { findings: [FINDING], filtered_count: 0, tier: 3 } },
@@ -208,11 +249,17 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     );
     expect(reviewCall).toBeTruthy();
     expect(reviewCall[1].event).toBe('REQUEST_CHANGES');
+
+    const inlineCall = axios.post.mock.calls.find(
+      (call) => typeof call[0] === 'string' && call[0].includes('comments/inline')
+    );
+    expect(inlineCall).toBeTruthy();
+    expect(inlineCall[1].body).toContain('```suggestion');
   });
 
   test('logs error but does not fail run when review posting fails', async () => {
     const routes = [
-      { pattern: '/pulls/files', data: { files: [{ path: 'test_vuln.js', patch: '@@ -0,0 +1,2 @@\n+eval(req.body.code);', additions: 1 }] } },
+      { pattern: '/pulls/files', data: { files: [{ path: 'test_vuln.js', patch: '@@ -0,0 +1,2 @@\n+const existing = true;\n+eval(req.body.code);', additions: 2 }] } },
       { pattern: '/tier1', data: { findings: [FINDING], tier: 1 } },
       { pattern: '/tier2', data: { findings: [], tier: 2 } },
       { pattern: '/tier3', data: { findings: [FINDING], filtered_count: 0, tier: 3 } },
@@ -266,7 +313,7 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     };
 
     setupAxiosMocks([
-      { pattern: '/pulls/files', data: { files: [{ path: 'test_vuln.js', patch: '@@ -0,0 +1,2 @@\n+eval(req.body.code);', additions: 1 }] } },
+      { pattern: '/pulls/files', data: { files: [{ path: 'test_vuln.js', patch: '@@ -0,0 +1,2 @@\n+const existing = true;\n+eval(req.body.code);', additions: 2 }] } },
       { pattern: '/tier1', data: { findings: [FINDING], tier: 1 } },
       { pattern: '/tier2', data: { findings: [tier2Finding], tier: 2 } },
       { pattern: '/tier3', data: { findings: [FINDING, tier2Finding], filtered_count: 0, tier: 3 } },
