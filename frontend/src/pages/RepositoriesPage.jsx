@@ -5,6 +5,40 @@ import { repositoryAPI } from '../services/api'
 import { useOnboarding } from '../contexts/OnboardingContext'
 import { Pagination } from '../components/ui/pagination'
 
+function profileStatusTone(status) {
+  switch (status) {
+    case 'ready':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
+    case 'profiling':
+      return 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300'
+    case 'queued':
+    case 'urgent':
+      return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300'
+    case 'stale':
+      return 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-300'
+    case 'failed':
+      return 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300'
+    default:
+      return 'border-neutral-200 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'
+  }
+}
+
+function profileStatusLabel(status) {
+  if (!status) return 'Profile pending'
+  if (status === 'urgent') return 'Profile urgent'
+  return `Profile ${status}`
+}
+
+function formatProfileUpdatedAt(value) {
+  if (!value) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 export default function RepositoriesPage() {
   const { error, refresh, repositories, status, syncing } = useOnboarding()
   const [connecting, setConnecting] = useState(null)
@@ -140,6 +174,21 @@ export default function RepositoriesPage() {
                   <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
                     {repo.language || 'Unknown'} · {repo.private ? 'Private' : 'Public'} · {repo.open_findings_count || 0} findings · {repo.pull_request_count || 0} PRs
                   </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${profileStatusTone(repo.profile_status)}`}>
+                      {profileStatusLabel(repo.profile_status)}
+                    </span>
+                    {repo.profile_status === 'ready' && repo.profile_confidence != null && (
+                      <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                        {Math.round(Number(repo.profile_confidence) * 100)}% confidence
+                      </span>
+                    )}
+                    {repo.profile_updated_at && (
+                      <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                        Updated {formatProfileUpdatedAt(repo.profile_updated_at)}
+                      </span>
+                    )}
+                  </div>
                 </Link>
 
                 <div className="flex-shrink-0">
