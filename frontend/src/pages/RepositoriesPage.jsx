@@ -24,9 +24,9 @@ function profileStatusTone(status) {
 }
 
 function profileStatusLabel(status) {
-  if (!status) return 'Profile pending'
-  if (status === 'urgent') return 'Profile urgent'
-  return `Profile ${status}`
+  if (!status) return 'pending'
+  if (status === 'urgent') return 'queued'
+  return status
 }
 
 function formatProfileUpdatedAt(value) {
@@ -174,24 +174,24 @@ export default function RepositoriesPage() {
                   <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
                     {repo.language || 'Unknown'} · {repo.private ? 'Private' : 'Public'} · {repo.open_findings_count || 0} findings · {repo.pull_request_count || 0} PRs
                   </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                </Link>
+
+                <div className="flex flex-shrink-0 items-center gap-2">
+                  <div className="text-right">
                     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${profileStatusTone(repo.profile_status)}`}>
                       {profileStatusLabel(repo.profile_status)}
                     </span>
                     {repo.profile_status === 'ready' && repo.profile_confidence != null && (
-                      <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
-                        {Math.round(Number(repo.profile_confidence) * 100)}% confidence
-                      </span>
+                      <p className="mt-1 text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                        {Math.round(Number(repo.profile_confidence) * 100)}%
+                      </p>
                     )}
-                    {repo.profile_updated_at && (
-                      <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                        Updated {formatProfileUpdatedAt(repo.profile_updated_at)}
-                      </span>
+                    {!repo.profile_confidence && repo.profile_updated_at && (
+                      <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+                        {formatProfileUpdatedAt(repo.profile_updated_at)}
+                      </p>
                     )}
                   </div>
-                </Link>
-
-                <div className="flex-shrink-0">
                   {repo.is_active ? (
                     <button
                       onClick={() => handleConnect(repo.id, false)}
