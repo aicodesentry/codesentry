@@ -207,6 +207,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
     let synced = 0;
     let syncedRepos = 0;
     const syncErrors = [];
+    const reposToProfile = [];
     for (const installation of response.data.installations || []) {
       if (!installationBelongsToUser(installation, githubUsername)) {
         continue;
@@ -261,7 +262,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
             ]
           );
           await grantRepositoryAccess(pool, upserted.rows[0].id, [req.user.user_id]);
-          await repositoriesDb.queueForProfiling(upserted.rows[0].id, 0);
+          reposToProfile.push(upserted.rows[0].id);
           syncedRepos += 1;
         }
 
@@ -294,6 +295,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
       }
     }
 
+    await repositoriesDb.queueTopReposForProfiling(reposToProfile, 10);
     await installationsDb.reconcileUserInstallations(pool, req.user.user_id, activeInstallationIds);
     await installationsDb.deleteUnreferencedInstallations(pool);
 
