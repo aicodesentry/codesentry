@@ -1,6 +1,7 @@
 const axios = require('axios');
 const logger = require('../utils/logger');
 const { calculateFingerprint, normalizeFinding } = require('./findingUtils');
+const { validateSuggestedFix, __private: validatorPrivate } = require('./suggestedFixValidator');
 const findingsDb = require('../db/findings');
 const analysisRunsDb = require('../db/analysisRuns');
 const repositoriesDb = require('../db/repositories');
@@ -23,19 +24,7 @@ function severityIcon(severity) {
   return { critical: '🔴', high: '🟠', medium: '🟡', low: '🔵' }[severity] || '⚪';
 }
 
-function normalizeSuggestionPatch(patch) {
-  if (!patch) return '';
-
-  let normalized = String(patch).trim();
-  if (!normalized) return '';
-
-  const fencedMatch = normalized.match(/^```[a-zA-Z0-9_-]*\n([\s\S]*?)\n```$/);
-  if (fencedMatch) {
-    normalized = fencedMatch[1].trim();
-  }
-
-  return normalized.replace(/\r\n/g, '\n');
-}
+const normalizeSuggestionPatch = validatorPrivate.normalizePatch;
 
 function shouldRenderSuggestion(finding, suggestionPatch) {
   if (!suggestionPatch) return false;
@@ -48,6 +37,39 @@ function shouldRenderSuggestion(finding, suggestionPatch) {
   if (suggestionLines.length > snippetLines + 3) return false;
 
   return true;
+}
+
+function findingUpdateSignature(finding) {
+  return JSON.stringify({
+    fingerprint: finding?.fingerprint || '',
+    severity: finding?.severity || '',
+    confidence: Number(finding?.confidence || 0),
+    title: finding?.title || '',
+    evidence: finding?.evidence || '',
+    remediation: finding?.remediation || '',
+    remediation_patch: finding?.remediation_patch || '',
+    line_start: Number(finding?.line_start || 0),
+    line_end: Number(finding?.line_end || 0),
+  });
+}
+
+function didTier3MeaningfullyChangeFindings(previousFindings, nextFindings) {
+  const previous = Array.isArray(previousFindings) ? previousFindings : [];
+  const next = Array.isArray(nextFindings) ? nextFindings : [];
+
+  if (previous.length !== next.length) return true;
+
+  const previousByFingerprint = new Map(
+    previous.map((finding) => [finding?.fingerprint || '', findingUpdateSignature(finding)])
+  );
+
+  for (const finding of next) {
+    const fingerprint = finding?.fingerprint || '';
+    if (!previousByFingerprint.has(fingerprint)) return true;
+    if (previousByFingerprint.get(fingerprint) !== findingUpdateSignature(finding)) return true;
+  }
+
+  return false;
 }
 
 function buildReviewBody(findings, runId) {
@@ -80,8 +102,14 @@ function buildReviewBody(findings, runId) {
   ].join('\n');
 }
 
-function buildReviewComment(finding) {
+function buildReviewComment(finding, options = {}) {
   const suggestionPatch = normalizeSuggestionPatch(finding.remediation_patch);
+  const suggestionValidation = validateSuggestedFix({
+    finding,
+    filePatch: options.filePatch || '',
+    tierLabel: options.tierLabel || 'manual',
+    repoProfile: options.repoProfile || null,
+  });
   const lines = [
     `${severityIcon(finding.severity)} **${finding.severity.toUpperCase()}** — ${markdownEscape(finding.title)}`,
     '',
@@ -91,7 +119,7 @@ function buildReviewComment(finding) {
     `**Confidence:** ${Math.round(Number(finding.confidence) * 100)}%`,
   ];
 
-  if (shouldRenderSuggestion(finding, suggestionPatch)) {
+  if (shouldRenderSuggestion(finding, suggestionPatch) && suggestionValidation.ok) {
     lines.push('', '```suggestion', suggestionPatch, '```');
   } else {
     lines.push('', `**Fix:** ${markdownEscape(finding.remediation || 'Apply input validation and secure handling.')}`);
@@ -100,33 +128,7 @@ function buildReviewComment(finding) {
   return lines.filter(Boolean).join('\n');
 }
 
-function extractReviewableLines(patch) {
-  const reviewable = new Set();
-  if (!patch) return reviewable;
-
-  let newLine = 0;
-  for (const rawLine of String(patch).split('\n')) {
-    if (rawLine.startsWith('@@')) {
-      const match = rawLine.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
-      if (match) newLine = Number(match[1]);
-      continue;
-    }
-    if (rawLine.startsWith('+++ ') || rawLine.startsWith('--- ')) {
-      continue;
-    }
-    if (rawLine.startsWith('+')) {
-      reviewable.add(newLine || 1);
-      newLine += 1;
-      continue;
-    }
-    if (rawLine.startsWith('-')) {
-      continue;
-    }
-    newLine += 1;
-  }
-
-  return reviewable;
-}
+const extractReviewableLines = validatorPrivate.extractReviewableLines;
 
 async function githubServiceRequest(path, payload) {
   const baseUrl = process.env.GITHUB_SERVICE_URL || 'http://github-service:3002';
@@ -317,7 +319,7 @@ async function persistAndFilter({ findings, runId, pullRequestId, repositoryId, 
   return { actionable, shouldMarkBaselineSet };
 }
 
-async function postReviewToGitHub({ actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel }) {
+async function postReviewToGitHub({ actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel, repoProfile }) {
   const counts = summarizeFindings(actionable).counts;
   const highOrCritical = (counts.critical || 0) + (counts.high || 0);
 
@@ -325,10 +327,19 @@ async function postReviewToGitHub({ actionable, files, owner, repo, prNumber, in
   try {
     const reviewBody = buildReviewBody(actionable, runId);
     const reviewableLinesByFile = new Map(files.map((f) => [f.path, extractReviewableLines(f.patch)]));
+    const filePatchByPath = new Map(files.map((f) => [f.path, f.patch || '']));
     const reviewComments = actionable
       .filter((f) => Number(f.confidence) >= 0.7 && reviewableLinesByFile.has(f.file_path))
       .filter((f) => reviewableLinesByFile.get(f.file_path)?.has(f.line_start || 1))
-      .map((f) => ({ path: f.file_path, line: f.line_start || 1, body: buildReviewComment(f) }));
+      .map((f) => ({
+        path: f.file_path,
+        line: f.line_start || 1,
+        body: buildReviewComment(f, {
+          filePatch: filePatchByPath.get(f.file_path) || '',
+          tierLabel,
+          repoProfile,
+        }),
+      }));
 
     reviewResp = await submitReviewWithFallback({
       owner, repo, prNumber, installationId, commitSha,
@@ -395,7 +406,7 @@ async function runAnalysisJob(payload) {
         shouldMarkBaselineSet = sbs;
 
         const result = await postReviewToGitHub({
-          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 1',
+          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 1', repoProfile: null,
         });
         reviewResp = result.reviewResp;
         lastCounts = result.counts;
@@ -419,7 +430,7 @@ async function runAnalysisJob(payload) {
         shouldMarkBaselineSet = shouldMarkBaselineSet || sbs;
 
         const result = await postReviewToGitHub({
-          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 2',
+          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 2', repoProfile: null,
         });
         reviewResp = result.reviewResp;
         lastCounts = result.counts;
@@ -458,7 +469,7 @@ async function runAnalysisJob(payload) {
       const triaged = tier3.findings || [];
       const filteredCount = tier3.filtered_count || 0;
 
-      if (filteredCount > 0 || triaged.length !== allFindings.length) {
+      if (filteredCount > 0 || didTier3MeaningfullyChangeFindings(allFindings, triaged)) {
         allFindings = triaged;
 
         const { actionable, shouldMarkBaselineSet: sbs } = await persistAndFilter({
@@ -467,7 +478,7 @@ async function runAnalysisJob(payload) {
         shouldMarkBaselineSet = shouldMarkBaselineSet || sbs;
 
         const result = await postReviewToGitHub({
-          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 3',
+          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 3', repoProfile,
         });
         reviewResp = result.reviewResp;
         lastCounts = result.counts;
@@ -523,7 +534,9 @@ module.exports = {
   triggerAnalysisJob,
   __private: {
     buildReviewComment,
+    didTier3MeaningfullyChangeFindings,
     normalizeSuggestionPatch,
     shouldRenderSuggestion,
+    validateSuggestedFix,
   },
 };
