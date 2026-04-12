@@ -138,6 +138,24 @@ class TestParseTriageResponse:
         verdicts = _parse_triage_response(response, {"abc123"})
         assert len(verdicts) == 0
 
+    def test_preserves_fixed_code_until_finding_context_is_available(self):
+        response = json.dumps([{
+            "fingerprint": "abc123",
+            "verdict": "true_positive",
+            "reasoning": "confirmed",
+            "adjusted_severity": None,
+            "adjusted_confidence": None,
+            "fixed_code": "\n".join([
+                "const text = String(req.query.id)",
+                "if (!/^\\d+$/.test(text)) throw new Error('invalid id')",
+                "const userId = Number(text)",
+                "db.query(\"SELECT * FROM users WHERE id = ?\", [userId]);",
+            ]),
+        }])
+        verdicts = _parse_triage_response(response, {"abc123"})
+        assert len(verdicts) == 1
+        assert verdicts[0]["fixed_code"].startswith("const text = String")
+
     def test_raises_on_invalid_json(self):
         with pytest.raises(json.JSONDecodeError):
             _parse_triage_response("not json at all", {"abc123"})
@@ -207,6 +225,28 @@ class TestApplyVerdicts:
         }]
         result = _apply_verdicts(findings, verdicts)
         assert result[0]["remediation_patch"] == 'cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))'
+
+    def test_normalizes_fixed_code_using_real_snippet_context(self):
+        findings = [_make_finding(code_snippet="\n".join([
+            'const text = String(req.query.id)',
+            'const userId = Number(text)',
+            'db.query("SELECT * FROM users WHERE id = " + userId);',
+        ]))]
+        verdicts = [{
+            "fingerprint": "abc123",
+            "verdict": "true_positive",
+            "reasoning": "confirmed",
+            "adjusted_severity": None,
+            "adjusted_confidence": None,
+            "fixed_code": "\n".join([
+                'const text = String(req.query.id)',
+                "if (!/^\\d+$/.test(text)) throw new Error('invalid id')",
+                'const userId = Number(text)',
+                'db.query("SELECT * FROM users WHERE id = ?", [userId]);',
+            ]),
+        }]
+        result = _apply_verdicts(findings, verdicts)
+        assert result[0]["remediation_patch"].endswith('[userId]);')
 
 
 class TestTriageFindings:

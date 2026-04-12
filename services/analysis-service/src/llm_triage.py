@@ -256,7 +256,6 @@ def _parse_triage_response(
             continue
         if verdict not in ("true_positive", "false_positive", "uncertain"):
             continue
-        fixed_code = _normalize_fixed_code(item.get("fixed_code"), "")
 
         verdicts.append({
             "fingerprint": fp,
@@ -264,7 +263,7 @@ def _parse_triage_response(
             "reasoning": str(item.get("reasoning", ""))[:500],
             "adjusted_severity": item.get("adjusted_severity"),
             "adjusted_confidence": item.get("adjusted_confidence"),
-            "fixed_code": fixed_code,
+            "fixed_code": item.get("fixed_code"),
         })
 
     return verdicts
