@@ -22,7 +22,7 @@ beforeEach(() => {
 });
 
 describe('PR Analysis Orchestrator — pure functions', () => {
-  test('buildReviewComment renders GitHub suggestion blocks for small concrete patches', () => {
+  test('buildReviewComment renders GitHub suggestion blocks for validated Tier 3 patches', () => {
     const { __private } = require('../src/services/prAnalysisOrchestrator');
 
     const body = __private.buildReviewComment({
@@ -33,10 +33,33 @@ describe('PR Analysis Orchestrator — pure functions', () => {
       code_snippet: 'eval(req.body.code);',
       remediation: 'Replace eval with JSON parsing.',
       remediation_patch: 'const payload = JSON.parse(req.body.code);',
+    }, {
+      tierLabel: 'Tier 3',
+      filePatch: '@@ -1 +1 @@\n-eval(req.body.code);\n+eval(req.body.code);',
     });
 
     expect(body).toContain('```suggestion');
     expect(body).toContain('const payload = JSON.parse(req.body.code);');
+  });
+
+  test('buildReviewComment falls back to fix text before Tier 3 validation', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const body = __private.buildReviewComment({
+      severity: 'high',
+      title: 'Code injection via eval',
+      evidence: 'Matched eval call',
+      confidence: 0.92,
+      code_snippet: 'eval(req.body.code);',
+      remediation: 'Replace eval with JSON parsing.',
+      remediation_patch: 'const payload = JSON.parse(req.body.code);',
+    }, {
+      tierLabel: 'Tier 1',
+      filePatch: '@@ -1 +1 @@\n-eval(req.body.code);\n+eval(req.body.code);',
+    });
+
+    expect(body).not.toContain('```suggestion');
+    expect(body).toContain('**Fix:** Replace eval with JSON parsing.');
   });
 
   test('buildReviewComment falls back to fix text for oversized patches', () => {
@@ -60,10 +83,132 @@ describe('PR Analysis Orchestrator — pure functions', () => {
         'doSomething(payload);',
         'logUsage(payload);',
       ].join('\n'),
+    }, {
+      tierLabel: 'Tier 3',
+      filePatch: '@@ -1 +1 @@\n-eval(req.body.code);\n+eval(req.body.code);',
     });
 
     expect(body).not.toContain('```suggestion');
     expect(body).toContain('**Fix:** Replace eval with safer parsing.');
+  });
+
+  test('validateSuggestedFix rejects patches that do not match the diff snippet', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const result = __private.validateSuggestedFix({
+      finding: {
+        line_start: 2,
+        line_end: 2,
+        code_snippet: 'eval(req.body.code);',
+        remediation_patch: 'const payload = JSON.parse(req.body.code);',
+      },
+      filePatch: '@@ -0,0 +1,2 @@\n+const alreadySafe = true;\n+handle(req.body.code);',
+      tierLabel: 'Tier 3',
+      repoProfile: null,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain('does not match');
+  });
+
+  test('validateSuggestedFix rejects unified diff output', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const result = __private.validateSuggestedFix({
+      finding: {
+        line_start: 1,
+        line_end: 1,
+        code_snippet: 'eval(req.body.code);',
+        remediation_patch: '@@ -1 +1 @@\n-eval(req.body.code);\n+const payload = JSON.parse(req.body.code);',
+      },
+      filePatch: '@@ -0,0 +1 @@\n+eval(req.body.code);',
+      tierLabel: 'Tier 3',
+      repoProfile: null,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain('not a diff');
+  });
+
+  test('validateSuggestedFix rejects repo-inconsistent SQL fixes', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const result = __private.validateSuggestedFix({
+      finding: {
+        category: 'SQL injection',
+        cwe_id: 'CWE-89',
+        line_start: 1,
+        line_end: 1,
+        code_snippet: 'db.query("SELECT * FROM users WHERE id = " + userId);',
+        remediation_patch: 'db.query("SELECT * FROM users WHERE id = " + String(userId));',
+      },
+      filePatch: '@@ -0,0 +1 @@\n+db.query("SELECT * FROM users WHERE id = " + userId);',
+      tierLabel: 'Tier 3',
+      repoProfile: {
+        interpreted: { database_pattern: 'parameterized' },
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain('parameterized query pattern');
+  });
+
+  test('buildReviewComment renders Tier 3 suggestion for repo-consistent SQL fix', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const body = __private.buildReviewComment({
+      severity: 'high',
+      title: 'Potential SQL injection',
+      evidence: 'Matched raw query',
+      confidence: 0.9,
+      cwe_id: 'CWE-89',
+      category: 'SQL injection',
+      code_snippet: 'db.query("SELECT * FROM users WHERE id = " + userId);',
+      remediation: 'Use parameterized queries.',
+      remediation_patch: 'db.query("SELECT * FROM users WHERE id = ?", [userId]);',
+      line_start: 1,
+      line_end: 1,
+    }, {
+      tierLabel: 'Tier 3',
+      filePatch: '@@ -0,0 +1 @@\n+db.query("SELECT * FROM users WHERE id = " + userId);',
+      repoProfile: {
+        interpreted: { database_pattern: 'parameterized' },
+      },
+    });
+
+    expect(body).toContain('```suggestion');
+    expect(body).toContain('db.query("SELECT * FROM users WHERE id = ?", [userId]);');
+  });
+
+  test('didTier3MeaningfullyChangeFindings detects remediation patch enrichment', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const changed = __private.didTier3MeaningfullyChangeFindings(
+      [{
+        fingerprint: 'fp-1',
+        severity: 'high',
+        confidence: 0.9,
+        title: 'Potential SQL injection',
+        evidence: 'Matched deterministic rule',
+        remediation: 'Use parameterized queries.',
+        remediation_patch: '',
+        line_start: 1,
+        line_end: 1,
+      }],
+      [{
+        fingerprint: 'fp-1',
+        severity: 'high',
+        confidence: 0.9,
+        title: 'Potential SQL injection',
+        evidence: 'Matched deterministic rule',
+        remediation: 'Use parameterized queries.',
+        remediation_patch: 'db.query("SELECT * FROM users WHERE id = ?", [userId]);',
+        line_start: 1,
+        line_end: 1,
+      }]
+    );
+
+    expect(changed).toBe(true);
   });
 });
 
@@ -254,7 +399,8 @@ describe('PR Analysis Orchestrator — pipeline', () => {
       (call) => typeof call[0] === 'string' && call[0].includes('comments/inline')
     );
     expect(inlineCall).toBeTruthy();
-    expect(inlineCall[1].body).toContain('```suggestion');
+    expect(inlineCall[1].body).not.toContain('```suggestion');
+    expect(inlineCall[1].body).toContain('**Fix:** Replace eval/exec with safe alternatives.');
   });
 
   test('logs error but does not fail run when review posting fails', async () => {
@@ -339,6 +485,57 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     await flushAsync();
 
     // Review should be posted at least twice (once for tier1, once for tier2)
+    const reviewCalls = axios.post.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].includes('reviews/submit')
+    );
+    expect(reviewCalls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test('tier3 republishes when fixes are added without changing finding count', async () => {
+    const tier1Finding = {
+      ...FINDING,
+      rule_id: 'sql.injection.raw_query',
+      title: 'Potential SQL injection',
+      category: 'SQL injection',
+      cwe_id: 'CWE-89',
+      code_snippet: 'db.query("SELECT * FROM users WHERE id = " + userId);',
+      remediation: 'Use parameterized queries.',
+      remediation_patch: '',
+      line_start: 2,
+      line_end: 2,
+      fingerprint: 'fp-sql-1',
+    };
+
+    const tier3Finding = {
+      ...tier1Finding,
+      remediation_patch: 'db.query("SELECT * FROM users WHERE id = ?", [userId]);',
+    };
+
+    setupAxiosMocks([
+      { pattern: '/pulls/files', data: { files: [{ path: 'test_vuln.js', patch: '@@ -0,0 +1,2 @@\n+const existing = true;\n+db.query("SELECT * FROM users WHERE id = " + userId);', additions: 2 }] } },
+      { pattern: '/tier1', data: { findings: [tier1Finding], tier: 1 } },
+      { pattern: '/tier2', data: { findings: [], tier: 2 } },
+      { pattern: '/tier3', data: { findings: [tier3Finding], filtered_count: 0, tier: 3 } },
+      { pattern: '/reviews/submit', data: { review_id: 1 } },
+      { pattern: '/comments/inline', data: { comment_id: 11, success: true } },
+      { pattern: '/check-runs', data: { check_run_id: 2 } },
+    ]);
+
+    pool.query.mockResolvedValue({ rowCount: 1, rows: [{ count: 1 }] });
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ count: 1 }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 'finding-1', status: 'open', is_baseline: false, ...tier1Finding }] })
+      .mockResolvedValueOnce({ rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValue({ rowCount: 1, rows: [{ count: 1 }] });
+
+    jest.isolateModules(() => {
+      const mod = require('../src/services/prAnalysisOrchestrator');
+      mod.triggerAnalysisJob(BASE_PAYLOAD);
+    });
+    await flushAsync();
+
     const reviewCalls = axios.post.mock.calls.filter(
       (call) => typeof call[0] === 'string' && call[0].includes('reviews/submit')
     );
