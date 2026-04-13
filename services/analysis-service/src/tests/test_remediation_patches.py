@@ -47,3 +47,27 @@ def test_generates_xss_patch_for_innerhtml():
         "code_snippet": "document.innerHTML = req.query.name;",
     })
     assert patch == "document.textContent = req.query.name;"
+
+
+def test_generates_php_secret_patch():
+    patch = build_remediation_patch({
+        "rule_id": "secret.hardcoded.credential",
+        "title": "Hardcoded secret or credential",
+        "category": "sensitive data exposure",
+        "cwe_id": "CWE-798",
+        "file_path": "test_vuln.php",
+        "code_snippet": '$api_key = "sk_live_123";',
+    })
+    assert patch == '$api_key = getenv("API_KEY");'
+
+
+def test_generates_php_command_injection_patch():
+    patch = build_remediation_patch({
+        "rule_id": "code.injection.eval",
+        "title": "Code injection via eval or dynamic execution",
+        "category": "code injection",
+        "cwe_id": "CWE-78",
+        "file_path": "test_vuln.php",
+        "code_snippet": "exec($_POST['cmd']);",
+    })
+    assert patch == 'throw new RuntimeException("Refusing to execute user-controlled commands");'

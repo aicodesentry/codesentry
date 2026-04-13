@@ -250,6 +250,28 @@ describe('PR Analysis Orchestrator — pure functions', () => {
     expect(ordered[1]).toMatchObject({ path: 'a.js', hasSuggestion: false });
     expect(ordered[2]).toMatchObject({ path: 'b.js' });
   });
+
+  test('hasTier3RenderableSuggestions detects applyable suggestion blocks', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const result = __private.hasTier3RenderableSuggestions(
+      [{
+        severity: 'high',
+        title: 'Potential SQL injection',
+        category: 'SQL injection',
+        cwe_id: 'CWE-89',
+        file_path: 'a.js',
+        line_start: 1,
+        line_end: 1,
+        code_snippet: 'db.query("SELECT * FROM users WHERE id = " + userId);',
+        remediation_patch: 'db.query("SELECT * FROM users WHERE id = ?", [userId]);',
+      }],
+      [{ path: 'a.js', patch: '@@ -0,0 +1 @@\n+db.query("SELECT * FROM users WHERE id = " + userId);' }],
+      { interpreted: { database_pattern: 'parameterized' } }
+    );
+
+    expect(result).toBe(true);
+  });
 });
 
 describe('PR Analysis Orchestrator — pipeline', () => {

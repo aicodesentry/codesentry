@@ -114,7 +114,7 @@ def generate_finding(rule, file_path: str, patch: str) -> Dict[str, Any]:
         "file_path": file_path,
         "line_start": context["line_start"],
         "line_end": context["line_end"],
-        "code_snippet": context["code_snippet"],
+        "code_snippet": context["matched_text"] or context["code_snippet"],
         "evidence": (
             f"Matched deterministic rule `{rule.rule_id}` on `{context['matched_text']}`."
             if context["matched_text"]
@@ -169,7 +169,7 @@ def dependency_findings(path: str, patch: str) -> List[Dict[str, Any]]:
                     "file_path": path,
                     "line_start": context["line_start"],
                     "line_end": context["line_end"],
-                    "code_snippet": context["code_snippet"],
+                    "code_snippet": context["matched_text"] or context["code_snippet"],
                     "evidence": (
                         f"Dependency declaration `{context['matched_text']}` matches a known risky version pattern."
                         if context["matched_text"]

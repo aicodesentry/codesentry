@@ -231,6 +231,22 @@ function prioritizeReviewComments(reviewComments) {
   return [...(reviewComments || [])].sort(compareReviewComments);
 }
 
+function hasTier3RenderableSuggestions(findings, files, repoProfile) {
+  const filePatchByPath = new Map((files || []).map((f) => [f.path, f.patch || '']));
+  return (findings || []).some((finding) => {
+    const suggestionPatch = normalizeSuggestionPatch(finding.remediation_patch);
+    if (!shouldRenderSuggestion(finding, suggestionPatch)) return false;
+
+    const validation = validateSuggestedFix({
+      finding,
+      filePatch: filePatchByPath.get(finding.file_path) || '',
+      tierLabel: 'Tier 3',
+      repoProfile,
+    });
+    return validation.ok;
+  });
+}
+
 async function githubServiceRequest(path, payload) {
   const baseUrl = process.env.GITHUB_SERVICE_URL || 'http://github-service:3002';
   const internalSecret = process.env.GITHUB_SERVICE_INTERNAL_SECRET;
@@ -583,7 +599,11 @@ async function runAnalysisJob(payload) {
       const triaged = tier3.findings || [];
       const filteredCount = tier3.filtered_count || 0;
 
-      if (filteredCount > 0 || didTier3MeaningfullyChangeFindings(allFindings, triaged)) {
+      if (
+        filteredCount > 0
+        || didTier3MeaningfullyChangeFindings(allFindings, triaged)
+        || hasTier3RenderableSuggestions(triaged, files, repoProfile)
+      ) {
         allFindings = triaged;
 
         const { actionable, shouldMarkBaselineSet: sbs } = await persistAndFilter({
@@ -651,6 +671,7 @@ module.exports = {
     buildReviewComment,
     compareReviewComments,
     didTier3MeaningfullyChangeFindings,
+    hasTier3RenderableSuggestions,
     normalizeSuggestionPatch,
     prioritizeReviewComments,
     shouldRenderSuggestion,

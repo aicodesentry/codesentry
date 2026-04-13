@@ -52,6 +52,14 @@ def _file_extension(path: str) -> Optional[str]:
     return ext if ext else None
 
 
+def _extract_exact_lines(content: str, start_line: int, end_line: int) -> str:
+    lines = str(content or "").splitlines()
+    start = max(1, int(start_line or 1))
+    end = max(start, int(end_line or start))
+    selected = lines[start - 1:end]
+    return "\n".join(selected).strip()
+
+
 # Languages OpenGrep should scan, mapped by file extension
 SUPPORTED_EXTENSIONS = {
     ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".go", ".rb", ".php",
@@ -85,11 +93,13 @@ def run_opengrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     findings = []
 
     with tempfile.TemporaryDirectory(prefix="mitig8it_") as tmpdir:
+        extracted_content_by_path: Dict[str, str] = {}
         # Write files to temp directory preserving path structure
         for file_info in scannable:
             file_path = Path(tmpdir) / file_info["path"]
             file_path.parent.mkdir(parents=True, exist_ok=True)
             content = _extract_file_content(file_info.get("patch", ""))
+            extracted_content_by_path[file_info["path"]] = content
             file_path.write_text(content, encoding="utf-8")
 
         try:
@@ -131,7 +141,12 @@ def run_opengrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             check_id = match.get("check_id", "")
             file_path = match.get("path", "").replace(tmpdir + "/", "")
             line_start = match.get("start", {}).get("line", 1)
-            code_snippet = match.get("extra", {}).get("lines", "")[:500]
+            line_end = match.get("end", {}).get("line", line_start)
+            code_snippet = _extract_exact_lines(
+                extracted_content_by_path.get(file_path, ""),
+                line_start,
+                line_end,
+            )[:500] or match.get("extra", {}).get("lines", "")[:500]
             opengrep_severity = match.get("extra", {}).get("severity", "WARNING")
             taxonomy = build_taxonomy_metadata(
                 rule_id=f"opengrep.{check_id}",
@@ -162,7 +177,7 @@ def run_opengrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "exploitability": "medium",
                 "file_path": file_path,
                 "line_start": line_start,
-                "line_end": match.get("end", {}).get("line", line_start),
+                "line_end": line_end,
                 "code_snippet": code_snippet,
                 "evidence": f"OpenGrep AST match on rule `{check_id}`",
                 "exploit_scenario": "",

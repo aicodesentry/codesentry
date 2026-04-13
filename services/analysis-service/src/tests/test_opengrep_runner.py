@@ -4,7 +4,7 @@ import subprocess
 import shutil
 import pytest
 from pathlib import Path
-from opengrep_runner import run_opengrep, _extract_file_content, make_fingerprint, RULES_DIR
+from opengrep_runner import run_opengrep, _extract_exact_lines, _extract_file_content, make_fingerprint, RULES_DIR
 
 
 def _can_run_opengrep() -> bool:
@@ -59,6 +59,14 @@ class TestExtractFileContent:
         )
         assert _extract_file_content(patch) == 'api_key = "sk_live_4eC39HqLyjWDarjtT1zdp7dc"'
 
+    def test_extract_exact_lines_returns_only_target_range(self):
+        content = "\n".join([
+            "const a = 1;",
+            "exec(req.query.cmd);",
+            "document.innerHTML = req.query.name;",
+        ])
+        assert _extract_exact_lines(content, 2, 2) == "exec(req.query.cmd);"
+
 
 class TestMakeFingerprint:
     def test_deterministic(self):
@@ -96,6 +104,24 @@ class TestRunOpenGrep:
         files = [{"path": "handler.js", "patch": "+const result = eval(req.body.code)"}]
         result = run_opengrep(files)
         assert any("eval" in f["rule_id"] for f in result)
+
+    @skip_no_opengrep
+    def test_detects_javascript_path_traversal_via_sendfile_join(self):
+        files = [{
+            "path": "download.js",
+            "patch": "+res.sendFile(path.join(baseDir, req.query.file))"
+        }]
+        result = run_opengrep(files)
+        assert any("path-traversal" in f["rule_id"] for f in result)
+
+    @skip_no_opengrep
+    def test_detects_go_path_traversal_via_readfile_join(self):
+        files = [{
+            "path": "download.go",
+            "patch": "+data, _ := os.ReadFile(filepath.Join(baseDir, r.URL.Query().Get(\"file\")))"
+        }]
+        result = run_opengrep(files)
+        assert any("go-path-traversal" in f["rule_id"] for f in result)
 
     @skip_no_opengrep
     def test_finding_has_required_fields(self):
@@ -349,6 +375,5 @@ class TestCombinedPipeline:
         finding = generate_finding(rule, "user_service.rb", patch)
 
         assert finding["line_start"] == 12
-        assert 'query = "SELECT * FROM users WHERE id=" + user_id' in finding["code_snippet"]
-        assert "logger.info" in finding["code_snippet"]
+        assert finding["code_snippet"] == '  query = "SELECT * FROM users WHERE id=" + user_id'
         assert "Matched deterministic rule" in finding["evidence"]
