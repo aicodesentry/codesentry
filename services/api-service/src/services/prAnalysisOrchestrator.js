@@ -61,6 +61,36 @@ function shouldRenderFixCodeBlock(suggestionPatch) {
   return true;
 }
 
+function buildReviewBodyFinding(finding) {
+  const suggestionPatch = normalizeSuggestionPatch(finding.remediation_patch);
+  const showFixCodeBlock = shouldRenderFixCodeBlock(suggestionPatch);
+  const codeFenceLanguage = inferCodeFenceLanguage(finding.file_path);
+  const location = finding.file_path
+    ? ` at \`${finding.file_path}${finding.line_start ? `:${finding.line_start}` : ''}\``
+    : '';
+
+  const lines = [
+    `#### ${severityIcon(finding.severity)} ${markdownEscape(finding.title)}${location}`,
+    '',
+    `> ${markdownEscape(finding.evidence || finding.description || 'Security finding detected.')}`,
+    '',
+    finding.exploit_scenario ? `**Exploit scenario:** ${markdownEscape(finding.exploit_scenario)}` : null,
+    `**Fix:** ${markdownEscape(finding.remediation || 'Apply input validation and secure handling.')}`,
+  ];
+
+  if (showFixCodeBlock) {
+    lines.push(
+      '',
+      '**Fix code:**',
+      `\`\`\`${codeFenceLanguage}`,
+      suggestionPatch,
+      '```'
+    );
+  }
+
+  return lines.filter(Boolean).join('\n');
+}
+
 function findingUpdateSignature(finding) {
   return JSON.stringify({
     fingerprint: finding?.fingerprint || '',
@@ -110,6 +140,10 @@ function buildReviewBody(findings, runId) {
     ].join('\n');
   }
 
+  const prioritizedFindings = [...findings]
+    .sort((a, b) => severityRank(b.severity) - severityRank(a.severity))
+    .slice(0, 10);
+
   return [
     '<!-- mitig8it-review -->',
     `### 🛡️ Mitig8it — ${total} finding${total === 1 ? '' : 's'} detected`,
@@ -119,6 +153,12 @@ function buildReviewBody(findings, runId) {
     `| ${severityIcon('critical')} Critical | ${severityIcon('high')} High | ${severityIcon('medium')} Medium | ${severityIcon('low')} Low |`,
     '|---|---|---|---|',
     `| **${counts.critical || 0}** | **${counts.high || 0}** | **${counts.medium || 0}** | **${counts.low || 0}** |`,
+    '',
+    '### Findings',
+    '',
+    prioritizedFindings.map(buildReviewBodyFinding).join('\n\n'),
+    '',
+    total > prioritizedFindings.length ? `_Showing ${prioritizedFindings.length} of ${total} findings._` : null,
     '',
     `<sub>Analyzed by <strong>Mitig8it</strong> · Run \`${runId.slice(0, 8)}\` · Findings are annotated on the affected lines below</sub>`,
   ].join('\n');
@@ -607,6 +647,7 @@ function triggerAnalysisJob(payload) {
 module.exports = {
   triggerAnalysisJob,
   __private: {
+    buildReviewBody,
     buildReviewComment,
     compareReviewComments,
     didTier3MeaningfullyChangeFindings,

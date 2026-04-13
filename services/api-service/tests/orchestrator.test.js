@@ -22,6 +22,26 @@ beforeEach(() => {
 });
 
 describe('PR Analysis Orchestrator — pure functions', () => {
+  test('buildReviewBody includes fix code under findings', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const body = __private.buildReviewBody([{
+      severity: 'high',
+      title: 'Potential SQL injection',
+      evidence: 'Matched raw query',
+      exploit_scenario: 'An attacker can alter the query and access unintended rows.',
+      remediation: 'Use parameterized queries.',
+      remediation_patch: 'db.query("SELECT * FROM users WHERE id = ?", [userId]);',
+      file_path: 'src/app.js',
+      line_start: 12,
+    }], 'run-uuid-1');
+
+    expect(body).toContain('### Findings');
+    expect(body).toContain('**Fix code:**');
+    expect(body).toContain('```javascript');
+    expect(body).toContain('db.query("SELECT * FROM users WHERE id = ?", [userId]);');
+  });
+
   test('buildReviewComment renders GitHub suggestion blocks for validated Tier 3 patches', () => {
     const { __private } = require('../src/services/prAnalysisOrchestrator');
 
@@ -414,6 +434,8 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     );
     expect(reviewCall).toBeTruthy();
     expect(reviewCall[1].event).toBe('REQUEST_CHANGES');
+    expect(reviewCall[1].body).toContain('**Fix code:**');
+    expect(reviewCall[1].body).toContain('const payload = JSON.parse(req.body.code);');
 
     const inlineCall = axios.post.mock.calls.find(
       (call) => typeof call[0] === 'string' && call[0].includes('comments/inline')
