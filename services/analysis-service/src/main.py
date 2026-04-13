@@ -17,6 +17,7 @@ from finding_quality import (
 from security_rules import DEPENDENCY_RISK_PATTERNS, SECURITY_RULES, likely_llm_repo
 from opengrep_runner import run_opengrep
 from llm_triage import triage_findings
+from remediation_patches import build_remediation_patch
 from taxonomy import build_taxonomy_metadata
 
 
@@ -97,7 +98,7 @@ def generate_finding(rule, file_path: str, patch: str) -> Dict[str, Any]:
         code_snippet=context["matched_text"] or context["code_snippet"],
     )
 
-    return {
+    finding = {
         "rule_id": rule.rule_id,
         "internal_type": taxonomy["internal_type"],
         "title": rule.title,
@@ -129,6 +130,8 @@ def generate_finding(rule, file_path: str, patch: str) -> Dict[str, Any]:
             context["matched_text"] or context["code_snippet"],
         ),
     }
+    finding["remediation_patch"] = build_remediation_patch(finding) or ""
+    return finding
 
 
 def dependency_findings(path: str, patch: str) -> List[Dict[str, Any]]:
@@ -150,8 +153,7 @@ def dependency_findings(path: str, patch: str) -> List[Dict[str, Any]]:
                 file_path=path,
                 code_snippet=context["matched_text"] or context["code_snippet"],
             )
-            findings.append(
-                {
+            finding = {
                     "rule_id": "dependency.risk.version",
                     "internal_type": taxonomy["internal_type"],
                     "title": "Potential vulnerable dependency version",
@@ -183,7 +185,8 @@ def dependency_findings(path: str, patch: str) -> List[Dict[str, Any]]:
                         context["matched_text"] or context["code_snippet"],
                     ),
                 }
-            )
+            finding["remediation_patch"] = build_remediation_patch(finding) or ""
+            findings.append(finding)
 
     return findings
 
