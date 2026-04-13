@@ -7,6 +7,7 @@ and enriches with reasoning. Non-blocking: returns original findings on failure.
 
 import json
 import os
+import re
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -174,6 +175,123 @@ def _normalize_fixed_code(fixed_code: Any, original_snippet: str) -> Optional[st
     return normalized[:2000]
 
 
+def _env_key_for_identifier(identifier: str) -> str:
+    raw = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", str(identifier or ""))
+    cleaned = re.sub(r"[^A-Za-z0-9]+", "_", raw).strip("_")
+    return (cleaned or "SECRET").upper()
+
+
+def _infer_language(file_path: str) -> str:
+    path = str(file_path or "").lower()
+    if path.endswith((".js", ".jsx", ".ts", ".tsx")):
+        return "javascript"
+    if path.endswith(".py"):
+        return "python"
+    if path.endswith(".go"):
+        return "go"
+    if path.endswith(".java"):
+        return "java"
+    if path.endswith(".cs"):
+        return "csharp"
+    if path.endswith(".rb"):
+        return "ruby"
+    return ""
+
+
+def _fallback_secret_fix(snippet: str, language: str) -> Optional[str]:
+    line = str(snippet or "").strip()
+    if not line or "=" not in line:
+        return None
+
+    match = re.match(r"^(?P<prefix>.*?\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*)(?P<quote>['\"])(?P<value>.+?)(?P=quote)\s*;?$", line)
+    if not match:
+        return None
+
+    prefix = match.group("prefix")
+    env_key = _env_key_for_identifier(match.group("name"))
+    suffix = ";" if line.endswith(";") else ""
+
+    replacements = {
+        "javascript": f"{prefix}process.env.{env_key}{suffix}",
+        "java": f"{prefix}System.getenv(\"{env_key}\"){suffix}",
+        "csharp": f"{prefix}Environment.GetEnvironmentVariable(\"{env_key}\"){suffix}",
+        "ruby": f'{prefix}ENV["{env_key}"]{suffix}',
+    }
+
+    return replacements.get(language)
+
+
+def _fallback_sql_fix(snippet: str, language: str) -> Optional[str]:
+    line = str(snippet or "").strip()
+    if "+" not in line:
+        return None
+
+    string_concat = re.search(r'"(?P<query>SELECT .*?)"\s*\+\s*(?P<var>[A-Za-z_][A-Za-z0-9_\.]*)', line, re.IGNORECASE)
+    if not string_concat:
+        return None
+
+    query = string_concat.group("query")
+    variable = string_concat.group("var").strip()
+
+    if language == "javascript":
+        return re.sub(
+            r'"SELECT .*?"\s*\+\s*[A-Za-z_][A-Za-z0-9_\.]*',
+            f'"{query}?", [{variable}]',
+            line,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+
+    if language == "go":
+        return re.sub(
+            r'"SELECT .*?"\s*\+\s*[A-Za-z_][A-Za-z0-9_\.]*',
+            f'"{query}?", {variable}',
+            line,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+
+    if language == "java":
+        conn_match = re.search(r"\b(\w+)\s*\)\s*;?$", line)
+        conn_var = conn_match.group(1) if conn_match and conn_match.group(1) != variable else "conn"
+        return "\n".join([
+            f'PreparedStatement stmt = {conn_var}.prepareStatement("{query}?");',
+            f"stmt.setString(1, {variable});",
+            "stmt.executeQuery();",
+        ])
+
+    if language == "csharp":
+        conn_match = re.search(r",\s*(\w+)\s*\)\s*;?$", line)
+        conn_var = conn_match.group(1) if conn_match else "conn"
+        return "\n".join([
+            f'var cmd = new SqlCommand("{query}@id", {conn_var});',
+            f'cmd.Parameters.AddWithValue("@id", {variable});',
+        ])
+
+    return None
+
+
+def _build_fallback_fixed_code(
+    finding: Dict[str, Any],
+) -> Optional[str]:
+    language = _infer_language(finding.get("file_path", ""))
+    snippet = str(finding.get("code_snippet", "")).strip()
+    rule_id = str(finding.get("rule_id", ""))
+    category = str(finding.get("category", "")).lower()
+    cwe_id = str(finding.get("cwe_id", "")).upper()
+
+    if not snippet:
+        return None
+
+    if rule_id == "sql.injection.raw_query" or category == "sql injection" or cwe_id == "CWE-89":
+        return _fallback_sql_fix(snippet, language)
+
+    if "secret" in rule_id or "hardcoded secret" in str(finding.get("title", "")).lower() or cwe_id == "CWE-798":
+        return _fallback_secret_fix(snippet, language)
+
+    return None
+
+
 def _build_triage_prompt(
     findings: List[Dict[str, Any]],
     file_patches: Dict[str, str],
@@ -313,6 +431,11 @@ def _apply_verdicts(
             enriched["confidence"] = round(adj_conf, 2)
 
         fixed_code = _normalize_fixed_code(verdict.get("fixed_code"), finding.get("code_snippet", ""))
+        if not fixed_code and verdict["verdict"] == "true_positive":
+            fixed_code = _normalize_fixed_code(
+                _build_fallback_fixed_code(finding),
+                finding.get("code_snippet", ""),
+            )
         if fixed_code and verdict["verdict"] == "true_positive":
             enriched["remediation_patch"] = fixed_code
 
