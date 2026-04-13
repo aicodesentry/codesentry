@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from finding_quality import is_transcript_artifact_line
+from remediation_patches import build_remediation_patch
 from taxonomy import build_taxonomy_metadata
 
 RULES_DIR = Path(__file__).parent / "opengrep_rules"
@@ -146,7 +147,7 @@ def run_opengrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 capec_ids=metadata.get("capec", None),
             )
 
-            findings.append({
+            finding = {
                 "rule_id": f"opengrep.{check_id}",
                 "internal_type": taxonomy["internal_type"],
                 "title": match.get("extra", {}).get("message", check_id),
@@ -170,6 +171,8 @@ def run_opengrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "fingerprint": make_fingerprint(
                     f"opengrep.{check_id}", file_path, line_start, code_snippet
                 ),
-            })
+            }
+            finding["remediation_patch"] = build_remediation_patch(finding) or ""
+            findings.append(finding)
 
     return findings
