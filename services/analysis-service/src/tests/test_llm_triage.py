@@ -156,6 +156,23 @@ class TestParseTriageResponse:
         assert len(verdicts) == 1
         assert verdicts[0]["fixed_code"].startswith("const text = String")
 
+    def test_accepts_alias_fields_from_model_response(self):
+        response = json.dumps([{
+            "fingerprint": "abc123",
+            "verdict": "true_positive",
+            "reasoning": "confirmed",
+            "adjusted_severity": None,
+            "adjusted_confidence": None,
+            "exploitScenario": "Attacker-controlled input reaches query construction.",
+            "recommendation": "Use a parameterized query.",
+            "remediationPatch": 'db.query("SELECT * FROM users WHERE id = ?", [userId]);',
+        }])
+        verdicts = _parse_triage_response(response, {"abc123"})
+        assert len(verdicts) == 1
+        assert verdicts[0]["exploit_scenario"] == "Attacker-controlled input reaches query construction."
+        assert verdicts[0]["remediation"] == "Use a parameterized query."
+        assert verdicts[0]["fixed_code"] == 'db.query("SELECT * FROM users WHERE id = ?", [userId]);'
+
     def test_raises_on_invalid_json(self):
         with pytest.raises(json.JSONDecodeError):
             _parse_triage_response("not json at all", {"abc123"})
@@ -247,6 +264,38 @@ class TestApplyVerdicts:
         }]
         result = _apply_verdicts(findings, verdicts)
         assert result[0]["remediation_patch"].endswith('[userId]);')
+
+    def test_backfills_exploit_scenario_when_missing(self):
+        findings = [_make_finding(exploit_scenario="", remediation="")]
+        verdicts = [{
+            "fingerprint": "abc123",
+            "verdict": "true_positive",
+            "reasoning": "confirmed",
+            "adjusted_severity": None,
+            "adjusted_confidence": None,
+            "exploit_scenario": None,
+            "remediation": None,
+            "fixed_code": None,
+        }]
+        result = _apply_verdicts(findings, verdicts)
+        assert "alter the SQL query" in result[0]["exploit_scenario"]
+        assert "parameterized queries" in result[0]["remediation"]
+
+    def test_applies_model_exploit_scenario_and_remediation(self):
+        findings = [_make_finding(exploit_scenario="", remediation="")]
+        verdicts = [{
+            "fingerprint": "abc123",
+            "verdict": "true_positive",
+            "reasoning": "confirmed",
+            "adjusted_severity": None,
+            "adjusted_confidence": None,
+            "exploit_scenario": "An attacker can tamper with the query to access unauthorized rows.",
+            "remediation": "Bind the identifier as a query parameter.",
+            "fixed_code": None,
+        }]
+        result = _apply_verdicts(findings, verdicts)
+        assert result[0]["exploit_scenario"] == "An attacker can tamper with the query to access unauthorized rows."
+        assert result[0]["remediation"] == "Bind the identifier as a query parameter."
 
 
 class TestTriageFindings:
@@ -385,3 +434,30 @@ class TestTriageFindings:
             result = triage_findings(findings, {"config.js": '+const apiKey = "sk_live_1234567890abcdef";\n'})
         assert len(result) == 1
         assert result[0]["remediation_patch"] == "const apiKey = process.env.API_KEY;"
+
+    @patch("llm_triage._call_openai")
+    def test_generates_fallback_eval_fix_when_model_omits_fixed_code(self, mock_call):
+        mock_call.return_value = (
+            json.dumps([{
+                "fingerprint": "abc123",
+                "verdict": "true_positive",
+                "reasoning": "eval executes attacker input",
+                "adjusted_severity": None,
+                "adjusted_confidence": None,
+                "fixed_code": None,
+            }]),
+            500,
+            200,
+        )
+        findings = [_make_finding(
+            rule_id="code.injection.eval",
+            title="Code injection via eval",
+            category="code injection",
+            cwe_id="CWE-94",
+            file_path="app.js",
+            code_snippet="eval(req.body.code);",
+        )]
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
+            result = triage_findings(findings, {"app.js": "+eval(req.body.code);\n"})
+        assert len(result) == 1
+        assert result[0]["remediation_patch"] == "JSON.parse(req.body.code);"

@@ -35,6 +35,13 @@ const MOCK_FINDING = {
   cwe_id: 'CWE-89',
 };
 
+const ENRICHED_FINDING = {
+  ...MOCK_FINDING,
+  exploit_scenario: 'An attacker who controls this input can alter the SQL query and read or modify unintended database records.',
+  remediation: 'Use parameterized queries and avoid building SQL with string concatenation.',
+  remediation_patch: 'db.query("SELECT * FROM users WHERE id = ?", [userId]);',
+};
+
 describe('GET /api/findings', () => {
   test('returns all findings for user', async () => {
     findingsDb.listAll.mockResolvedValueOnce([MOCK_FINDING]);
@@ -81,6 +88,20 @@ describe('GET /api/findings/:id', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.finding.id).toBe('finding-1');
+  });
+
+  test('preserves recommendation enrichment fields on read', async () => {
+    findingsDb.getById.mockResolvedValueOnce(ENRICHED_FINDING);
+
+    const app = createApp();
+    const res = await request(app)
+      .get('/api/findings/finding-1')
+      .set('Authorization', `Bearer ${authToken()}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.finding.exploit_scenario).toBe(ENRICHED_FINDING.exploit_scenario);
+    expect(res.body.finding.remediation).toBe(ENRICHED_FINDING.remediation);
+    expect(res.body.finding.remediation_patch).toBe(ENRICHED_FINDING.remediation_patch);
   });
 
   test('returns 404 for non-existent finding', async () => {
@@ -161,6 +182,22 @@ describe('GET /api/pull-requests/:pullRequestId/findings', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.findings).toHaveLength(1);
+  });
+
+  test('preserves recommendation enrichment fields in PR findings list', async () => {
+    findingsDb.listByPullRequest.mockResolvedValueOnce([ENRICHED_FINDING]);
+
+    const app = createApp();
+    const res = await request(app)
+      .get('/api/pull-requests/pr-uuid-1/findings')
+      .set('Authorization', `Bearer ${authToken()}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.findings[0]).toMatchObject({
+      exploit_scenario: ENRICHED_FINDING.exploit_scenario,
+      remediation: ENRICHED_FINDING.remediation,
+      remediation_patch: ENRICHED_FINDING.remediation_patch,
+    });
   });
 
   test('passes status and confidence filters', async () => {
