@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from llm_triage import (
+    LLM_TRIAGE_MAX_FINDINGS,
     _apply_verdicts,
     _build_finding_context,
     _normalize_fixed_code,
@@ -56,13 +57,35 @@ class TestSelectFindings:
     def test_limits_to_max(self):
         findings = [_make_finding(fingerprint=f"fp-{i}") for i in range(30)]
         selected = _select_findings_for_triage(findings)
-        assert len(selected) == 20
+        assert len(selected) == min(30, LLM_TRIAGE_MAX_FINDINGS)
 
     def test_prioritizes_high_severity_low_confidence(self):
         low_value = _make_finding(severity="low", confidence=0.95, fingerprint="low")
         high_value = _make_finding(severity="critical", confidence=0.5, fingerprint="high")
         selected = _select_findings_for_triage([low_value, high_value])
         assert selected[0]["fingerprint"] == "high"
+
+    def test_prioritizes_patchable_findings(self):
+        generic = _make_finding(
+            fingerprint="generic",
+            severity="low",
+            confidence=0.7,
+            rule_id="generic.security.issue",
+            category="security issue",
+            cwe_id="CWE-200",
+            code_snippet="doThing(userInput)",
+        )
+        patchable = _make_finding(
+            fingerprint="patchable",
+            severity="high",
+            confidence=0.7,
+            file_path="app.js",
+            category="cross-site scripting (xss)",
+            cwe_id="CWE-79",
+            code_snippet="element.innerHTML = req.query.name;",
+        )
+        selected = _select_findings_for_triage([generic, patchable])
+        assert selected[0]["fingerprint"] == "patchable"
 
 
 class TestBuildFindingContext:
@@ -461,3 +484,57 @@ class TestTriageFindings:
             result = triage_findings(findings, {"app.js": "+eval(req.body.code);\n"})
         assert len(result) == 1
         assert result[0]["remediation_patch"] == "JSON.parse(req.body.code);"
+
+    @patch("llm_triage._call_openai")
+    def test_generates_fallback_exec_fix_when_model_omits_fixed_code(self, mock_call):
+        mock_call.return_value = (
+            json.dumps([{
+                "fingerprint": "abc123",
+                "verdict": "true_positive",
+                "reasoning": "command execution from request input",
+                "adjusted_severity": None,
+                "adjusted_confidence": None,
+                "fixed_code": None,
+            }]),
+            500,
+            200,
+        )
+        findings = [_make_finding(
+            rule_id="code.injection.exec",
+            title="Command injection via exec",
+            category="code injection",
+            cwe_id="CWE-78",
+            file_path="app.js",
+            code_snippet="exec(req.query.cmd);",
+        )]
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
+            result = triage_findings(findings, {"app.js": "+exec(req.query.cmd);\n"})
+        assert len(result) == 1
+        assert result[0]["remediation_patch"] == 'return res.status(400).json({ error: "Refusing to execute user-controlled commands" });'
+
+    @patch("llm_triage._call_openai")
+    def test_generates_fallback_xss_fix_when_model_omits_fixed_code(self, mock_call):
+        mock_call.return_value = (
+            json.dumps([{
+                "fingerprint": "abc123",
+                "verdict": "true_positive",
+                "reasoning": "unsafe HTML rendering",
+                "adjusted_severity": None,
+                "adjusted_confidence": None,
+                "fixed_code": None,
+            }]),
+            500,
+            200,
+        )
+        findings = [_make_finding(
+            rule_id="xss.unsafe_html_render",
+            title="Potential XSS through unsafe HTML rendering",
+            category="cross-site scripting (xss)",
+            cwe_id="CWE-79",
+            file_path="app.js",
+            code_snippet="element.innerHTML = req.query.name;",
+        )]
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
+            result = triage_findings(findings, {"app.js": "+element.innerHTML = req.query.name;\n"})
+        assert len(result) == 1
+        assert result[0]["remediation_patch"] == "element.textContent = req.query.name;"
