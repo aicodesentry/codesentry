@@ -73,6 +73,8 @@ Respond with ONLY a JSON array. Each element must have:
 - "reasoning": 1-2 sentence explanation
 - "adjusted_severity": null or one of "critical", "high", "medium", "low"
 - "adjusted_confidence": null or a float 0.0-1.0
+- "exploit_scenario": null or a 1-2 sentence attacker-focused impact path grounded in this code
+- "remediation": null or a concise actionable fix recommendation
 - "fixed_code": null or the exact replacement code lines (only for true_positive findings where you are confident in the fix)
 
 For fixed_code:
@@ -175,6 +177,27 @@ def _normalize_fixed_code(fixed_code: Any, original_snippet: str) -> Optional[st
     return normalized[:2000]
 
 
+def _normalize_text(value: Any, max_length: int = 500) -> Optional[str]:
+    if value is None:
+        return None
+
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+
+    normalized = normalized.replace("\r\n", "\n")
+    if normalized.startswith("```"):
+        parts = normalized.split("```")
+        if len(parts) >= 3:
+            normalized = parts[1]
+            if "\n" in normalized:
+                normalized = normalized.split("\n", 1)[1]
+        normalized = normalized.strip()
+
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized[:max_length] if normalized else None
+
+
 def _env_key_for_identifier(identifier: str) -> str:
     raw = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", str(identifier or ""))
     cleaned = re.sub(r"[^A-Za-z0-9]+", "_", raw).strip("_")
@@ -219,6 +242,23 @@ def _fallback_secret_fix(snippet: str, language: str) -> Optional[str]:
     }
 
     return replacements.get(language)
+
+
+def _fallback_eval_fix(snippet: str, language: str) -> Optional[str]:
+    line = str(snippet or "").strip()
+    if not line:
+        return None
+
+    if language == "javascript":
+        if re.search(r"\beval\s*\(", line):
+            return re.sub(r"\beval\s*\((.+)\)\s*;?$", r"JSON.parse(\1);", line)
+        if re.search(r"\bnew\s+Function\s*\(", line):
+            return None
+
+    if language == "python" and re.search(r"\beval\s*\(", line):
+        return re.sub(r"\beval\s*\((.+)\)\s*$", r"json.loads(\1)", line)
+
+    return None
 
 
 def _fallback_sql_fix(snippet: str, language: str) -> Optional[str]:
@@ -289,7 +329,59 @@ def _build_fallback_fixed_code(
     if "secret" in rule_id or "hardcoded secret" in str(finding.get("title", "")).lower() or cwe_id == "CWE-798":
         return _fallback_secret_fix(snippet, language)
 
+    if "eval" in rule_id or category == "code injection" or cwe_id == "CWE-94":
+        return _fallback_eval_fix(snippet, language)
+
     return None
+
+
+def _build_fallback_exploit_scenario(finding: Dict[str, Any]) -> Optional[str]:
+    category = str(finding.get("category", "")).lower()
+    title = str(finding.get("title", "")).lower()
+    cwe_id = str(finding.get("cwe_id", "")).upper()
+
+    if "sql" in category or cwe_id == "CWE-89":
+        return "An attacker who controls this input can alter the SQL query and read or modify unintended database records."
+
+    if "xss" in category or "cross-site scripting" in title or cwe_id == "CWE-79":
+        return "An attacker can inject script into rendered output and execute code in another user's browser session."
+
+    if "code injection" in category or "eval" in title or cwe_id == "CWE-94":
+        return "An attacker who reaches this path with controlled input may execute unintended code within the application context."
+
+    if "secret" in category or cwe_id == "CWE-798":
+        return "If this secret is exposed through the repository, logs, or build artifacts, an attacker can reuse it to access protected systems."
+
+    if "path traversal" in category or cwe_id == "CWE-22":
+        return "An attacker can manipulate the path input to read or overwrite files outside the intended directory."
+
+    return "If attacker-controlled input reaches this code path, it may trigger the vulnerable behavior and impact confidentiality, integrity, or availability."
+
+
+def _build_fallback_remediation(finding: Dict[str, Any]) -> Optional[str]:
+    existing = _normalize_text(finding.get("remediation"), max_length=300)
+    if existing:
+        return existing
+
+    category = str(finding.get("category", "")).lower()
+    cwe_id = str(finding.get("cwe_id", "")).upper()
+
+    if "sql" in category or cwe_id == "CWE-89":
+        return "Use parameterized queries and avoid building SQL with string concatenation."
+
+    if "xss" in category or cwe_id == "CWE-79":
+        return "Encode or sanitize untrusted output before rendering it in the browser."
+
+    if "code injection" in category or cwe_id == "CWE-94":
+        return "Remove dynamic code execution and parse or validate untrusted input with a safe alternative."
+
+    if "secret" in category or cwe_id == "CWE-798":
+        return "Move the secret into environment or secret-manager configuration and rotate the exposed credential."
+
+    if "path traversal" in category or cwe_id == "CWE-22":
+        return "Validate the requested path against an allowlist and resolve it within a fixed base directory."
+
+    return "Replace the unsafe pattern with a validated, framework-consistent safe alternative."
 
 
 def _build_triage_prompt(
@@ -375,13 +467,33 @@ def _parse_triage_response(
         if verdict not in ("true_positive", "false_positive", "uncertain"):
             continue
 
+        fixed_code = (
+            item.get("fixed_code")
+            or item.get("remediation_patch")
+            or item.get("remediationPatch")
+            or item.get("suggested_patch")
+            or item.get("patch")
+        )
+
         verdicts.append({
             "fingerprint": fp,
             "verdict": verdict,
             "reasoning": str(item.get("reasoning", ""))[:500],
             "adjusted_severity": item.get("adjusted_severity"),
             "adjusted_confidence": item.get("adjusted_confidence"),
-            "fixed_code": item.get("fixed_code"),
+            "exploit_scenario": (
+                item.get("exploit_scenario")
+                or item.get("exploitScenario")
+                or item.get("attack_scenario")
+                or item.get("impact")
+            ),
+            "remediation": (
+                item.get("remediation")
+                or item.get("recommendation")
+                or item.get("recommended_fix")
+                or item.get("fix")
+            ),
+            "fixed_code": fixed_code,
         })
 
     return verdicts
@@ -429,6 +541,18 @@ def _apply_verdicts(
         adj_conf = verdict.get("adjusted_confidence")
         if adj_conf is not None and isinstance(adj_conf, (int, float)) and 0 <= adj_conf <= 1:
             enriched["confidence"] = round(adj_conf, 2)
+
+        exploit_scenario = _normalize_text(verdict.get("exploit_scenario"))
+        if exploit_scenario:
+            enriched["exploit_scenario"] = exploit_scenario
+        elif not _normalize_text(enriched.get("exploit_scenario")):
+            enriched["exploit_scenario"] = _build_fallback_exploit_scenario(enriched)
+
+        remediation = _normalize_text(verdict.get("remediation"), max_length=300)
+        if remediation:
+            enriched["remediation"] = remediation
+        elif not _normalize_text(enriched.get("remediation"), max_length=300):
+            enriched["remediation"] = _build_fallback_remediation(enriched)
 
         fixed_code = _normalize_fixed_code(verdict.get("fixed_code"), finding.get("code_snippet", ""))
         if not fixed_code and verdict["verdict"] == "true_positive":
