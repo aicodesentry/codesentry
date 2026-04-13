@@ -40,7 +40,7 @@ LLM_TRIAGE_TOKENS = Counter(
 
 LLM_TRIAGE_MODEL = os.getenv("LLM_TRIAGE_MODEL", "gpt-4o-mini")
 LLM_TRIAGE_TIMEOUT = int(os.getenv("LLM_TRIAGE_TIMEOUT_SECONDS", "45"))
-LLM_TRIAGE_MAX_FINDINGS = int(os.getenv("LLM_TRIAGE_MAX_FINDINGS", "20"))
+LLM_TRIAGE_MAX_FINDINGS = int(os.getenv("LLM_TRIAGE_MAX_FINDINGS", "100"))
 
 SEVERITY_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1}
 
@@ -103,8 +103,9 @@ def _select_findings_for_triage(
     for f in findings:
         sev = SEVERITY_RANK.get(str(f.get("severity", "")).lower(), 0)
         conf = float(f.get("confidence", 0.5))
+        patchable_bonus = 2 if _is_likely_patchable(f) else 0
         # High severity + low confidence = highest triage value
-        score = sev * 2 + (1 - conf)
+        score = sev * 2 + (1 - conf) + patchable_bonus
         scored.append((score, f))
 
     scored.sort(key=lambda x: -x[0])
@@ -261,6 +262,45 @@ def _fallback_eval_fix(snippet: str, language: str) -> Optional[str]:
     return None
 
 
+def _fallback_command_injection_fix(snippet: str, language: str) -> Optional[str]:
+    line = str(snippet or "").strip()
+    if not line:
+        return None
+
+    if language == "javascript":
+        if re.search(r"\bexec\s*\(\s*req\.", line):
+            return 'return res.status(400).json({ error: "Refusing to execute user-controlled commands" });'
+        ping_concat = re.search(r'exec\s*\(\s*"ping\s+"\s*\+\s*([A-Za-z_][A-Za-z0-9_\.]*)\s*\)\s*;?$', line)
+        if ping_concat:
+            host = ping_concat.group(1)
+            return f'execFile("ping", [{host}]);'
+
+    if language == "java":
+        ping_concat = re.search(r'Runtime\.getRuntime\(\)\.exec\(\s*"ping\s+"\s*\+\s*([A-Za-z_][A-Za-z0-9_\.]*)\s*\)\s*;?$', line)
+        if ping_concat:
+            host = ping_concat.group(1)
+            return f'Runtime.getRuntime().exec(new String[]{{"ping", {host}}});'
+
+    if language == "ruby" and re.search(r"\bexec\s*\(", line):
+        return 'raise ArgumentError, "Refusing to execute user-controlled commands"'
+
+    return None
+
+
+def _fallback_xss_fix(snippet: str, language: str) -> Optional[str]:
+    line = str(snippet or "").strip()
+    if not line or language != "javascript":
+        return None
+
+    if ".innerHTML =" in line:
+        return line.replace(".innerHTML =", ".textContent =", 1)
+
+    if re.search(r"\bdocument\.write\s*\(", line):
+        return re.sub(r"\bdocument\.write\s*\((.+)\)\s*;?$", r"document.body.textContent = \1;", line)
+
+    return None
+
+
 def _fallback_sql_fix(snippet: str, language: str) -> Optional[str]:
     line = str(snippet or "").strip()
     if "+" not in line:
@@ -329,10 +369,23 @@ def _build_fallback_fixed_code(
     if "secret" in rule_id or "hardcoded secret" in str(finding.get("title", "")).lower() or cwe_id == "CWE-798":
         return _fallback_secret_fix(snippet, language)
 
-    if "eval" in rule_id or category == "code injection" or cwe_id == "CWE-94":
+    if "eval" in rule_id or cwe_id in {"CWE-94", "CWE-95"}:
         return _fallback_eval_fix(snippet, language)
 
+    if "command injection" in category or "exec" in rule_id or cwe_id == "CWE-78":
+        return _fallback_command_injection_fix(snippet, language)
+
+    if category == "code injection":
+        return _fallback_command_injection_fix(snippet, language) or _fallback_eval_fix(snippet, language)
+
+    if "xss" in category or "cross-site scripting" in str(finding.get("title", "")).lower() or cwe_id == "CWE-79":
+        return _fallback_xss_fix(snippet, language)
+
     return None
+
+
+def _is_likely_patchable(finding: Dict[str, Any]) -> bool:
+    return _build_fallback_fixed_code(finding) is not None
 
 
 def _build_fallback_exploit_scenario(finding: Dict[str, Any]) -> Optional[str]:
