@@ -335,3 +335,53 @@ class TestTriageFindings:
             result = triage_findings(findings, {"app.py": "+cursor.execute(query)\n"})
         assert len(result) == 1
         assert result[0]["remediation_patch"] == 'cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))'
+
+    @patch("llm_triage._call_openai")
+    def test_generates_fallback_sql_fix_when_model_omits_fixed_code(self, mock_call):
+        mock_call.return_value = (
+            json.dumps([{
+                "fingerprint": "abc123",
+                "verdict": "true_positive",
+                "reasoning": "User input directly concatenated",
+                "adjusted_severity": None,
+                "adjusted_confidence": 0.91,
+                "fixed_code": None,
+            }]),
+            500,
+            200,
+        )
+        findings = [_make_finding(
+            file_path="app.js",
+            code_snippet='db.query("SELECT * FROM users WHERE id = " + userId);',
+        )]
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
+            result = triage_findings(findings, {"app.js": '+db.query("SELECT * FROM users WHERE id = " + userId);\n'})
+        assert len(result) == 1
+        assert result[0]["remediation_patch"] == 'db.query("SELECT * FROM users WHERE id = ?", [userId]);'
+
+    @patch("llm_triage._call_openai")
+    def test_generates_fallback_secret_fix_when_model_omits_fixed_code(self, mock_call):
+        mock_call.return_value = (
+            json.dumps([{
+                "fingerprint": "abc123",
+                "verdict": "true_positive",
+                "reasoning": "Hardcoded secret confirmed",
+                "adjusted_severity": None,
+                "adjusted_confidence": None,
+                "fixed_code": None,
+            }]),
+            500,
+            200,
+        )
+        findings = [_make_finding(
+            rule_id="secret.hardcoded.credential",
+            title="Hardcoded secret or credential",
+            category="hardcoded secrets",
+            cwe_id="CWE-798",
+            file_path="config.js",
+            code_snippet='const apiKey = "sk_live_1234567890abcdef";',
+        )]
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
+            result = triage_findings(findings, {"config.js": '+const apiKey = "sk_live_1234567890abcdef";\n'})
+        assert len(result) == 1
+        assert result[0]["remediation_patch"] == "const apiKey = process.env.API_KEY;"
