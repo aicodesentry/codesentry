@@ -40,6 +40,8 @@ describe('PR Analysis Orchestrator — pure functions', () => {
 
     expect(body).toContain('```suggestion');
     expect(body).toContain('const payload = JSON.parse(req.body.code);');
+    expect(body).toContain('**Suggested fix code:**');
+    expect(body).toContain('```\nconst payload = JSON.parse(req.body.code);');
   });
 
   test('buildReviewComment falls back to fix text before Tier 3 validation', () => {
@@ -60,6 +62,8 @@ describe('PR Analysis Orchestrator — pure functions', () => {
 
     expect(body).not.toContain('```suggestion');
     expect(body).toContain('**Fix:** Replace eval with JSON parsing.');
+    expect(body).toContain('**Candidate fix code:**');
+    expect(body).toContain('const payload = JSON.parse(req.body.code);');
   });
 
   test('buildReviewComment falls back to fix text for oversized patches', () => {
@@ -90,6 +94,7 @@ describe('PR Analysis Orchestrator — pure functions', () => {
 
     expect(body).not.toContain('```suggestion');
     expect(body).toContain('**Fix:** Replace eval with safer parsing.');
+    expect(body).toContain('**Candidate fix code:**');
   });
 
   test('validateSuggestedFix rejects patches that do not match the diff snippet', () => {
@@ -178,6 +183,7 @@ describe('PR Analysis Orchestrator — pure functions', () => {
 
     expect(body).toContain('```suggestion');
     expect(body).toContain('db.query("SELECT * FROM users WHERE id = ?", [userId]);');
+    expect(body).toContain('**Suggested fix code:**');
   });
 
   test('didTier3MeaningfullyChangeFindings detects remediation patch enrichment', () => {
@@ -209,6 +215,20 @@ describe('PR Analysis Orchestrator — pure functions', () => {
     );
 
     expect(changed).toBe(true);
+  });
+
+  test('prioritizeReviewComments sorts suggestion comments first within a file', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const ordered = __private.prioritizeReviewComments([
+      { path: 'a.js', line: 20, severity: 'critical', hasSuggestion: false, body: 'plain' },
+      { path: 'a.js', line: 10, severity: 'high', hasSuggestion: true, body: 'suggestion' },
+      { path: 'b.js', line: 5, severity: 'high', hasSuggestion: true, body: 'other-file' },
+    ]);
+
+    expect(ordered[0]).toMatchObject({ path: 'a.js', hasSuggestion: true });
+    expect(ordered[1]).toMatchObject({ path: 'a.js', hasSuggestion: false });
+    expect(ordered[2]).toMatchObject({ path: 'b.js' });
   });
 });
 
@@ -401,6 +421,8 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     expect(inlineCall).toBeTruthy();
     expect(inlineCall[1].body).not.toContain('```suggestion');
     expect(inlineCall[1].body).toContain('**Fix:** Replace eval/exec with safe alternatives.');
+    expect(inlineCall[1].body).toContain('**Candidate fix code:**');
+    expect(inlineCall[1].body).toContain('const payload = JSON.parse(req.body.code);');
   });
 
   test('logs error but does not fail run when review posting fails', async () => {
