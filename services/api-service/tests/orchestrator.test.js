@@ -37,9 +37,9 @@ describe('PR Analysis Orchestrator — pure functions', () => {
     }], 'run-uuid-1');
 
     expect(body).toContain('### Findings');
-    expect(body).toContain('**Fix code:**');
-    expect(body).toContain('```javascript');
-    expect(body).toContain('db.query("SELECT * FROM users WHERE id = ?", [userId]);');
+    expect(body).toContain('**Fix:** Use parameterized queries.');
+    expect(body).not.toContain('**Fix code:**');
+    expect(body).not.toContain('db.query("SELECT * FROM users WHERE id = ?", [userId]);');
   });
 
   test('buildReviewComment renders GitHub suggestion blocks for validated Tier 3 patches', () => {
@@ -51,6 +51,8 @@ describe('PR Analysis Orchestrator — pure functions', () => {
       evidence: 'Matched eval call',
       confidence: 0.92,
       code_snippet: 'eval(req.body.code);',
+      line_start: 1,
+      line_end: 1,
       remediation: 'Replace eval with JSON parsing.',
       remediation_patch: 'const payload = JSON.parse(req.body.code);',
     }, {
@@ -60,8 +62,8 @@ describe('PR Analysis Orchestrator — pure functions', () => {
 
     expect(body).toContain('```suggestion');
     expect(body).toContain('const payload = JSON.parse(req.body.code);');
-    expect(body).toContain('**Suggested fix code:**');
-    expect(body).toContain('```\nconst payload = JSON.parse(req.body.code);');
+    expect(body).not.toContain('**Suggested fix code:**');
+    expect(body).not.toContain('**Candidate fix code:**');
   });
 
   test('buildReviewComment falls back to fix text before Tier 3 validation', () => {
@@ -82,7 +84,7 @@ describe('PR Analysis Orchestrator — pure functions', () => {
 
     expect(body).not.toContain('```suggestion');
     expect(body).toContain('**Fix:** Replace eval with JSON parsing.');
-    expect(body).toContain('**Candidate fix code:**');
+    expect(body).not.toContain('**Candidate fix code:**');
     expect(body).toContain('const payload = JSON.parse(req.body.code);');
   });
 
@@ -114,7 +116,51 @@ describe('PR Analysis Orchestrator — pure functions', () => {
 
     expect(body).not.toContain('```suggestion');
     expect(body).toContain('**Fix:** Replace eval with safer parsing.');
-    expect(body).toContain('**Candidate fix code:**');
+    expect(body).not.toContain('**Candidate fix code:**');
+  });
+
+  test('shouldRenderSuggestion rejects patches shorter than the anchored line range', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const rendered = __private.shouldRenderSuggestion(
+      { line_start: 10, line_end: 12, code_snippet: 'a\nb\nc' },
+      'oneLineFix();'
+    );
+
+    expect(rendered).toBe(false);
+  });
+
+  test('shouldRenderSuggestion rejects patches that overshoot the anchor span', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const rendered = __private.shouldRenderSuggestion(
+      { line_start: 5, line_end: 5, code_snippet: 'eval(x);' },
+      ['function safe(i) {', '  return JSON.parse(i);', '}', 'const v = safe(x);', 'use(v);'].join('\n')
+    );
+
+    expect(rendered).toBe(false);
+  });
+
+  test('shouldRenderSuggestion rejects findings with no anchor line', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const rendered = __private.shouldRenderSuggestion(
+      { code_snippet: 'eval(x);' },
+      'safeParse(x);'
+    );
+
+    expect(rendered).toBe(false);
+  });
+
+  test('shouldRenderSuggestion accepts a matching multi-line anchor', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const rendered = __private.shouldRenderSuggestion(
+      { line_start: 10, line_end: 12, code_snippet: 'a\nb\nc' },
+      'lineOne;\nlineTwo;\nlineThree;'
+    );
+
+    expect(rendered).toBe(true);
   });
 
   test('validateSuggestedFix rejects patches that do not match the diff snippet', () => {
@@ -203,7 +249,7 @@ describe('PR Analysis Orchestrator — pure functions', () => {
 
     expect(body).toContain('```suggestion');
     expect(body).toContain('db.query("SELECT * FROM users WHERE id = ?", [userId]);');
-    expect(body).toContain('**Suggested fix code:**');
+    expect(body).not.toContain('**Suggested fix code:**');
   });
 
   test('didTier3MeaningfullyChangeFindings detects remediation patch enrichment', () => {
@@ -456,8 +502,8 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     );
     expect(reviewCall).toBeTruthy();
     expect(reviewCall[1].event).toBe('REQUEST_CHANGES');
-    expect(reviewCall[1].body).toContain('**Fix code:**');
-    expect(reviewCall[1].body).toContain('const payload = JSON.parse(req.body.code);');
+    expect(reviewCall[1].body).not.toContain('**Fix code:**');
+    expect(reviewCall[1].body).toContain('**Fix:** Replace eval/exec with safe alternatives.');
 
     const inlineCall = axios.post.mock.calls.find(
       (call) => typeof call[0] === 'string' && call[0].includes('comments/inline')
@@ -465,7 +511,7 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     expect(inlineCall).toBeTruthy();
     expect(inlineCall[1].body).not.toContain('```suggestion');
     expect(inlineCall[1].body).toContain('**Fix:** Replace eval/exec with safe alternatives.');
-    expect(inlineCall[1].body).toContain('**Candidate fix code:**');
+    expect(inlineCall[1].body).not.toContain('**Candidate fix code:**');
     expect(inlineCall[1].body).toContain('const payload = JSON.parse(req.body.code);');
   });
 

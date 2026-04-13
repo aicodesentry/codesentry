@@ -71,3 +71,75 @@ def test_generates_php_command_injection_patch():
         "code_snippet": "exec($_POST['cmd']);",
     })
     assert patch == 'throw new RuntimeException("Refusing to execute user-controlled commands");'
+
+
+def test_replaces_md5_with_sha256_python():
+    patch = build_remediation_patch({
+        "rule_id": "crypto.weak.md5",
+        "title": "Use of weak hash function",
+        "category": "weak crypto",
+        "cwe_id": "CWE-327",
+        "file_path": "app.py",
+        "code_snippet": "digest = hashlib.md5(payload).hexdigest()",
+    })
+    assert patch == "digest = hashlib.sha256(payload).hexdigest()"
+
+
+def test_replaces_sha1_with_sha256_javascript():
+    patch = build_remediation_patch({
+        "rule_id": "crypto.weak.sha1",
+        "title": "Insecure cryptography",
+        "category": "Insecure Cryptography",
+        "cwe_id": "CWE-327",
+        "file_path": "app.js",
+        "code_snippet": 'const h = crypto.createHash("sha1").update(data).digest("hex");',
+    })
+    assert patch == 'const h = crypto.createHash("sha256").update(data).digest("hex");'
+
+
+def test_replaces_md5_new_with_sha256_go():
+    patch = build_remediation_patch({
+        "rule_id": "crypto.weak.md5",
+        "title": "Weak hash",
+        "category": "weak crypto",
+        "cwe_id": "CWE-327",
+        "file_path": "hash.go",
+        "code_snippet": "h := md5.New()",
+    })
+    assert patch == "h := sha256.New()"
+
+
+def test_flips_verify_false_to_true_for_requests():
+    patch = build_remediation_patch({
+        "rule_id": "tls.verify_disabled",
+        "title": "Certificate verification disabled",
+        "category": "insecure tls",
+        "cwe_id": "CWE-295",
+        "file_path": "client.py",
+        "code_snippet": 'resp = requests.get(url, verify=False)',
+    })
+    assert patch == 'resp = requests.get(url, verify=True)'
+
+
+def test_replaces_yaml_load_with_safe_load():
+    patch = build_remediation_patch({
+        "rule_id": "deserialization.unsafe.yaml.load",
+        "title": "Unsafe YAML deserialization",
+        "category": "insecure deserialization",
+        "cwe_id": "CWE-502",
+        "file_path": "loader.py",
+        "code_snippet": "data = yaml.load(stream)",
+    })
+    assert patch == "data = yaml.safe_load(stream)"
+
+
+def test_yaml_safe_load_unchanged():
+    patch = build_remediation_patch({
+        "rule_id": "deserialization.unsafe.yaml.load",
+        "title": "Unsafe YAML deserialization",
+        "category": "insecure deserialization",
+        "cwe_id": "CWE-502",
+        "file_path": "loader.py",
+        "code_snippet": "data = yaml.safe_load(stream)",
+    })
+    assert patch is None

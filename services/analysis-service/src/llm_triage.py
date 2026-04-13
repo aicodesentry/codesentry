@@ -148,34 +148,60 @@ def _build_finding_context(
     }
 
 
+def _leading_whitespace(line: str) -> str:
+    stripped = line.lstrip()
+    return line[: len(line) - len(stripped)]
+
+
 def _normalize_fixed_code(fixed_code: Any, original_snippet: str) -> Optional[str]:
     if fixed_code is None:
         return None
 
-    normalized = str(fixed_code).strip()
-    if not normalized:
+    raw = str(fixed_code)
+    if not raw.strip():
         return None
 
-    if normalized.startswith("```"):
-        parts = normalized.split("```")
+    if raw.lstrip().startswith("```"):
+        stripped = raw.strip()
+        parts = stripped.split("```")
         if len(parts) >= 3:
-            normalized = parts[1]
-            if normalized.startswith("json") or normalized.startswith("javascript") or normalized.startswith("python"):
-                normalized = normalized.split("\n", 1)[1] if "\n" in normalized else ""
-        normalized = normalized.strip()
+            body = parts[1]
+            if body.startswith(("json", "javascript", "python", "ts", "typescript", "go", "java", "ruby", "php", "csharp")):
+                body = body.split("\n", 1)[1] if "\n" in body else ""
+            raw = body
 
-    if "```" in normalized:
+    if "```" in raw:
         return None
 
-    normalized = normalized.replace("\r\n", "\n")
-    fixed_lines = normalized.split("\n")
-    if len(fixed_lines) > 8:
+    raw = raw.replace("\r\n", "\n")
+
+    lines = raw.split("\n")
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    if not lines:
         return None
 
-    snippet_lines = [line for line in str(original_snippet or "").split("\n") if line.strip()]
-    if len(fixed_lines) > max(1, len(snippet_lines)) + 3:
+    lines = [line.rstrip() for line in lines]
+
+    original_lines = [ln for ln in str(original_snippet or "").split("\n") if ln.strip()]
+    original_indent = _leading_whitespace(original_lines[0]) if original_lines else ""
+
+    content_lines = [ln for ln in lines if ln.strip()]
+    if content_lines and original_indent:
+        fixed_indent = min((_leading_whitespace(ln) for ln in content_lines), key=len)
+        if len(fixed_indent) < len(original_indent):
+            pad = original_indent[len(fixed_indent):]
+            lines = [pad + ln if ln.strip() else ln for ln in lines]
+
+    if len(lines) > 8:
         return None
 
+    if len(lines) > max(1, len(original_lines)) + 3:
+        return None
+
+    normalized = "\n".join(lines)
     return normalized[:2000]
 
 

@@ -172,6 +172,55 @@ def _xss_fix(snippet: str, language: str) -> Optional[str]:
     return None
 
 
+def _weak_crypto_fix(snippet: str, language: str) -> Optional[str]:
+    line = str(snippet or "").rstrip("\n")
+    if not line.strip():
+        return None
+
+    if language == "python":
+        m = re.search(r"\bhashlib\.(md5|sha1)\s*\(", line)
+        if m:
+            return re.sub(r"\bhashlib\.(md5|sha1)\s*\(", "hashlib.sha256(", line, count=1)
+
+    if language == "javascript":
+        m = re.search(r"""createHash\s*\(\s*['"](md5|sha1)['"]\s*\)""", line)
+        if m:
+            return re.sub(
+                r"""createHash\s*\(\s*['"](md5|sha1)['"]\s*\)""",
+                'createHash("sha256")',
+                line,
+                count=1,
+            )
+
+    if language == "go":
+        if re.search(r"\b(md5|sha1)\.New\s*\(\s*\)", line):
+            return re.sub(r"\b(md5|sha1)\.New\s*\(\s*\)", "sha256.New()", line, count=1)
+
+    return None
+
+
+def _tls_verify_fix(snippet: str, language: str) -> Optional[str]:
+    line = str(snippet or "").rstrip("\n")
+    if not line.strip():
+        return None
+
+    if language == "python" and re.search(r"\bverify\s*=\s*False\b", line):
+        return re.sub(r"\bverify\s*=\s*False\b", "verify=True", line, count=1)
+
+    return None
+
+
+def _yaml_load_fix(snippet: str, language: str) -> Optional[str]:
+    line = str(snippet or "").rstrip("\n")
+    if not line.strip() or language != "python":
+        return None
+
+    if re.search(r"\byaml\.load\s*\(", line) and "safe_load" not in line:
+        return re.sub(r"\byaml\.load\s*\(", "yaml.safe_load(", line, count=1)
+
+    return None
+
+
 def build_remediation_patch(finding: Dict[str, Any]) -> Optional[str]:
     language = infer_language(finding.get("file_path", ""))
     snippet = str(finding.get("code_snippet", "")).strip()
@@ -204,5 +253,20 @@ def build_remediation_patch(finding: Dict[str, Any]) -> Optional[str]:
     if rule_id == "config.tls_disabled" and language == "javascript":
         if "NODE_TLS_REJECT_UNAUTHORIZED" in snippet:
             return 'process.env.NODE_TLS_REJECT_UNAUTHORIZED = "1";'
+
+    if cwe_id == "CWE-327" or "weak crypto" in category or "weak hash" in title or "insecure crypto" in title:
+        fix = _weak_crypto_fix(snippet, language)
+        if fix:
+            return fix
+
+    if cwe_id == "CWE-295" or "tls" in rule_id or "certificate verification" in title:
+        fix = _tls_verify_fix(snippet, language)
+        if fix:
+            return fix
+
+    if cwe_id == "CWE-502" or "yaml.load" in rule_id or "unsafe yaml" in title:
+        fix = _yaml_load_fix(snippet, language)
+        if fix:
+            return fix
 
     return None
