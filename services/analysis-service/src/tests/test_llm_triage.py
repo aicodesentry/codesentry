@@ -123,6 +123,25 @@ class TestNormalizeFixedCode:
         fixed = _normalize_fixed_code("\n".join([f"line {i}" for i in range(9)]), "eval(user_input)")
         assert fixed is None
 
+    def test_preserves_original_indent_when_llm_returns_flush_left(self):
+        original = "    query = f\"SELECT * FROM users WHERE id = {user_id}\""
+        fixed = _normalize_fixed_code("cursor.execute(\"SELECT * FROM users WHERE id = %s\", (user_id,))", original)
+        assert fixed == "    cursor.execute(\"SELECT * FROM users WHERE id = %s\", (user_id,))"
+
+    def test_preserves_relative_indent_across_multiline_patch(self):
+        original = "    if user:\n        process(user)"
+        llm_output = "if user is not None:\n    process(user)"
+        fixed = _normalize_fixed_code(llm_output, original)
+        assert fixed == "    if user is not None:\n        process(user)"
+
+    def test_does_not_double_indent_when_llm_already_matches(self):
+        original = "    query = f\"SELECT 1\""
+        fixed = _normalize_fixed_code("    cursor.execute(\"SELECT 1\")", original)
+        assert fixed == "    cursor.execute(\"SELECT 1\")"
+
+    def test_rejects_blank_only_input(self):
+        assert _normalize_fixed_code("   \n\t\n", "eval(x)") is None
+
 
 class TestParseTriageResponse:
     def test_parses_valid_json(self):

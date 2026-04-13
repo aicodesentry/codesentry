@@ -31,11 +31,16 @@ function shouldRenderSuggestion(finding, suggestionPatch) {
   if (!suggestionPatch) return false;
   if (suggestionPatch.includes('```')) return false;
 
-  const suggestionLines = suggestionPatch.split('\n');
-  if (suggestionLines.length > 8) return false;
+  const lineStart = Number(finding.line_start || 0);
+  if (!lineStart) return false;
+  const lineEnd = Number(finding.line_end || lineStart);
+  const anchorSpan = Math.max(1, lineEnd - lineStart + 1);
 
-  const snippetLines = String(finding.code_snippet || '').split('\n').filter(Boolean).length || 1;
-  if (suggestionLines.length > snippetLines + 3) return false;
+  const patchLines = suggestionPatch.split('\n').length;
+  if (patchLines > 8) return false;
+
+  if (patchLines < anchorSpan) return false;
+  if (patchLines > anchorSpan + 3) return false;
 
   return true;
 }
@@ -62,9 +67,6 @@ function shouldRenderFixCodeBlock(suggestionPatch) {
 }
 
 function buildReviewBodyFinding(finding) {
-  const suggestionPatch = normalizeSuggestionPatch(finding.remediation_patch);
-  const showFixCodeBlock = shouldRenderFixCodeBlock(suggestionPatch);
-  const codeFenceLanguage = inferCodeFenceLanguage(finding.file_path);
   const location = finding.file_path
     ? ` at \`${finding.file_path}${finding.line_start ? `:${finding.line_start}` : ''}\``
     : '';
@@ -77,16 +79,6 @@ function buildReviewBodyFinding(finding) {
     finding.exploit_scenario ? `**Exploit scenario:** ${markdownEscape(finding.exploit_scenario)}` : null,
     `**Fix:** ${markdownEscape(finding.remediation || 'Apply input validation and secure handling.')}`,
   ];
-
-  if (showFixCodeBlock) {
-    lines.push(
-      '',
-      '**Fix code:**',
-      `\`\`\`${codeFenceLanguage}`,
-      suggestionPatch,
-      '```'
-    );
-  }
 
   return lines.filter(Boolean).join('\n');
 }
@@ -182,23 +174,16 @@ function buildReviewComment(finding, options = {}) {
   ];
 
   const showSuggestion = shouldRenderSuggestion(finding, suggestionPatch) && suggestionValidation.ok;
-  const showFixCodeBlock = shouldRenderFixCodeBlock(suggestionPatch);
+  const showFixCodeBlock = !showSuggestion && shouldRenderFixCodeBlock(suggestionPatch);
   const codeFenceLanguage = inferCodeFenceLanguage(finding.file_path);
 
-  if (shouldRenderSuggestion(finding, suggestionPatch) && suggestionValidation.ok) {
+  if (showSuggestion) {
     lines.push('', '```suggestion', suggestionPatch, '```');
   } else {
     lines.push('', `**Fix:** ${markdownEscape(finding.remediation || 'Apply input validation and secure handling.')}`);
-  }
-
-  if (showFixCodeBlock) {
-    lines.push(
-      '',
-      showSuggestion ? '**Suggested fix code:**' : '**Candidate fix code:**',
-      `\`\`\`${codeFenceLanguage}`,
-      suggestionPatch,
-      '```'
-    );
+    if (showFixCodeBlock) {
+      lines.push('', `\`\`\`${codeFenceLanguage}`, suggestionPatch, '```');
+    }
   }
 
   return lines.filter(Boolean).join('\n');
@@ -229,6 +214,22 @@ function compareReviewComments(a, b) {
 
 function prioritizeReviewComments(reviewComments) {
   return [...(reviewComments || [])].sort(compareReviewComments);
+}
+
+function hasTier3RenderableSuggestions(findings, files, repoProfile) {
+  const filePatchByPath = new Map((files || []).map((f) => [f.path, f.patch || '']));
+  return (findings || []).some((finding) => {
+    const suggestionPatch = normalizeSuggestionPatch(finding.remediation_patch);
+    if (!shouldRenderSuggestion(finding, suggestionPatch)) return false;
+
+    const validation = validateSuggestedFix({
+      finding,
+      filePatch: filePatchByPath.get(finding.file_path) || '',
+      tierLabel: 'Tier 3',
+      repoProfile,
+    });
+    return validation.ok;
+  });
 }
 
 async function githubServiceRequest(path, payload) {
@@ -429,6 +430,8 @@ async function postReviewToGitHub({ actionable, files, owner, repo, prNumber, in
     const reviewBody = buildReviewBody(actionable, runId);
     const reviewableLinesByFile = new Map(files.map((f) => [f.path, extractReviewableLines(f.patch)]));
     const filePatchByPath = new Map(files.map((f) => [f.path, f.patch || '']));
+    const suggestionStats = { rendered: 0, noPatch: 0, gateRejected: 0, validatorRejected: 0 };
+    const rejectionReasons = {};
     const reviewComments = actionable
       .filter((f) => Number(f.confidence) >= 0.7 && reviewableLinesByFile.has(f.file_path))
       .filter((f) => reviewableLinesByFile.get(f.file_path)?.has(f.line_start || 1))
@@ -441,12 +444,26 @@ async function postReviewToGitHub({ actionable, files, owner, repo, prNumber, in
           tierLabel,
           repoProfile,
         });
+        const gatePassed = shouldRenderSuggestion(f, suggestionPatch);
+        const hasSuggestion = gatePassed && suggestionValidation.ok;
+
+        if (hasSuggestion) {
+          suggestionStats.rendered += 1;
+        } else if (!suggestionPatch) {
+          suggestionStats.noPatch += 1;
+        } else if (!gatePassed) {
+          suggestionStats.gateRejected += 1;
+        } else {
+          suggestionStats.validatorRejected += 1;
+          const reason = suggestionValidation.reason || 'unknown';
+          rejectionReasons[reason] = (rejectionReasons[reason] || 0) + 1;
+        }
 
         return {
           path: f.file_path,
           line: f.line_start || 1,
           severity: f.severity,
-          hasSuggestion: shouldRenderSuggestion(f, suggestionPatch) && suggestionValidation.ok,
+          hasSuggestion,
           body: buildReviewComment(f, {
             filePatch,
             tierLabel,
@@ -454,6 +471,16 @@ async function postReviewToGitHub({ actionable, files, owner, repo, prNumber, in
           }),
         };
       });
+
+    if (reviewComments.length > 0) {
+      logger.info(`${tierLabel}: suggestion render outcomes`, {
+        runId,
+        prNumber,
+        total: reviewComments.length,
+        ...suggestionStats,
+        validatorReasons: rejectionReasons,
+      });
+    }
 
     reviewResp = await submitReviewWithFallback({
       owner, repo, prNumber, installationId, commitSha,
@@ -583,7 +610,11 @@ async function runAnalysisJob(payload) {
       const triaged = tier3.findings || [];
       const filteredCount = tier3.filtered_count || 0;
 
-      if (filteredCount > 0 || didTier3MeaningfullyChangeFindings(allFindings, triaged)) {
+      if (
+        filteredCount > 0
+        || didTier3MeaningfullyChangeFindings(allFindings, triaged)
+        || hasTier3RenderableSuggestions(triaged, files, repoProfile)
+      ) {
         allFindings = triaged;
 
         const { actionable, shouldMarkBaselineSet: sbs } = await persistAndFilter({
@@ -651,6 +682,7 @@ module.exports = {
     buildReviewComment,
     compareReviewComments,
     didTier3MeaningfullyChangeFindings,
+    hasTier3RenderableSuggestions,
     normalizeSuggestionPatch,
     prioritizeReviewComments,
     shouldRenderSuggestion,

@@ -12,6 +12,8 @@ def infer_language(file_path: str) -> str:
         return "go"
     if path.endswith(".java"):
         return "java"
+    if path.endswith(".php"):
+        return "php"
     if path.endswith(".cs"):
         return "csharp"
     if path.endswith(".rb"):
@@ -28,7 +30,15 @@ def _env_key_for_identifier(identifier: str) -> str:
 def _secret_fix(snippet: str, language: str) -> Optional[str]:
     line = str(snippet or "").strip()
     if not line or "=" not in line:
-      return None
+        return None
+
+    if language == "php":
+        match = re.match(r"^(?P<prefix>.*?(?P<name>\$[A-Za-z_][A-Za-z0-9_]*)\s*=\s*)(?P<quote>['\"])(?P<value>.+?)(?P=quote)\s*;?$", line)
+        if not match:
+            return None
+        env_key = _env_key_for_identifier(match.group("name").lstrip("$"))
+        suffix = ";" if line.endswith(";") else ""
+        return f'{match.group("prefix")}getenv("{env_key}"){suffix}'
 
     match = re.match(
         r"^(?P<prefix>.*?\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*)(?P<quote>['\"])(?P<value>.+?)(?P=quote)\s*;?$",
@@ -46,6 +56,7 @@ def _secret_fix(snippet: str, language: str) -> Optional[str]:
         "python": f'{match.group("name")} = os.getenv("{env_key}")',
         "go": re.sub(r'=\s*"[^"]+"$', f'= os.Getenv("{env_key}")', line),
         "java": f'{prefix}System.getenv("{env_key}"){suffix}',
+        "php": f'{prefix}getenv("{env_key}"){suffix}',
         "csharp": f'{prefix}Environment.GetEnvironmentVariable("{env_key}"){suffix}',
         "ruby": f'{prefix}ENV["{env_key}"]{suffix}',
     }
@@ -92,6 +103,15 @@ def _sql_fix(snippet: str, language: str) -> Optional[str]:
             "stmt.executeQuery();",
         ])
 
+    if language == "php":
+        conn_match = re.search(r"(\$\w+)\s*,", line)
+        conn_var = conn_match.group(1) if conn_match else "$conn"
+        return "\n".join([
+            f'$stmt = mysqli_prepare({conn_var}, "{query}?");',
+            f'mysqli_stmt_bind_param($stmt, "s", {variable});',
+            "mysqli_stmt_execute($stmt);",
+        ])
+
     return None
 
 
@@ -115,6 +135,9 @@ def _command_injection_fix(snippet: str, language: str) -> Optional[str]:
     if language == "ruby" and re.search(r"\bexec\s*\(", line):
         return 'raise ArgumentError, "Refusing to execute user-controlled commands"'
 
+    if language == "php" and re.search(r"\bexec\s*\(\s*\$_", line):
+        return 'throw new RuntimeException("Refusing to execute user-controlled commands");'
+
     return None
 
 
@@ -129,6 +152,9 @@ def _eval_fix(snippet: str, language: str) -> Optional[str]:
     if language == "python" and re.search(r"\beval\s*\(", line):
         return None
 
+    if language == "php" and re.search(r"\beval\s*\(", line):
+        return 'throw new RuntimeException("Refusing to evaluate user-controlled code");'
+
     return None
 
 
@@ -142,6 +168,55 @@ def _xss_fix(snippet: str, language: str) -> Optional[str]:
 
     if re.search(r"\bdocument\.write\s*\(", line):
         return re.sub(r"\bdocument\.write\s*\((.+)\)\s*;?$", r"document.body.textContent = \1;", line)
+
+    return None
+
+
+def _weak_crypto_fix(snippet: str, language: str) -> Optional[str]:
+    line = str(snippet or "").rstrip("\n")
+    if not line.strip():
+        return None
+
+    if language == "python":
+        m = re.search(r"\bhashlib\.(md5|sha1)\s*\(", line)
+        if m:
+            return re.sub(r"\bhashlib\.(md5|sha1)\s*\(", "hashlib.sha256(", line, count=1)
+
+    if language == "javascript":
+        m = re.search(r"""createHash\s*\(\s*['"](md5|sha1)['"]\s*\)""", line)
+        if m:
+            return re.sub(
+                r"""createHash\s*\(\s*['"](md5|sha1)['"]\s*\)""",
+                'createHash("sha256")',
+                line,
+                count=1,
+            )
+
+    if language == "go":
+        if re.search(r"\b(md5|sha1)\.New\s*\(\s*\)", line):
+            return re.sub(r"\b(md5|sha1)\.New\s*\(\s*\)", "sha256.New()", line, count=1)
+
+    return None
+
+
+def _tls_verify_fix(snippet: str, language: str) -> Optional[str]:
+    line = str(snippet or "").rstrip("\n")
+    if not line.strip():
+        return None
+
+    if language == "python" and re.search(r"\bverify\s*=\s*False\b", line):
+        return re.sub(r"\bverify\s*=\s*False\b", "verify=True", line, count=1)
+
+    return None
+
+
+def _yaml_load_fix(snippet: str, language: str) -> Optional[str]:
+    line = str(snippet or "").rstrip("\n")
+    if not line.strip() or language != "python":
+        return None
+
+    if re.search(r"\byaml\.load\s*\(", line) and "safe_load" not in line:
+        return re.sub(r"\byaml\.load\s*\(", "yaml.safe_load(", line, count=1)
 
     return None
 
@@ -174,5 +249,24 @@ def build_remediation_patch(finding: Dict[str, Any]) -> Optional[str]:
 
     if category == "code injection":
         return _command_injection_fix(snippet, language) or _eval_fix(snippet, language)
+
+    if rule_id == "config.tls_disabled" and language == "javascript":
+        if "NODE_TLS_REJECT_UNAUTHORIZED" in snippet:
+            return 'process.env.NODE_TLS_REJECT_UNAUTHORIZED = "1";'
+
+    if cwe_id == "CWE-327" or "weak crypto" in category or "weak hash" in title or "insecure crypto" in title:
+        fix = _weak_crypto_fix(snippet, language)
+        if fix:
+            return fix
+
+    if cwe_id == "CWE-295" or "tls" in rule_id or "certificate verification" in title:
+        fix = _tls_verify_fix(snippet, language)
+        if fix:
+            return fix
+
+    if cwe_id == "CWE-502" or "yaml.load" in rule_id or "unsafe yaml" in title:
+        fix = _yaml_load_fix(snippet, language)
+        if fix:
+            return fix
 
     return None
