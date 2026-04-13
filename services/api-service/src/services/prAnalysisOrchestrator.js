@@ -25,6 +25,7 @@ function severityIcon(severity) {
 }
 
 const normalizeSuggestionPatch = validatorPrivate.normalizePatch;
+const looksLikeUnifiedDiff = validatorPrivate.looksLikeUnifiedDiff;
 
 function shouldRenderSuggestion(finding, suggestionPatch) {
   if (!suggestionPatch) return false;
@@ -36,6 +37,27 @@ function shouldRenderSuggestion(finding, suggestionPatch) {
   const snippetLines = String(finding.code_snippet || '').split('\n').filter(Boolean).length || 1;
   if (suggestionLines.length > snippetLines + 3) return false;
 
+  return true;
+}
+
+function inferCodeFenceLanguage(filePath) {
+  const path = String(filePath || '').toLowerCase();
+  if (path.endsWith('.py')) return 'python';
+  if (path.endsWith('.ts') || path.endsWith('.tsx')) return 'ts';
+  if (path.endsWith('.js') || path.endsWith('.jsx')) return 'javascript';
+  if (path.endsWith('.go')) return 'go';
+  if (path.endsWith('.java')) return 'java';
+  if (path.endsWith('.rb')) return 'ruby';
+  if (path.endsWith('.cs')) return 'csharp';
+  if (path.endsWith('.php')) return 'php';
+  return '';
+}
+
+function shouldRenderFixCodeBlock(suggestionPatch) {
+  if (!suggestionPatch) return false;
+  if (suggestionPatch.includes('```')) return false;
+  if (looksLikeUnifiedDiff(suggestionPatch)) return false;
+  if (suggestionPatch.split('\n').length > 20) return false;
   return true;
 }
 
@@ -119,16 +141,55 @@ function buildReviewComment(finding, options = {}) {
     `**Confidence:** ${Math.round(Number(finding.confidence) * 100)}%`,
   ];
 
+  const showSuggestion = shouldRenderSuggestion(finding, suggestionPatch) && suggestionValidation.ok;
+  const showFixCodeBlock = shouldRenderFixCodeBlock(suggestionPatch);
+  const codeFenceLanguage = inferCodeFenceLanguage(finding.file_path);
+
   if (shouldRenderSuggestion(finding, suggestionPatch) && suggestionValidation.ok) {
     lines.push('', '```suggestion', suggestionPatch, '```');
   } else {
     lines.push('', `**Fix:** ${markdownEscape(finding.remediation || 'Apply input validation and secure handling.')}`);
   }
 
+  if (showFixCodeBlock) {
+    lines.push(
+      '',
+      showSuggestion ? '**Suggested fix code:**' : '**Candidate fix code:**',
+      `\`\`\`${codeFenceLanguage}`,
+      suggestionPatch,
+      '```'
+    );
+  }
+
   return lines.filter(Boolean).join('\n');
 }
 
 const extractReviewableLines = validatorPrivate.extractReviewableLines;
+
+function severityRank(severity) {
+  return { critical: 4, high: 3, medium: 2, low: 1 }[String(severity || '').toLowerCase()] || 0;
+}
+
+function compareReviewComments(a, b) {
+  const pathCompare = String(a.path || '').localeCompare(String(b.path || ''));
+  if (pathCompare !== 0) return pathCompare;
+
+  if (Boolean(a.hasSuggestion) !== Boolean(b.hasSuggestion)) {
+    return a.hasSuggestion ? -1 : 1;
+  }
+
+  const lineDiff = Number(a.line || 0) - Number(b.line || 0);
+  if (lineDiff !== 0) return lineDiff;
+
+  const severityDiff = severityRank(b.severity) - severityRank(a.severity);
+  if (severityDiff !== 0) return severityDiff;
+
+  return String(a.body || '').localeCompare(String(b.body || ''));
+}
+
+function prioritizeReviewComments(reviewComments) {
+  return [...(reviewComments || [])].sort(compareReviewComments);
+}
 
 async function githubServiceRequest(path, payload) {
   const baseUrl = process.env.GITHUB_SERVICE_URL || 'http://github-service:3002';
@@ -185,7 +246,7 @@ async function postInlineCommentsIndividually({
   reviewComments,
   runId,
 }) {
-  const dedupedComments = dedupeInlineComments(reviewComments).slice(0, 40);
+  const dedupedComments = dedupeInlineComments(prioritizeReviewComments(reviewComments)).slice(0, 40);
   let posted = 0;
 
   for (const comment of dedupedComments) {
@@ -331,15 +392,28 @@ async function postReviewToGitHub({ actionable, files, owner, repo, prNumber, in
     const reviewComments = actionable
       .filter((f) => Number(f.confidence) >= 0.7 && reviewableLinesByFile.has(f.file_path))
       .filter((f) => reviewableLinesByFile.get(f.file_path)?.has(f.line_start || 1))
-      .map((f) => ({
-        path: f.file_path,
-        line: f.line_start || 1,
-        body: buildReviewComment(f, {
-          filePatch: filePatchByPath.get(f.file_path) || '',
+      .map((f) => {
+        const filePatch = filePatchByPath.get(f.file_path) || '';
+        const suggestionPatch = normalizeSuggestionPatch(f.remediation_patch);
+        const suggestionValidation = validateSuggestedFix({
+          finding: f,
+          filePatch,
           tierLabel,
           repoProfile,
-        }),
-      }));
+        });
+
+        return {
+          path: f.file_path,
+          line: f.line_start || 1,
+          severity: f.severity,
+          hasSuggestion: shouldRenderSuggestion(f, suggestionPatch) && suggestionValidation.ok,
+          body: buildReviewComment(f, {
+            filePatch,
+            tierLabel,
+            repoProfile,
+          }),
+        };
+      });
 
     reviewResp = await submitReviewWithFallback({
       owner, repo, prNumber, installationId, commitSha,
@@ -534,8 +608,10 @@ module.exports = {
   triggerAnalysisJob,
   __private: {
     buildReviewComment,
+    compareReviewComments,
     didTier3MeaningfullyChangeFindings,
     normalizeSuggestionPatch,
+    prioritizeReviewComments,
     shouldRenderSuggestion,
     validateSuggestedFix,
   },
