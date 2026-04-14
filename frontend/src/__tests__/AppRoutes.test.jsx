@@ -66,14 +66,14 @@ describe('AppRoutes onboarding redirects', () => {
     onboardingState.status = { needsOnboarding: true }
   })
 
-  it('redirects /dashboard to onboarding when setup is incomplete', () => {
+  it('redirects /dashboard to dashboard home when setup is incomplete', () => {
     render(
       <MemoryRouter initialEntries={['/dashboard']}>
         <AppRoutes />
       </MemoryRouter>
     )
 
-    expect(screen.getByText('Onboarding Page')).toBeInTheDocument()
+    expect(screen.getByText('Dashboard Home')).toBeInTheDocument()
   })
 
   it('redirects /dashboard to dashboard home when onboarding is complete', () => {
