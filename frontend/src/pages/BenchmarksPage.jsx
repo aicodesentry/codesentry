@@ -2,8 +2,8 @@ import TrustPage from '../components/TrustPage'
 
 const sections = [
   {
-    title: 'What we measure',
-    description: 'We care about review usefulness, not inflated issue counts.',
+    title: 'Live now: review usefulness metrics',
+    description: 'The benchmark that matters most today is whether the right finding reaches the reviewer quickly and clearly.',
     points: [
       'Time to first PR comment after webhook receipt.',
       'Completed vs failed analysis runs over the last seven days.',
@@ -12,12 +12,12 @@ const sections = [
     ],
   },
   {
-    title: 'What we optimize for',
-    description: 'Mitig8it is strongest when judged on practical PR output.',
+    title: 'Where quality improves next',
+    description: 'Benchmarks should track the product roadmap instead of pretending everything is already complete.',
     points: [
-      'Security findings instead of general lint or style commentary.',
-      'Evidence tied to the matching diff hunk.',
-      'Clustered output so the same issue does not spam the PR.',
+      'Suggested remediation quality once that layer moves from in-progress to shipped.',
+      'Review precision with stronger repository context over time.',
+      'Whether future fix flows reduce time-to-resolution without lowering trust.',
     ],
   },
 ]
@@ -26,13 +26,11 @@ export default function BenchmarksPage() {
   return (
     <TrustPage
       eyebrow="Benchmarks"
-      title="Measure review quality, not just issue volume"
-      intro="A tool that posts more comments is not automatically the better reviewer. The useful benchmark is whether the right finding reaches the reviewer quickly and clearly."
+      title="Benchmark the review loop, not just raw finding counts"
+      intro="Mitig8it should be judged on what reaches the pull request reviewer, how much signal stays intact, and where the product still needs to improve."
       sections={sections}
-      ctaTitle="Inspect the run history"
-      ctaText="The reports page shows the current analysis pipeline and run outcomes."
-      ctaLink="/dashboard/reports"
-      ctaLabel="Open reports"
+      ctaTitle="Try the current review workflow"
+      ctaText="Start with one repository and compare the first run against the quality bar described here."
     />
   )
 }
