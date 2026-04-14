@@ -108,8 +108,8 @@ describe('GET /auth/github/callback', () => {
   async function getValidState(app) {
     const res = await request(app).get('/auth/github');
     const location = res.headers.location || '';
-    const match = location.match(/state=([a-f0-9]+)/);
-    return match ? match[1] : null;
+    const redirectUrl = new URL(location);
+    return redirectUrl.searchParams.get('state');
   }
 
   test('redirects with error if no code provided', async () => {
@@ -123,6 +123,16 @@ describe('GET /auth/github/callback', () => {
   test('rejects callback with missing state', async () => {
     const app = createApp();
     const res = await request(app).get('/auth/github/callback?code=test-code');
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toContain('error=invalid_state');
+  });
+
+  test('rejects callback with tampered state', async () => {
+    const app = createApp();
+    const state = await getValidState(app);
+    const tamperedState = `${state}tampered`;
+    const res = await request(app).get(`/auth/github/callback?code=test-code&state=${encodeURIComponent(tamperedState)}`);
 
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain('error=invalid_state');
