@@ -5,7 +5,7 @@ import { useOnboarding } from '../contexts/OnboardingContext'
 import { repositoryAPI } from '../services/api'
 import { PageHeader, PageStats } from '../components/PageSection'
 import { Pagination } from '../components/ui/pagination'
-import { ArrowUpRight, GitPullRequest, Shield, ShieldAlert, Server, Search } from 'lucide-react'
+import { ArrowUpRight, CheckCircle2, ExternalLink, GitPullRequest, Shield, ShieldAlert, Server, Search } from 'lucide-react'
 
 const GITHUB_APP_URL = 'https://github.com/apps/mitig8it/installations/new'
 
@@ -21,6 +21,263 @@ const severityConfig = {
   high: { label: 'H', bg: 'bg-orange-500', text: 'text-white' },
   medium: { label: 'M', bg: 'bg-amber-400', text: 'text-amber-900' },
   low: { label: 'L', bg: 'bg-sky-400', text: 'text-sky-900' },
+}
+
+const INSTALLATION_SETTINGS_URL = 'https://github.com/settings/installations'
+
+function getFirstRunChecklist(status) {
+  return [
+    {
+      id: 'install',
+      title: 'Install GitHub App',
+      detail: status.hasInstall
+        ? `${status.installationCount} installation${status.installationCount === 1 ? '' : 's'} connected`
+        : 'Install Mitig8it on one repository or organization.',
+      done: status.hasInstall,
+      current: status.nextStep === 'install',
+    },
+    {
+      id: 'access',
+      title: 'Grant repository access',
+      detail: status.hasRepoAccess
+        ? `${status.repositoryCount} repos visible to Mitig8it`
+        : 'Grant access in GitHub, then sync here once.',
+      done: status.hasRepoAccess,
+      current: status.nextStep === 'grant-access',
+    },
+    {
+      id: 'activate',
+      title: 'Activate one repository',
+      detail: status.hasActiveRepo
+        ? `${status.activeRepositoryCount} repo${status.activeRepositoryCount === 1 ? '' : 's'} active`
+        : 'Choose the first repository that should receive reviews.',
+      done: status.hasActiveRepo,
+      current: status.nextStep === 'connect-repo',
+    },
+    {
+      id: 'review',
+      title: 'Open a pull request',
+      detail: status.hasFirstReview
+        ? `${status.analysisCount} review${status.analysisCount === 1 ? '' : 's'} completed`
+        : status.hasFirstPullRequest
+          ? 'Pull request detected. Waiting for the first review.'
+          : 'Open or update a PR to trigger the first review.',
+      done: status.hasFirstReview,
+      current: status.nextStep === 'open-pr' || status.nextStep === 'wait-review',
+    },
+  ]
+}
+
+function getFirstRunAction(status, githubAppInstallUrl) {
+  if (!status.hasInstall) {
+    return {
+      title: 'Install the GitHub App',
+      description: 'Start small. Install Mitig8it on one repository now, then expand later if the first run looks good.',
+      primaryLabel: 'Install GitHub App',
+      primaryHref: githubAppInstallUrl || GITHUB_APP_URL,
+      primaryExternal: true,
+      secondaryLabel: 'View setup guide',
+      secondaryHref: '/dashboard/onboarding',
+    }
+  }
+
+  if (!status.hasRepoAccess) {
+    return {
+      title: 'Grant repository access',
+      description: 'Mitig8it is installed, but it still cannot see a repository to review. Broaden access in GitHub, then sync once here.',
+      primaryLabel: 'Manage GitHub access',
+      primaryHref: INSTALLATION_SETTINGS_URL,
+      primaryExternal: true,
+      secondaryLabel: 'View setup guide',
+      secondaryHref: '/dashboard/onboarding',
+    }
+  }
+
+  if (!status.hasActiveRepo) {
+    return {
+      title: 'Activate your first repository',
+      description: 'Choose one repository to turn on reviews. Keep the first pass focused, then expand after the workflow is proven.',
+      primaryLabel: 'Choose repository',
+      primaryHref: '/dashboard/repositories',
+      primaryExternal: false,
+      secondaryLabel: 'View setup guide',
+      secondaryHref: '/dashboard/onboarding',
+    }
+  }
+
+  if (!status.hasFirstReview) {
+    return {
+      title: status.hasFirstPullRequest ? 'Waiting for the first review' : 'Open a pull request',
+      description: status.hasFirstPullRequest
+        ? 'Mitig8it has enough access. The dashboard will populate as soon as the first pull request review completes.'
+        : 'Open or update a pull request in the active repository to trigger the first review.',
+      primaryLabel: 'Go to reports',
+      primaryHref: '/dashboard/reports',
+      primaryExternal: false,
+      secondaryLabel: 'View repositories',
+      secondaryHref: '/dashboard/repositories',
+    }
+  }
+
+  return {
+    title: 'Your setup is complete',
+    description: 'Mitig8it is connected and the first review has landed. Continue in the live dashboard.',
+    primaryLabel: 'Open dashboard',
+    primaryHref: '/dashboard/home',
+    primaryExternal: false,
+    secondaryLabel: 'View reports',
+    secondaryHref: '/dashboard/reports',
+  }
+}
+
+function FirstRunActionButton({ action }) {
+  if (action.primaryExternal) {
+    return (
+      <a
+        href={action.primaryHref}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
+      >
+        {action.primaryLabel}
+        <ExternalLink className="h-4 w-4" />
+      </a>
+    )
+  }
+
+  return (
+    <Link
+      to={action.primaryHref}
+      className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
+    >
+      {action.primaryLabel}
+      <ArrowUpRight className="h-4 w-4" />
+    </Link>
+  )
+}
+
+function FirstRunWorkspace({ githubAppInstallUrl, status, user }) {
+  const checklist = useMemo(() => getFirstRunChecklist(status), [status])
+  const action = useMemo(() => getFirstRunAction(status, githubAppInstallUrl), [githubAppInstallUrl, status])
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="max-w-3xl space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500 dark:text-neutral-400">
+            First Run
+          </p>
+          <h2 className="text-3xl font-semibold text-neutral-900 dark:text-white">
+            {user?.github_username ? `${user.github_username}, get your first review live` : 'Get your first review live'}
+          </h2>
+          <p className="text-sm leading-6 text-neutral-600 dark:text-neutral-300">
+            This workspace becomes useful once one repository is connected and the first pull request review lands. Until then, keep the setup tight and focus on the current step only.
+          </p>
+        </div>
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500 dark:text-neutral-400">
+                Current Step
+              </p>
+              <h3 className="text-2xl font-semibold text-neutral-900 dark:text-white">
+                {action.title}
+              </h3>
+              <p className="max-w-2xl text-sm leading-6 text-neutral-600 dark:text-neutral-300">
+                {action.description}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4">
+              <FirstRunActionButton action={action} />
+              <Link
+                to={action.secondaryHref}
+                className="inline-flex items-center gap-2 text-sm font-medium text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
+              >
+                {action.secondaryLabel}
+              </Link>
+            </div>
+
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-950">
+              <h4 className="text-sm font-semibold text-neutral-900 dark:text-white">
+                What happens once setup is complete
+              </h4>
+              <div className="mt-3 space-y-3">
+                {[
+                  'Mitig8it comments directly on risky pull request lines.',
+                  'GitHub gets a review summary with severity and remediation context.',
+                  'Reports become the operating log once the first review lands.',
+                ].map((line) => (
+                  <div key={line} className="flex items-start gap-3">
+                    <div className="mt-1 h-2 w-2 rounded-full bg-neutral-900 dark:bg-white" />
+                    <p className="text-sm text-neutral-600 dark:text-neutral-300">{line}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div>
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
+              Setup progress
+            </h3>
+            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+              Ignore everything except the current step.
+            </p>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {checklist.map((item, index) => (
+              <div
+                key={item.id}
+                className={`rounded-xl border px-4 py-4 ${
+                  item.done
+                    ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/60 dark:bg-emerald-950/20'
+                    : item.current
+                      ? 'border-neutral-900 bg-neutral-50 dark:border-white dark:bg-neutral-950'
+                      : 'border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
+                      item.done
+                        ? 'bg-emerald-600 text-white'
+                        : item.current
+                          ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900'
+                          : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300'
+                    }`}
+                  >
+                    {item.done ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                        {item.title}
+                      </p>
+                      {item.current ? (
+                        <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white dark:bg-white dark:text-neutral-900">
+                          Current
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-300">
+                      {item.detail}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
 }
 
 const DashboardPage = () => {
@@ -129,49 +386,20 @@ const DashboardPage = () => {
   }
 
   const statVal = (v) => (loading || onboardingLoading ? '-' : v)
+  const isFirstRunWorkspace = onboardingStatus.needsOnboarding || onboardingStatus.needsFirstReview
+
+  if (isFirstRunWorkspace) {
+    return (
+      <FirstRunWorkspace
+        githubAppInstallUrl={githubAppInstallUrl}
+        status={onboardingStatus}
+        user={user}
+      />
+    )
+  }
 
   return (
     <div className="space-y-6">
-      {onboardingStatus.needsOnboarding ? (
-        <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-4 text-sm text-sky-900 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-100">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="font-semibold">
-                Your account is ready. GitHub App install is optional until you want live repository data.
-              </p>
-              <p className="mt-1 text-sky-800/80 dark:text-sky-100/80">
-                Browse the workspace now, or connect GitHub later to sync repositories and trigger PR reviews.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                to="/dashboard/onboarding"
-                className="inline-flex items-center gap-2 rounded-lg border border-sky-300 px-4 py-2 text-sm font-medium text-sky-900 transition hover:bg-sky-100 dark:border-sky-400/40 dark:text-sky-100 dark:hover:bg-sky-400/10"
-              >
-                View setup guide
-              </Link>
-              {!onboardingStatus.hasInstall ? (
-                <a
-                  href={githubAppInstallUrl || GITHUB_APP_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-lg bg-sky-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-800 dark:bg-sky-100 dark:text-sky-950 dark:hover:bg-white"
-                >
-                  Install GitHub App
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                </a>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {onboardingStatus.needsFirstReview ? (
-        <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300">
-          Your workspace is connected. Open or update a pull request in an active repository to generate the first review.
-        </div>
-      ) : null}
-
       <PageHeader
         title={user?.github_username ? `${user.github_username}'s workspace` : 'Dashboard'}
         description="Security posture across your repositories"
@@ -195,12 +423,11 @@ const DashboardPage = () => {
         ]}
       />
 
-      {/* Severity bar */}
       {severityTotals.total > 0 && (
         <div className="flex items-center gap-4 rounded-xl border border-neutral-200 bg-white px-5 py-3 dark:border-neutral-800 dark:bg-neutral-900">
           <Shield className="h-4 w-4 text-neutral-400" />
           <div className="flex flex-1 items-center gap-2">
-            <div className="flex flex-1 h-2 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
+            <div className="flex h-2 flex-1 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
               {severityTotals.critical > 0 && (
                 <div className="bg-red-500" style={{ width: `${(severityTotals.critical / severityTotals.total) * 100}%` }} />
               )}
@@ -224,7 +451,6 @@ const DashboardPage = () => {
         </div>
       )}
 
-      {/* PR list */}
       <div>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">Recent Pull Requests</h2>
@@ -241,9 +467,7 @@ const DashboardPage = () => {
           </div>
         ) : prInsights.length === 0 ? (
           <div className="rounded-xl border border-dashed border-neutral-200 px-6 py-12 text-center text-sm text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
-            {onboardingStatus.hasInstall
-              ? 'No pull requests yet. Connect repositories and sync to see PR activity.'
-              : 'No pull requests yet. Install the GitHub App when you are ready to bring repository activity into the workspace.'}
+            No pull requests yet. Connect repositories and sync to see PR activity.
           </div>
         ) : (
           <>
@@ -254,21 +478,18 @@ const DashboardPage = () => {
                   const st = statusConfig[pr.status] || statusConfig.open
                   return (
                     <div key={`${pr.repository}-${pr.pr_number}`} className="flex items-center gap-4 px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-                      {/* Status dot */}
                       <span className={`h-2 w-2 flex-shrink-0 rounded-full ${st.dot}`} title={st.label} />
 
-                      {/* PR info */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-neutral-900 dark:text-white truncate">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-neutral-900 dark:text-white">
                           #{pr.pr_number} {pr.title || 'Untitled'}
                         </p>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+                        <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">
                           {pr.repository} · {pr.author} · <span className={st.text}>{st.label}</span> · {formatTime(pr.timestamp)}
                         </p>
                       </div>
 
-                      {/* Severity pills */}
-                      <div className="hidden sm:flex items-center gap-1">
+                      <div className="hidden items-center gap-1 sm:flex">
                         {Object.entries(pr.severity_counts).map(([level, count]) => {
                           if (!count) return null
                           const cfg = severityConfig[level]
@@ -280,7 +501,6 @@ const DashboardPage = () => {
                         })}
                       </div>
 
-                      {/* GitHub link */}
                       <a
                         href={pr.html_url || `https://github.com/${pr.repository}/pull/${pr.pr_number}`}
                         target="_blank"
