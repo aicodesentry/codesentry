@@ -30,14 +30,14 @@ export const clearAuthToken = () => {
 
 export const markGithubReauthRequired = () => {
   if (typeof window === 'undefined') return
-  window.sessionStorage.setItem(FORCE_REAUTH_KEY, '1')
+  window.localStorage.setItem(FORCE_REAUTH_KEY, '1')
 }
 
 export const consumeGithubReauthRequired = () => {
   if (typeof window === 'undefined') return false
-  const required = window.sessionStorage.getItem(FORCE_REAUTH_KEY) === '1'
+  const required = window.localStorage.getItem(FORCE_REAUTH_KEY) === '1'
   if (required) {
-    window.sessionStorage.removeItem(FORCE_REAUTH_KEY)
+    window.localStorage.removeItem(FORCE_REAUTH_KEY)
   }
   return required
 }

@@ -16,7 +16,6 @@ describe('authAPI GitHub login/logout helpers', () => {
   beforeEach(() => {
     vi.resetModules()
     window.localStorage.clear()
-    window.sessionStorage.clear()
     setLocationHref('http://localhost:5173/')
   })
 

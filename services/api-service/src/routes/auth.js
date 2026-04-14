@@ -133,14 +133,9 @@ router.get('/github', (req, res) => {
     return res.status(400).json({ error: 'HTTPS required' });
   }
 
-<<<<<<< HEAD
-  // Generate a signed, time-limited CSRF state that survives cross-instance callbacks.
-  const state = createOAuthState();
-=======
   // Generate a signed, time-limited CSRF state that survives cross-instance callbacks.
   const state = createOAuthState();
   const prompt = req.query.prompt === 'select_account' ? '&prompt=select_account' : '';
->>>>>>> 1a2715b (Fix: make logout clear session and force reauth)
 
   const callbackUrl =
     process.env.GITHUB_CALLBACK_URL || `${publicBaseUrl(req)}/auth/github/callback`;
