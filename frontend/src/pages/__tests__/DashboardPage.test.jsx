@@ -14,8 +14,15 @@ const onboardingState = vi.hoisted(() => ({
     needsOnboarding: true,
     needsFirstReview: false,
     hasInstall: false,
+    hasRepoAccess: false,
     hasActiveRepo: false,
+    hasFirstPullRequest: false,
+    hasFirstReview: false,
     activeRepositoryCount: 0,
+    installationCount: 0,
+    repositoryCount: 0,
+    analysisCount: 0,
+    nextStep: 'install',
   },
 }))
 
@@ -52,13 +59,6 @@ vi.mock('../../components/PageSection', () => ({
       ))}
     </div>
   ),
-  EmptyPanel: ({ title, description, action }) => (
-    <div>
-      <div>{title}</div>
-      <div>{description}</div>
-      <div>{action}</div>
-    </div>
-  ),
 }))
 
 vi.mock('../../components/ui/pagination', () => ({
@@ -72,12 +72,79 @@ describe('DashboardPage', () => {
       needsOnboarding: true,
       needsFirstReview: false,
       hasInstall: false,
+      hasRepoAccess: false,
       hasActiveRepo: false,
+      hasFirstPullRequest: false,
+      hasFirstReview: false,
       activeRepositoryCount: 0,
+      installationCount: 0,
+      repositoryCount: 0,
+      analysisCount: 0,
+      nextStep: 'install',
     }
   })
 
-  it('allows signed-in users to browse the dashboard before installing the GitHub App', async () => {
+  it('shows a guided first-run workspace instead of dashboard metrics before install', async () => {
+    render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText(/get your first review live/i)).toBeInTheDocument()
+    expect(screen.getByText('Setup progress')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Install GitHub App' })).toHaveAttribute(
+      'href',
+      authState.githubAppInstallUrl
+    )
+    await screen.findByText('View setup guide')
+    expect(screen.queryByText('Active repos:0')).toBeNull()
+    expect(screen.queryByText(/Recent Pull Requests/i)).toBeNull()
+  })
+
+  it('switches the first-run action to waiting state once a PR exists', async () => {
+    onboardingState.status = {
+      needsOnboarding: false,
+      needsFirstReview: true,
+      hasInstall: true,
+      hasRepoAccess: true,
+      hasActiveRepo: true,
+      hasFirstPullRequest: true,
+      hasFirstReview: false,
+      activeRepositoryCount: 1,
+      installationCount: 1,
+      repositoryCount: 1,
+      analysisCount: 0,
+      nextStep: 'wait-review',
+    }
+
+    render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByText('Waiting for the first review')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go to reports' })).toHaveAttribute('href', '/dashboard/reports')
+    expect(screen.getByText('1 repo active')).toBeInTheDocument()
+  })
+
+  it('shows the live dashboard once the first review has landed', async () => {
+    onboardingState.status = {
+      needsOnboarding: false,
+      needsFirstReview: false,
+      hasInstall: true,
+      hasRepoAccess: true,
+      hasActiveRepo: true,
+      hasFirstPullRequest: true,
+      hasFirstReview: true,
+      activeRepositoryCount: 1,
+      installationCount: 1,
+      repositoryCount: 1,
+      analysisCount: 3,
+      nextStep: 'done',
+    }
+
     render(
       <MemoryRouter>
         <DashboardPage />
@@ -85,11 +152,7 @@ describe('DashboardPage', () => {
     )
 
     expect(screen.getByText("neha's workspace")).toBeInTheDocument()
-    expect(screen.getByText(/GitHub App install is optional/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Install GitHub App' })).toHaveAttribute(
-      'href',
-      authState.githubAppInstallUrl
-    )
+    expect(screen.getByText('Recent Pull Requests')).toBeInTheDocument()
     expect(await screen.findByText(/No pull requests yet/i)).toBeInTheDocument()
   })
 })

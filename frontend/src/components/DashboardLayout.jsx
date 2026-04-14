@@ -12,6 +12,7 @@ const DashboardShell = () => {
   const { theme, toggleTheme } = useTheme()
   const { status } = useOnboarding()
   const location = useLocation()
+  const isFirstRunHome = location.pathname === '/dashboard/home' && (status.needsOnboarding || status.needsFirstReview)
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard/home', icon: LayoutDashboard },
@@ -24,7 +25,9 @@ const DashboardShell = () => {
     { name: 'Profile', href: '/dashboard/profile', icon: UserCircle },
   ]
 
-  const pageName = navigation.find((item) => location.pathname === item.href)?.name || 'Dashboard'
+  const pageName = isFirstRunHome
+    ? 'Getting Started'
+    : navigation.find((item) => location.pathname === item.href)?.name || 'Dashboard'
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 transition-colors">
@@ -67,17 +70,6 @@ const DashboardShell = () => {
               <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
             </Button>
 
-            <div className="mt-4 rounded-xl border border-neutral-800/80 bg-neutral-900/60 px-3 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
-                {status.needsOnboarding ? 'Workspace setup' : 'Live workspace'}
-              </p>
-              <p className="mt-2 text-sm text-neutral-300">
-                {status.needsOnboarding
-                  ? 'You can explore the product now. Install the GitHub App later when you want live repository data.'
-                  : 'Your GitHub app is connected and reviews are flowing through the workspace.'}
-              </p>
-            </div>
-
             <div className="mt-4 flex items-center gap-3 rounded-xl border border-neutral-800/80 bg-neutral-900/60 px-3 py-3">
               {user?.avatar_url ? (
                 <img src={user.avatar_url} alt={user.github_username} className="h-10 w-10 rounded-full border border-neutral-700" />
@@ -103,11 +95,13 @@ const DashboardShell = () => {
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">Mitig8it</p>
                 <h1 className="text-2xl font-semibold text-neutral-900 dark:text-white">{pageName}</h1>
               </div>
-              <div className="rounded-full border border-neutral-200/70 bg-white/80 px-4 py-2 text-xs font-medium capitalize text-neutral-600 dark:border-neutral-800/80 dark:bg-neutral-900/80 dark:text-neutral-300">
-                {status.needsOnboarding
-                  ? `Next step: ${status.nextStep.replace('-', ' ')}`
-                  : `${status.analysisCount} analyses recorded`}
-              </div>
+              {!isFirstRunHome ? (
+                <div className="rounded-full border border-neutral-200/70 bg-white/80 px-4 py-2 text-xs font-medium capitalize text-neutral-600 dark:border-neutral-800/80 dark:bg-neutral-900/80 dark:text-neutral-300">
+                  {status.needsOnboarding
+                    ? `Next step: ${status.nextStep.replace('-', ' ')}`
+                    : `${status.analysisCount} analyses recorded`}
+                </div>
+              ) : null}
             </div>
           </header>
 

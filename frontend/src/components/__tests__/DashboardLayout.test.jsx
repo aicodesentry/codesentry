@@ -51,13 +51,14 @@ describe('DashboardLayout', () => {
     onboardingState.status = {
       needsOnboarding: true,
       nextStep: 'connect-repo',
+      needsFirstReview: false,
       analysisCount: 0,
     }
   })
 
   it('keeps the full navigation visible during onboarding', () => {
     render(
-      <MemoryRouter initialEntries={['/dashboard/onboarding']}>
+      <MemoryRouter initialEntries={['/dashboard/home']}>
         <DashboardLayout />
       </MemoryRouter>
     )
@@ -67,12 +68,14 @@ describe('DashboardLayout', () => {
     expect(screen.getByRole('link', { name: 'Repositories' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Reports' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Subscription' })).toBeInTheDocument()
-    expect(screen.getByText('Next step: connect repo')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Getting Started' })).toBeInTheDocument()
+    expect(screen.queryByText('Next step: connect repo')).toBeNull()
   })
 
   it('restores the full navigation after onboarding is complete', () => {
     onboardingState.status = {
       needsOnboarding: false,
+      needsFirstReview: false,
       nextStep: 'done',
       analysisCount: 4,
     }
