@@ -51,6 +51,15 @@ function cookieOptions(req) {
   };
 }
 
+function authCookieOptions(req) {
+  const { maxAge, ...options } = cookieOptions(req);
+  return options;
+}
+
+function clearAuthCookie(res, req) {
+  res.clearCookie(AUTH_COOKIE_NAME, authCookieOptions(req));
+}
+
 function publicBaseUrl(req) {
   const forwardedProto = req.get('x-forwarded-proto');
   const protocol = forwardedProto ? forwardedProto.split(',')[0] : req.protocol;
@@ -126,6 +135,7 @@ router.get('/github', (req, res) => {
 
   // Generate a signed, time-limited CSRF state that survives cross-instance callbacks.
   const state = createOAuthState();
+  const prompt = req.query.prompt === 'select_account' ? '&prompt=select_account' : '';
 
   const callbackUrl =
     process.env.GITHUB_CALLBACK_URL || `${publicBaseUrl(req)}/auth/github/callback`;
@@ -134,7 +144,8 @@ router.get('/github', (req, res) => {
     `https://github.com/login/oauth/authorize?client_id=${process.env.GITHUB_CLIENT_ID}` +
     `&scope=read:user,user:email` +
     `&redirect_uri=${encodeURIComponent(callbackUrl)}` +
-    `&state=${state}`;
+    `&state=${state}` +
+    prompt;
 
   res.redirect(authUrl);
 });
@@ -286,12 +297,7 @@ router.get('/me', authenticateToken, async (req, res) => {
 });
 
 router.post('/logout', (_req, res) => {
-  res.clearCookie(AUTH_COOKIE_NAME, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    path: '/',
-  });
+  clearAuthCookie(res, _req);
   res.json({ success: true });
 });
 

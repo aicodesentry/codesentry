@@ -7,6 +7,7 @@ const isLocalHost =
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || (isLocalHost ? DEFAULT_LOCAL_API_URL : '')
 const ANALYSIS_BASE_URL = import.meta.env.VITE_ANALYSIS_SERVICE_URL || API_BASE_URL
+const FORCE_REAUTH_KEY = 'codesentry_force_github_reauth'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -25,6 +26,20 @@ export const setAuthToken = (token) => {
 export const clearAuthToken = () => {
   if (typeof window === 'undefined') return
   window.localStorage.removeItem('codesentry_auth_token')
+}
+
+export const markGithubReauthRequired = () => {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(FORCE_REAUTH_KEY, '1')
+}
+
+export const consumeGithubReauthRequired = () => {
+  if (typeof window === 'undefined') return false
+  const required = window.localStorage.getItem(FORCE_REAUTH_KEY) === '1'
+  if (required) {
+    window.localStorage.removeItem(FORCE_REAUTH_KEY)
+  }
+  return required
 }
 
 api.interceptors.request.use((config) => {
@@ -53,7 +68,12 @@ api.interceptors.response.use(
 
 export const authAPI = {
   loginWithGitHub: () => {
-    window.location.href = `${API_BASE_URL}/auth/github`
+    const params = new URLSearchParams()
+    if (consumeGithubReauthRequired()) {
+      params.set('prompt', 'select_account')
+    }
+    const query = params.toString()
+    window.location.href = `${API_BASE_URL}/auth/github${query ? `?${query}` : ''}`
   },
   getMe: async () => {
     const { data } = await api.get('/auth/me', {
@@ -66,6 +86,7 @@ export const authAPI = {
   },
   logout: async () => {
     await api.post('/auth/logout')
+    markGithubReauthRequired()
   }
 }
 
