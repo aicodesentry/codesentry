@@ -55,17 +55,18 @@ describe('DashboardLayout', () => {
     }
   })
 
-  it('shows only activation navigation during onboarding', () => {
+  it('keeps the full navigation visible during onboarding', () => {
     render(
       <MemoryRouter initialEntries={['/dashboard/onboarding']}>
         <DashboardLayout />
       </MemoryRouter>
     )
 
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Onboarding' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Repositories' })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Reports' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Subscription' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Reports' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Subscription' })).toBeInTheDocument()
     expect(screen.getByText('Next step: connect repo')).toBeInTheDocument()
   })
 

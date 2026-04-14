@@ -13,21 +13,16 @@ const DashboardShell = () => {
   const { status } = useOnboarding()
   const location = useLocation()
 
-  const navigation = status.needsOnboarding
-    ? [
-        { name: 'Onboarding', href: '/dashboard/onboarding', icon: Sparkles },
-        { name: 'Repositories', href: '/dashboard/repositories', icon: FolderGit2 },
-      ]
-    : [
-        { name: 'Dashboard', href: '/dashboard/home', icon: LayoutDashboard },
-        { name: 'Onboarding', href: '/dashboard/onboarding', icon: Sparkles },
-        { name: 'Repositories', href: '/dashboard/repositories', icon: FolderGit2 },
-        { name: 'Reports', href: '/dashboard/reports', icon: FileText },
-        { name: 'Code Playground', href: '/dashboard/analysis', icon: Code2 },
-        { name: 'Subscription', href: '/dashboard/subscription', icon: CreditCard },
-        { name: 'Support', href: '/dashboard/support', icon: LifeBuoy },
-        { name: 'Profile', href: '/dashboard/profile', icon: UserCircle },
-      ]
+  const navigation = [
+    { name: 'Dashboard', href: '/dashboard/home', icon: LayoutDashboard },
+    { name: 'Onboarding', href: '/dashboard/onboarding', icon: Sparkles },
+    { name: 'Repositories', href: '/dashboard/repositories', icon: FolderGit2 },
+    { name: 'Reports', href: '/dashboard/reports', icon: FileText },
+    { name: 'Code Playground', href: '/dashboard/analysis', icon: Code2 },
+    { name: 'Subscription', href: '/dashboard/subscription', icon: CreditCard },
+    { name: 'Support', href: '/dashboard/support', icon: LifeBuoy },
+    { name: 'Profile', href: '/dashboard/profile', icon: UserCircle },
+  ]
 
   const pageName = navigation.find((item) => location.pathname === item.href)?.name || 'Dashboard'
 
@@ -74,11 +69,11 @@ const DashboardShell = () => {
 
             <div className="mt-4 rounded-xl border border-neutral-800/80 bg-neutral-900/60 px-3 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
-                {status.needsOnboarding ? 'Activation' : 'Live workspace'}
+                {status.needsOnboarding ? 'Workspace setup' : 'Live workspace'}
               </p>
               <p className="mt-2 text-sm text-neutral-300">
                 {status.needsOnboarding
-                  ? 'Connect one repo, open one PR, and confirm the first review lands.'
+                  ? 'You can explore the product now. Install the GitHub App later when you want live repository data.'
                   : 'Your GitHub app is connected and reviews are flowing through the workspace.'}
               </p>
             </div>
