@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 
 describe('PR Analysis Orchestrator — pure functions', () => {
-  test('buildReviewBody includes fix code under findings', () => {
+  test('buildReviewBody stays summary-only and does not duplicate finding details', () => {
     const { __private } = require('../src/services/prAnalysisOrchestrator');
 
     const body = __private.buildReviewBody([{
@@ -41,9 +41,10 @@ describe('PR Analysis Orchestrator — pure functions', () => {
       line_start: 12,
     }], 'run-uuid-1');
 
-    expect(body).toContain('### Findings');
-    expect(body).toContain('**Fix:** Use parameterized queries.');
-    expect(body).not.toContain('**Fix code:**');
+    expect(body).toContain('Detailed findings are annotated inline on the affected lines below.');
+    expect(body).not.toContain('### Findings');
+    expect(body).not.toContain('Potential SQL injection');
+    expect(body).not.toContain('**Fix:** Use parameterized queries.');
     expect(body).not.toContain('db.query("SELECT * FROM users WHERE id = ?", [userId]);');
   });
 
@@ -749,7 +750,8 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     expect(reviewCall).toBeTruthy();
     expect(reviewCall[1].event).toBe('REQUEST_CHANGES');
     expect(reviewCall[1].body).not.toContain('**Fix code:**');
-    expect(reviewCall[1].body).toContain('**Fix:** Replace eval/exec with safe alternatives.');
+    expect(reviewCall[1].body).toContain('Detailed findings are annotated inline on the affected lines below.');
+    expect(reviewCall[1].body).not.toContain('**Fix:** Replace eval/exec with safe alternatives.');
 
     const inlineCall = axios.post.mock.calls.find(
       (call) => typeof call[0] === 'string' && call[0].includes('comments/inline')
