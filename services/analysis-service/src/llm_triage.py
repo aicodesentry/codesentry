@@ -49,6 +49,15 @@ SYSTEM_PROMPT = """You are a security code reviewer triaging static analysis fin
 
 For each finding, you have the detection metadata, the code context from the PR diff, and optionally a repository profile describing the repo's framework, auth patterns, database usage, and security posture.
 
+Some findings also include structured analysis evidence from deterministic tiers:
+- analysis_scope: whether the evidence is pattern-based or taint/dataflow-based
+- source: where attacker-controlled input originates
+- sink: the dangerous operation reached by that input
+- sanitizers_seen: sanitizers or validators observed by the deterministic layer
+- trace_summary: a short summary of the deterministic flow
+
+Treat structured analysis evidence as stronger than raw pattern text. If a finding has source/sink or trace data, base your reasoning on that evidence first and use the patch plus repo profile to decide whether the flow is real, sanitized, reachable, or contextually safe.
+
 Use the repository context to make informed decisions:
 - If the repo uses parameterized queries, check if THIS specific code follows that pattern or bypasses it.
 - If auth middleware exists, check if the affected endpoint has it applied.
@@ -128,6 +137,15 @@ def _build_finding_context(
         start = max(0, target_line - 30)
         patch_lines = patch_lines[start:start + 60]
 
+    evidence_details = finding.get("evidence_details") or {}
+    analysis_scope = finding.get("analysis_scope") or evidence_details.get("analysis_scope", "pattern")
+    sanitizers_seen = finding.get("sanitizers_seen")
+    if sanitizers_seen is None:
+        sanitizers_seen = evidence_details.get("sanitizer_exprs", [])
+    evidence_strength = _evidence_strength(finding)
+    trace_features = _trace_features(finding)
+    auto_fix_eligible = _is_auto_fix_eligible(finding)
+
     return {
         "fingerprint": finding.get("fingerprint", ""),
         "rule_id": finding.get("rule_id", ""),
@@ -144,7 +162,136 @@ def _build_finding_context(
         "description": finding.get("description", ""),
         "remediation_hint": finding.get("remediation", ""),
         "exploit_scenario": finding.get("exploit_scenario", ""),
+        "analysis_scope": analysis_scope,
+        "source": finding.get("source") or evidence_details.get("source_type"),
+        "sink": finding.get("sink") or evidence_details.get("sink_type"),
+        "sanitizers_seen": sanitizers_seen or [],
+        "sanitizer_status": _sanitizer_status(finding),
+        "trace_summary": finding.get("trace_summary") or evidence_details.get("trace_summary"),
+        "evidence_strength": evidence_strength,
+        "reviewability": evidence_details.get("reviewability", "changed-lines-only"),
+        "inline_fix_eligible": _is_inline_reviewable(finding),
+        "auto_fix_eligible": auto_fix_eligible,
+        "is_taint_based": bool(evidence_details.get("is_taint_based") or str(analysis_scope).startswith("taint")),
+        "source_expr": evidence_details.get("source_expr"),
+        "sink_expr": evidence_details.get("sink_expr"),
+        "fix_scope": _fix_scope(finding),
+        "fix_target_line": evidence_details.get("fix_target_line"),
+        "fix_target_expr": evidence_details.get("fix_target_expr"),
+        "missing_control_type": _missing_control_type(finding),
+        "trace_steps": evidence_details.get("trace_steps", []),
+        "trace_length": trace_features["trace_length"],
+        "trace_kinds": trace_features["trace_kinds"],
+        "trace_quality": trace_features["trace_quality"],
+        "has_meaningful_trace": trace_features["has_meaningful_trace"],
         "surrounding_code": "\n".join(patch_lines),
+    }
+
+
+def _evidence_strength(finding: Dict[str, Any]) -> str:
+    evidence_details = finding.get("evidence_details") or {}
+    analysis_scope = str(
+        finding.get("analysis_scope")
+        or evidence_details.get("analysis_scope")
+        or "pattern"
+    )
+    if analysis_scope.startswith("taint"):
+        return "strong"
+    if analysis_scope in ("ast-pattern", "ast-match"):
+        return "medium"
+    return "light"
+
+
+def _reviewability(finding: Dict[str, Any]) -> str:
+    evidence_details = finding.get("evidence_details") or {}
+    return str(evidence_details.get("reviewability") or "changed-lines-only").strip().lower()
+
+
+def _is_inline_reviewable(finding: Dict[str, Any]) -> bool:
+    return _reviewability(finding) not in {"context-only", "unreviewable"}
+
+
+def _has_sanitizer_signal(finding: Dict[str, Any]) -> bool:
+    sanitizers_seen = finding.get("sanitizers_seen")
+    if sanitizers_seen:
+        return True
+    evidence_details = finding.get("evidence_details") or {}
+    return bool(evidence_details.get("sanitizer_exprs"))
+
+
+def _missing_control_type(finding: Dict[str, Any]) -> Optional[str]:
+    evidence_details = finding.get("evidence_details") or {}
+    missing_control = evidence_details.get("missing_control_type")
+    if missing_control is None:
+        return None
+
+    normalized = str(missing_control).strip()
+    return normalized or None
+
+
+def _fix_scope(finding: Dict[str, Any]) -> str:
+    evidence_details = finding.get("evidence_details") or {}
+    scope = str(evidence_details.get("fix_scope") or "").strip().lower()
+    if scope in {"line", "block"}:
+        return scope
+    return "unknown"
+
+
+def _is_auto_fix_eligible(finding: Dict[str, Any]) -> bool:
+    evidence_details = finding.get("evidence_details") or {}
+    if "auto_fix_eligible" not in evidence_details:
+        return False
+    return bool(evidence_details.get("auto_fix_eligible"))
+
+
+def _sanitizer_status(finding: Dict[str, Any]) -> str:
+    evidence_details = finding.get("evidence_details") or {}
+    status = str(evidence_details.get("sanitizer_status") or "").strip().lower()
+    if status in {"none", "present", "present-but-insufficient", "validated"}:
+        return status
+    return "present" if _has_sanitizer_signal(finding) else "none"
+
+
+def _trace_features(finding: Dict[str, Any]) -> Dict[str, Any]:
+    evidence_details = finding.get("evidence_details") or {}
+    trace_steps = evidence_details.get("trace_steps") or []
+    if not isinstance(trace_steps, list):
+        trace_steps = []
+    analysis_scope = str(
+        finding.get("analysis_scope")
+        or evidence_details.get("analysis_scope")
+        or "pattern"
+    )
+
+    trace_kinds = [str(step.get("kind") or "").strip().lower() for step in trace_steps if isinstance(step, dict)]
+    has_source = "source" in trace_kinds
+    has_sink = "sink" in trace_kinds
+    has_assignment = "assignment" in trace_kinds
+    has_call = "call" in trace_kinds
+    has_sanitizer = "sanitizer" in trace_kinds
+    propagation_count = sum(1 for kind in trace_kinds if kind in {"assignment", "call"})
+    has_meaningful_trace = has_source and has_sink
+
+    if not trace_kinds:
+        trace_quality = "moderate" if analysis_scope.startswith("taint") else "none"
+    elif has_source and has_sink and (propagation_count > 0 or has_sanitizer):
+        trace_quality = "strong"
+    elif has_source and has_sink:
+        trace_quality = "moderate"
+    else:
+        trace_quality = "weak"
+
+    return {
+        "trace_length": len(trace_steps),
+        "trace_kinds": trace_kinds,
+        "trace_quality": trace_quality,
+        "has_meaningful_trace": has_meaningful_trace,
+        "has_source_step": has_source,
+        "has_sink_step": has_sink,
+        "has_assignment_step": has_assignment,
+        "has_call_step": has_call,
+        "has_sanitizer_step": has_sanitizer,
+        "has_only_source_and_sink": has_source and has_sink and len(trace_kinds) == 2,
     }
 
 
@@ -264,6 +411,18 @@ def _build_fallback_remediation(finding: Dict[str, Any]) -> Optional[str]:
     if existing:
         return existing
 
+    missing_control_type = _missing_control_type(finding)
+    if missing_control_type == "base_dir_validation":
+        return "Resolve the requested path within a fixed base directory and reject paths that escape it."
+    if missing_control_type == "relative_or_allowlisted_redirect_validation":
+        return "Restrict redirect targets to relative paths or an explicit allowlist of trusted destinations."
+    if missing_control_type == "host_or_scheme_allowlist":
+        return "Validate the outbound URL against trusted hosts and allowed schemes before making the request."
+    if missing_control_type == "html_sanitization_or_safe_text_rendering":
+        return "Render untrusted content through a safe text API or sanitize it before writing HTML."
+    if missing_control_type == "output_encoding":
+        return "Apply the correct output encoding for this sink before rendering untrusted content."
+
     category = str(finding.get("category", "")).lower()
     cwe_id = str(finding.get("cwe_id", "")).upper()
 
@@ -313,6 +472,26 @@ def _build_triage_prompt(
         if interp.get("risk_areas"):
             parts.append(f"- Risk areas: {', '.join(interp['risk_areas'])}")
         parts.append("")
+
+    parts.append(
+        "## Triage Rules\n"
+        "- Treat findings with evidence_strength=strength 'strong' and is_taint_based=true as higher-trust deterministic evidence.\n"
+        "- Do not dismiss strong taint findings unless the patch or repo profile shows a real sanitizer, safe wrapper, or unreachable code path.\n"
+        "- If sanitizers_seen is non-empty, explicitly evaluate whether those sanitizers are sufficient for this sink before returning true_positive.\n"
+        "- Treat sanitizer_status=validated as materially stronger than sanitizer presence alone; it should usually weaken or eliminate the finding unless the trace shows a bypass.\n"
+        "- Treat sanitizer_status=present-but-insufficient as a sign to keep the finding but avoid overstating confidence.\n"
+        "- Pattern-only findings require more caution; if repo context weakens them, prefer uncertain over overconfident true_positive.\n"
+        "- If reviewability is context-only, prefer uncertain unless the deterministic trace is strong, specific, and still actionable from the changed code.\n"
+        "- Treat trace_quality=strong as materially better evidence than a source/sink summary alone.\n"
+        "- If trace_quality=weak or none, prefer uncertain unless other repo context strongly confirms exploitability.\n"
+        "- If trace_quality=moderate, avoid overstating certainty unless the sink and input control are both clear.\n"
+        "- Use missing_control_type to anchor remediation to the missing safeguard instead of giving generic advice.\n"
+        "- Treat fix_scope=line as a narrow drop-in replacement and fix_scope=block as a small local rewrite only.\n"
+        "- Only return fixed_code when inline_fix_eligible=true, auto_fix_eligible=true, and the replacement fits directly on the changed lines or a very small changed block.\n"
+        "- If auto_fix_eligible=false, you may still confirm the finding, but do not return fixed_code.\n"
+        "- If sanitizer sufficiency is ambiguous, prefer uncertain over a confident true_positive with a speculative fix.\n"
+    )
+    parts.append("")
 
     contexts = [_build_finding_context(f, file_patches) for f in findings]
     parts.append("## Findings to triage\n\n" + json.dumps(contexts, indent=2))
@@ -427,13 +606,38 @@ def _apply_verdicts(
             continue
 
         enriched = dict(finding)
+        trace_features = _trace_features(enriched)
         enriched["llm_triage"] = {
             "verdict": verdict["verdict"],
             "reasoning": verdict["reasoning"],
+            "evidence_strength": _evidence_strength(finding),
+            "reviewability": _reviewability(finding),
+            "has_sanitizer_signal": _has_sanitizer_signal(finding),
+            "sanitizer_status": _sanitizer_status(finding),
+            "trace_quality": trace_features["trace_quality"],
+            "trace_length": trace_features["trace_length"],
+            "fix_scope": _fix_scope(finding),
+            "missing_control_type": _missing_control_type(finding),
+            "auto_fix_eligible": _is_auto_fix_eligible(finding),
         }
 
         if verdict["verdict"] == "true_positive":
-            enriched["confidence"] = round(min(0.99, float(enriched.get("confidence", 0.5)) + 0.1), 2)
+            evidence_strength = _evidence_strength(enriched)
+            sanitizer_status = _sanitizer_status(enriched)
+            confidence_boost = 0.05 if evidence_strength == "light" else 0.1
+            if trace_features["trace_quality"] == "moderate":
+                confidence_boost = min(confidence_boost, 0.05)
+            elif trace_features["trace_quality"] in {"weak", "none"}:
+                confidence_boost = 0.0
+            if not _is_inline_reviewable(enriched):
+                confidence_boost = min(confidence_boost, 0.02 if evidence_strength == "strong" else 0.0)
+            if sanitizer_status == "validated":
+                confidence_boost = 0.0
+            elif sanitizer_status == "present-but-insufficient":
+                confidence_boost = min(confidence_boost, 0.03)
+            elif _has_sanitizer_signal(enriched):
+                confidence_boost = 0.0 if not _is_inline_reviewable(enriched) else min(confidence_boost, 0.05)
+            enriched["confidence"] = round(min(0.99, float(enriched.get("confidence", 0.5)) + confidence_boost), 2)
 
         adj_sev = verdict.get("adjusted_severity")
         if adj_sev in ("critical", "high", "medium", "low"):
@@ -456,13 +660,31 @@ def _apply_verdicts(
             enriched["remediation"] = _build_fallback_remediation(enriched)
 
         fixed_code = _normalize_fixed_code(verdict.get("fixed_code"), finding.get("code_snippet", ""))
-        if not fixed_code and verdict["verdict"] == "true_positive":
+        sanitizer_status = _sanitizer_status(enriched)
+        auto_fix_eligible = _is_auto_fix_eligible(enriched)
+        if (
+            not fixed_code
+            and verdict["verdict"] == "true_positive"
+            and auto_fix_eligible
+            and _is_inline_reviewable(enriched)
+            and sanitizer_status in {"none", "present-but-insufficient"}
+            and trace_features["trace_quality"] in {"strong", "moderate"}
+        ):
             fixed_code = _normalize_fixed_code(
                 _build_fallback_fixed_code(finding),
                 finding.get("code_snippet", ""),
             )
-        if fixed_code and verdict["verdict"] == "true_positive":
+        if (
+            fixed_code
+            and verdict["verdict"] == "true_positive"
+            and auto_fix_eligible
+            and _is_inline_reviewable(enriched)
+            and sanitizer_status != "validated"
+            and trace_features["trace_quality"] in {"strong", "moderate"}
+        ):
             enriched["remediation_patch"] = fixed_code
+        else:
+            enriched.pop("remediation_patch", None)
 
         result.append(enriched)
 

@@ -1,6 +1,9 @@
 const axios = require('axios');
 
 jest.mock('axios');
+jest.mock('../src/services/githubApp', () => ({
+  getInstallationToken: jest.fn(),
+}));
 jest.mock('../src/config/database', () => ({
   pool: { query: jest.fn() },
   transaction: jest.fn(),
@@ -13,12 +16,14 @@ jest.mock('../src/utils/logger', () => ({
 
 const { pool } = require('../src/config/database');
 const logger = require('../src/utils/logger');
+const { getInstallationToken } = require('../src/services/githubApp');
 
 beforeEach(() => {
   jest.clearAllMocks();
   process.env.GITHUB_SERVICE_URL = 'http://github-service:3002';
   process.env.GITHUB_SERVICE_INTERNAL_SECRET = 'test-secret';
   process.env.ANALYSIS_SERVICE_URL = 'http://analysis-service:8001';
+  getInstallationToken.mockResolvedValue('installation-token');
 });
 
 describe('PR Analysis Orchestrator — pure functions', () => {
@@ -55,6 +60,12 @@ describe('PR Analysis Orchestrator — pure functions', () => {
       line_end: 1,
       remediation: 'Replace eval with JSON parsing.',
       remediation_patch: 'const payload = JSON.parse(req.body.code);',
+      evidence_details: {
+        auto_fix_eligible: true,
+        fix_scope: 'line',
+        fix_target_line: 1,
+        fix_target_expr: 'eval(req.body.code);',
+      },
     }, {
       tierLabel: 'Tier 3',
       filePatch: '@@ -1 +1 @@\n-eval(req.body.code);\n+eval(req.body.code);',
@@ -86,6 +97,71 @@ describe('PR Analysis Orchestrator — pure functions', () => {
     expect(body).toContain('**Fix:** Replace eval with JSON parsing.');
     expect(body).not.toContain('**Candidate fix code:**');
     expect(body).toContain('const payload = JSON.parse(req.body.code);');
+  });
+
+  test('buildReviewComment uses repo-aware SQL remediation when auto-fix is not allowed', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const body = __private.buildReviewComment({
+      severity: 'high',
+      title: 'Potential SQL injection',
+      evidence: 'Matched raw query',
+      confidence: 0.9,
+      cwe_id: 'CWE-89',
+      category: 'SQL injection',
+      code_snippet: 'db.query("SELECT * FROM users WHERE id = " + userId);',
+      remediation: 'Use parameterized queries.',
+      remediation_patch: 'db.query("SELECT * FROM users WHERE id = ?", [userId]);',
+      line_start: 1,
+      line_end: 1,
+      evidence_details: {
+        auto_fix_eligible: false,
+        fix_scope: 'line',
+      },
+    }, {
+      tierLabel: 'Tier 3',
+      filePatch: '@@ -0,0 +1 @@\n+db.query("SELECT * FROM users WHERE id = " + userId);',
+      repoProfile: {
+        interpreted: { database_pattern: 'parameterized' },
+      },
+    });
+
+    expect(body).not.toContain('```suggestion');
+    expect(body).toContain("**Fix:** Use the repo's existing parameterized query pattern instead of concatenating user input into SQL.");
+  });
+
+  test('buildReviewComment uses repo-aware XSS remediation when DOMPurify is present', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const body = __private.buildReviewComment({
+      severity: 'high',
+      title: 'Potential XSS through unsafe HTML rendering',
+      evidence: 'Matched unsafe innerHTML sink',
+      confidence: 0.9,
+      cwe_id: 'CWE-79',
+      category: 'cross-site scripting (xss)',
+      code_snippet: 'element.innerHTML = req.query.name;',
+      remediation: 'Encode or sanitize output before rendering.',
+      remediation_patch: 'element.innerHTML = DOMPurify.sanitize(req.query.name);',
+      line_start: 1,
+      line_end: 1,
+      evidence_details: {
+        auto_fix_eligible: false,
+        fix_scope: 'line',
+        missing_control_type: 'html_sanitization_or_safe_text_rendering',
+      },
+    }, {
+      tierLabel: 'Tier 3',
+      filePatch: '@@ -0,0 +1 @@\n+element.innerHTML = req.query.name;',
+      repoProfile: {
+        deterministic: {
+          security_libraries: [{ library: 'dompurify', purpose: 'HTML sanitization' }],
+        },
+      },
+    });
+
+    expect(body).not.toContain('```suggestion');
+    expect(body).toContain("**Fix:** Use the repo's existing DOMPurify sanitization pattern before writing HTML, or prefer textContent if HTML is unnecessary.");
   });
 
   test('buildReviewComment falls back to fix text for oversized patches', () => {
@@ -172,6 +248,12 @@ describe('PR Analysis Orchestrator — pure functions', () => {
         line_end: 2,
         code_snippet: 'eval(req.body.code);',
         remediation_patch: 'const payload = JSON.parse(req.body.code);',
+        evidence_details: {
+          auto_fix_eligible: true,
+          fix_scope: 'line',
+          fix_target_line: 2,
+          fix_target_expr: 'eval(req.body.code);',
+        },
       },
       filePatch: '@@ -0,0 +1,2 @@\n+const alreadySafe = true;\n+handle(req.body.code);',
       tierLabel: 'Tier 3',
@@ -191,6 +273,12 @@ describe('PR Analysis Orchestrator — pure functions', () => {
         line_end: 1,
         code_snippet: 'eval(req.body.code);',
         remediation_patch: '@@ -1 +1 @@\n-eval(req.body.code);\n+const payload = JSON.parse(req.body.code);',
+        evidence_details: {
+          auto_fix_eligible: true,
+          fix_scope: 'line',
+          fix_target_line: 1,
+          fix_target_expr: 'eval(req.body.code);',
+        },
       },
       filePatch: '@@ -0,0 +1 @@\n+eval(req.body.code);',
       tierLabel: 'Tier 3',
@@ -212,6 +300,13 @@ describe('PR Analysis Orchestrator — pure functions', () => {
         line_end: 1,
         code_snippet: 'db.query("SELECT * FROM users WHERE id = " + userId);',
         remediation_patch: 'db.query("SELECT * FROM users WHERE id = " + String(userId));',
+        evidence_details: {
+          auto_fix_eligible: true,
+          fix_scope: 'line',
+          fix_target_line: 1,
+          fix_target_expr: 'db.query("SELECT * FROM users WHERE id = " + userId);',
+          missing_control_type: 'output_encoding',
+        },
       },
       filePatch: '@@ -0,0 +1 @@\n+db.query("SELECT * FROM users WHERE id = " + userId);',
       tierLabel: 'Tier 3',
@@ -239,6 +334,13 @@ describe('PR Analysis Orchestrator — pure functions', () => {
       remediation_patch: 'db.query("SELECT * FROM users WHERE id = ?", [userId]);',
       line_start: 1,
       line_end: 1,
+      evidence_details: {
+        auto_fix_eligible: true,
+        fix_scope: 'line',
+        fix_target_line: 1,
+        fix_target_expr: 'db.query("SELECT * FROM users WHERE id = " + userId);',
+        missing_control_type: 'output_encoding',
+      },
     }, {
       tierLabel: 'Tier 3',
       filePatch: '@@ -0,0 +1 @@\n+db.query("SELECT * FROM users WHERE id = " + userId);',
@@ -250,6 +352,81 @@ describe('PR Analysis Orchestrator — pure functions', () => {
     expect(body).toContain('```suggestion');
     expect(body).toContain('db.query("SELECT * FROM users WHERE id = ?", [userId]);');
     expect(body).not.toContain('**Suggested fix code:**');
+  });
+
+  test('validateSuggestedFix rejects auto-fix ineligible findings', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const result = __private.validateSuggestedFix({
+      finding: {
+        line_start: 1,
+        line_end: 1,
+        code_snippet: 'eval(req.body.code);',
+        remediation_patch: 'const payload = JSON.parse(req.body.code);',
+        evidence_details: {
+          auto_fix_eligible: false,
+          fix_scope: 'line',
+          fix_target_line: 1,
+          fix_target_expr: 'eval(req.body.code);',
+        },
+      },
+      filePatch: '@@ -0,0 +1 @@\n+eval(req.body.code);',
+      tierLabel: 'Tier 3',
+      repoProfile: null,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain('not eligible');
+  });
+
+  test('validateSuggestedFix rejects multi-line patches for line-scoped fixes', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const result = __private.validateSuggestedFix({
+      finding: {
+        line_start: 1,
+        line_end: 1,
+        code_snippet: 'eval(req.body.code);',
+        remediation_patch: 'const payload = JSON.parse(req.body.code);\nhandle(payload);',
+        evidence_details: {
+          auto_fix_eligible: true,
+          fix_scope: 'line',
+          fix_target_line: 1,
+          fix_target_expr: 'eval(req.body.code);',
+        },
+      },
+      filePatch: '@@ -0,0 +1 @@\n+eval(req.body.code);',
+      tierLabel: 'Tier 3',
+      repoProfile: null,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain('line-scoped');
+  });
+
+  test('validateSuggestedFix rejects target lines outside the finding anchor', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const result = __private.validateSuggestedFix({
+      finding: {
+        line_start: 2,
+        line_end: 2,
+        code_snippet: 'eval(req.body.code);',
+        remediation_patch: 'const payload = JSON.parse(req.body.code);',
+        evidence_details: {
+          auto_fix_eligible: true,
+          fix_scope: 'line',
+          fix_target_line: 1,
+          fix_target_expr: 'eval(req.body.code);',
+        },
+      },
+      filePatch: '@@ -0,0 +1,2 @@\n+const existing = true;\n+eval(req.body.code);',
+      tierLabel: 'Tier 3',
+      repoProfile: null,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain('outside the finding anchor range');
   });
 
   test('didTier3MeaningfullyChangeFindings detects remediation patch enrichment', () => {
@@ -311,12 +488,77 @@ describe('PR Analysis Orchestrator — pure functions', () => {
         line_end: 1,
         code_snippet: 'db.query("SELECT * FROM users WHERE id = " + userId);',
         remediation_patch: 'db.query("SELECT * FROM users WHERE id = ?", [userId]);',
+        evidence_details: {
+          auto_fix_eligible: true,
+          fix_scope: 'line',
+          fix_target_line: 1,
+          fix_target_expr: 'db.query("SELECT * FROM users WHERE id = " + userId);',
+          missing_control_type: 'output_encoding',
+        },
       }],
       [{ path: 'a.js', patch: '@@ -0,0 +1 @@\n+db.query("SELECT * FROM users WHERE id = " + userId);' }],
       { interpreted: { database_pattern: 'parameterized' } }
     );
 
     expect(result).toBe(true);
+  });
+
+  test('buildTier2FilePayload attaches full content and reviewable spans', () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    const payload = __private.buildTier2FilePayload(
+      {
+        path: 'src/app.js',
+        patch: '@@ -10,0 +10,2 @@\n+const value = req.query.file;\n+fs.readFile(value);',
+        additions: 2,
+      },
+      new Map([['src/app.js', 'const value = req.query.file;\nfs.readFile(value);\n']])
+    );
+
+    expect(payload.content).toContain('fs.readFile');
+    expect(payload.reviewable_line_spans).toEqual([{ start: 10, end: 11 }]);
+  });
+
+  test('enrichFilesForTier2 fetches full content for supported files and preserves fallback payload', async () => {
+    const { __private } = require('../src/services/prAnalysisOrchestrator');
+
+    axios.post.mockImplementation((url) => {
+      if (url.includes('/internal/github/files/content')) {
+        return Promise.resolve({
+          data: {
+            files: [
+              { path: 'src/app.js', content: 'const value = req.query.file;\nfs.readFile(value);\n' },
+            ],
+          },
+        });
+      }
+      return Promise.resolve({ data: {} });
+    });
+
+    const files = await __private.enrichFilesForTier2({
+      repositoryFullName: 'owner/repo',
+      installationId: 12345,
+      commitSha: 'abc123',
+      files: [
+        { path: 'src/app.js', patch: '@@ -1,0 +1,2 @@\n+const value = req.query.file;\n+fs.readFile(value);', additions: 2 },
+        { path: 'README.md', patch: '@@ -1 +1 @@\n+docs', additions: 1 },
+      ],
+    });
+
+    expect(axios.post).toHaveBeenCalledWith(
+      expect.stringContaining('/internal/github/files/content'),
+      expect.objectContaining({
+        repository_full_name: 'owner/repo',
+        installation_id: 12345,
+        ref: 'abc123',
+        paths: ['src/app.js'],
+      }),
+      expect.any(Object)
+    );
+    expect(files[0].content).toContain('fs.readFile');
+    expect(files[0].reviewable_line_spans).toEqual([{ start: 1, end: 2 }]);
+    expect(files[1].content).toBe('');
+    expect(files[1].reviewable_line_spans).toEqual([{ start: 1, end: 1 }]);
   });
 });
 
@@ -398,6 +640,7 @@ describe('PR Analysis Orchestrator — pipeline', () => {
     // With progressive posting, a single tier failing is non-blocking
     setupAxiosMocks([
       { pattern: '/pulls/files', data: { files: [{ path: 'app.py', patch: '+x=1', additions: 1 }] } },
+      { pattern: '/files/content', data: { files: [{ path: 'app.py', content: 'x=1\n' }] } },
       { pattern: '/tier1', error: new Error('Tier 1 timeout') },
       { pattern: '/tier2', error: new Error('Tier 2 timeout') },
       { pattern: '/tier3', data: { findings: [], filtered_count: 0 } },
@@ -425,6 +668,7 @@ describe('PR Analysis Orchestrator — pipeline', () => {
   test('calls GitHub service with correct internal secret header', async () => {
     setupAxiosMocks([
       { pattern: '/pulls/files', data: { files: [] } },
+      { pattern: '/files/content', data: { files: [] } },
       { pattern: '/tier1', data: { findings: [], tier: 1 } },
       { pattern: '/tier2', data: { findings: [], tier: 2 } },
       { pattern: '/tier3', data: { findings: [], filtered_count: 0, tier: 3 } },
@@ -450,6 +694,7 @@ describe('PR Analysis Orchestrator — pipeline', () => {
   test('posts review as COMMENT when no critical/high findings', async () => {
     setupAxiosMocks([
       { pattern: '/pulls/files', data: { files: [] } },
+      { pattern: '/files/content', data: { files: [] } },
       { pattern: '/tier1', data: { findings: [], tier: 1 } },
       { pattern: '/tier2', data: { findings: [], tier: 2 } },
       { pattern: '/tier3', data: { findings: [], filtered_count: 0, tier: 3 } },
@@ -474,6 +719,7 @@ describe('PR Analysis Orchestrator — pipeline', () => {
   test('posts review after tier1 returns findings', async () => {
     setupAxiosMocks([
       { pattern: '/pulls/files', data: { files: [{ path: 'test_vuln.js', patch: '@@ -0,0 +1,2 @@\n+const existing = true;\n+eval(req.body.code);', additions: 2 }] } },
+      { pattern: '/files/content', data: { files: [{ path: 'test_vuln.js', content: 'const existing = true;\neval(req.body.code);\n' }] } },
       { pattern: '/tier1', data: { findings: [FINDING], tier: 1 } },
       { pattern: '/tier2', data: { findings: [], tier: 2 } },
       { pattern: '/tier3', data: { findings: [FINDING], filtered_count: 0, tier: 3 } },
@@ -518,6 +764,7 @@ describe('PR Analysis Orchestrator — pipeline', () => {
   test('logs error but does not fail run when review posting fails', async () => {
     const routes = [
       { pattern: '/pulls/files', data: { files: [{ path: 'test_vuln.js', patch: '@@ -0,0 +1,2 @@\n+const existing = true;\n+eval(req.body.code);', additions: 2 }] } },
+      { pattern: '/files/content', data: { files: [{ path: 'test_vuln.js', content: 'const existing = true;\neval(req.body.code);\n' }] } },
       { pattern: '/tier1', data: { findings: [FINDING], tier: 1 } },
       { pattern: '/tier2', data: { findings: [], tier: 2 } },
       { pattern: '/tier3', data: { findings: [FINDING], filtered_count: 0, tier: 3 } },
@@ -572,6 +819,7 @@ describe('PR Analysis Orchestrator — pipeline', () => {
 
     setupAxiosMocks([
       { pattern: '/pulls/files', data: { files: [{ path: 'test_vuln.js', patch: '@@ -0,0 +1,2 @@\n+const existing = true;\n+eval(req.body.code);', additions: 2 }] } },
+      { pattern: '/files/content', data: { files: [{ path: 'test_vuln.js', content: 'const existing = true;\neval(req.body.code);\n' }] } },
       { pattern: '/tier1', data: { findings: [FINDING], tier: 1 } },
       { pattern: '/tier2', data: { findings: [tier2Finding], tier: 2 } },
       { pattern: '/tier3', data: { findings: [FINDING, tier2Finding], filtered_count: 0, tier: 3 } },
@@ -625,6 +873,7 @@ describe('PR Analysis Orchestrator — pipeline', () => {
 
     setupAxiosMocks([
       { pattern: '/pulls/files', data: { files: [{ path: 'test_vuln.js', patch: '@@ -0,0 +1,2 @@\n+const existing = true;\n+db.query("SELECT * FROM users WHERE id = " + userId);', additions: 2 }] } },
+      { pattern: '/files/content', data: { files: [{ path: 'test_vuln.js', content: 'const existing = true;\ndb.query("SELECT * FROM users WHERE id = " + userId);\n' }] } },
       { pattern: '/tier1', data: { findings: [tier1Finding], tier: 1 } },
       { pattern: '/tier2', data: { findings: [], tier: 2 } },
       { pattern: '/tier3', data: { findings: [tier3Finding], filtered_count: 0, tier: 3 } },
@@ -652,5 +901,127 @@ describe('PR Analysis Orchestrator — pipeline', () => {
       (call) => typeof call[0] === 'string' && call[0].includes('reviews/submit')
     );
     expect(reviewCalls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test('tier2 receives enriched files with full content snapshots', async () => {
+    setupAxiosMocks([
+      { pattern: '/pulls/files', data: { files: [{ path: 'src/app.js', patch: '@@ -1,0 +1,2 @@\n+const value = req.query.file;\n+fs.readFile(value);', additions: 2 }] } },
+      { pattern: '/files/content', data: { files: [{ path: 'src/app.js', content: 'const value = req.query.file;\nfs.readFile(value);\n' }] } },
+      { pattern: '/tier1', data: { findings: [], tier: 1 } },
+      { pattern: '/tier2', data: { findings: [], tier: 2 } },
+      { pattern: '/tier3', data: { findings: [], filtered_count: 0, tier: 3 } },
+      { pattern: '/check-runs', data: { check_run_id: 2 } },
+    ]);
+    pool.query.mockResolvedValue({ rowCount: 1, rows: [{ count: 1 }] });
+
+    jest.isolateModules(() => {
+      const mod = require('../src/services/prAnalysisOrchestrator');
+      mod.triggerAnalysisJob(BASE_PAYLOAD);
+    });
+    await flushAsync();
+
+    const tier2Call = axios.post.mock.calls.find(
+      (call) => typeof call[0] === 'string' && call[0].includes('/analyze/pr/tier2')
+    );
+    expect(tier2Call).toBeTruthy();
+    expect(tier2Call[1].files[0]).toMatchObject({
+      path: 'src/app.js',
+      content: 'const value = req.query.file;\nfs.readFile(value);\n',
+      reviewable_line_spans: [{ start: 1, end: 2 }],
+    });
+  });
+
+  test('persists tier2 evidence_details for taint-backed findings', async () => {
+    const tier2Finding = {
+      rule_id: 'opengrep.cwe-22.path-traversal-fs',
+      internal_type: 'path_traversal',
+      title: 'File system access with user-controlled path',
+      description: 'Path traversal risk',
+      category: 'path traversal',
+      cwe_id: 'CWE-22',
+      owasp_category: 'A01:2021',
+      severity: 'high',
+      confidence: 0.91,
+      exploitability: 'high',
+      file_path: 'src/download.js',
+      line_start: 2,
+      line_end: 2,
+      code_snippet: 'fs.readFile(file)',
+      evidence: 'OpenGrep AST match on rule `cwe-22.path-traversal-fs`',
+      remediation: 'Validate the path against an allowlist.',
+      remediation_patch: 'const file = path.basename(req.query.file);',
+      fingerprint: 'fp-tier2-evidence',
+      analysis_scope: 'taint-intraprocedural',
+      source: 'request-controlled file path',
+      sink: 'filesystem access',
+      sanitizers_seen: ['path.basename'],
+      trace_summary: 'Taint-tracked flow from request input into fs.readFile.',
+      evidence_details: {
+        analysis_scope: 'taint-intraprocedural',
+        is_taint_based: true,
+        source_type: 'request-controlled file path',
+        source_expr: 'req.query.file',
+        sink_type: 'filesystem access',
+        sink_expr: 'fs.readFile(file)',
+        sanitizer_exprs: ['path.basename'],
+        trace_steps: [
+          { kind: 'source', expr: 'req.query.file' },
+          { kind: 'assignment', expr: 'const file = req.query.file' },
+          { kind: 'sink', expr: 'fs.readFile(file)' },
+        ],
+        trace_summary: 'Taint-tracked flow from request input into fs.readFile.',
+        reviewability: 'changed-lines-only',
+      },
+    };
+
+    setupAxiosMocks([
+      { pattern: '/pulls/files', data: { files: [{ path: 'src/download.js', patch: '@@ -1,0 +1,2 @@\n+const file = req.query.file;\n+fs.readFile(file);', additions: 2 }] } },
+      { pattern: '/files/content', data: { files: [{ path: 'src/download.js', content: 'const file = req.query.file;\nfs.readFile(file);\n' }] } },
+      { pattern: '/tier1', data: { findings: [], tier: 1 } },
+      { pattern: '/tier2', data: { findings: [tier2Finding], tier: 2 } },
+      { pattern: '/tier3', data: { findings: [tier2Finding], filtered_count: 0, tier: 3 } },
+      { pattern: '/reviews/submit', data: { review_id: 1 } },
+      { pattern: '/comments/inline', data: { comment_id: 11, success: true } },
+      { pattern: '/check-runs', data: { check_run_id: 2 } },
+    ]);
+
+    pool.query.mockResolvedValue({ rowCount: 1, rows: [{ count: 1 }] });
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ count: 1 }] }) // countCompleted
+      .mockResolvedValueOnce({ rows: [] }) // findByFingerprint
+      .mockResolvedValueOnce({ rows: [{ id: 'finding-tier2', status: 'open', is_baseline: false, ...tier2Finding }] }) // insert
+      .mockResolvedValueOnce({ rowCount: 0 }) // markFixed
+      .mockResolvedValueOnce({ rows: [] }) // suppressions
+      .mockResolvedValue({ rowCount: 1, rows: [{ count: 1 }] });
+
+    jest.isolateModules(() => {
+      const mod = require('../src/services/prAnalysisOrchestrator');
+      mod.triggerAnalysisJob(BASE_PAYLOAD);
+    });
+    await flushAsync();
+
+    const insertCall = pool.query.mock.calls.find(
+      (call) => typeof call[0] === 'string' && call[0].includes('INSERT INTO findings')
+    );
+    expect(insertCall).toBeTruthy();
+
+    const evidenceJson = insertCall[1][23];
+    const parsed = JSON.parse(evidenceJson);
+    expect(parsed).toMatchObject({
+      analysis_scope: 'taint-intraprocedural',
+      is_taint_based: true,
+      source_type: 'request-controlled file path',
+      source_expr: 'req.query.file',
+      sink_type: 'filesystem access',
+      sink_expr: 'fs.readFile(file)',
+      sanitizer_exprs: ['path.basename'],
+      trace_summary: 'Taint-tracked flow from request input into fs.readFile.',
+      reviewability: 'changed-lines-only',
+    });
+    expect(parsed.trace_steps).toEqual([
+      { kind: 'source', label: 'source', expr: 'req.query.file', file: 'src/download.js', line: null },
+      { kind: 'assignment', label: 'assignment', expr: 'const file = req.query.file', file: 'src/download.js', line: null },
+      { kind: 'sink', label: 'sink', expr: 'fs.readFile(file)', file: 'src/download.js', line: null },
+    ]);
   });
 });

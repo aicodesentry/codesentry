@@ -24,9 +24,12 @@ from taxonomy import build_taxonomy_metadata
 class ChangedFile(BaseModel):
     path: str
     patch: str = ""
+    content: str = ""
     additions: int = 0
     deletions: int = 0
     status: str = "modified"
+    raw_url: str = ""
+    reviewable_line_spans: List[Dict[str, int]] = Field(default_factory=list)
 
 
 class AnalyzePRRequest(BaseModel):
