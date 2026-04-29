@@ -6,6 +6,7 @@ const {
   detectSecurityLibs,
   parseDependencies,
   validateInterpretation,
+  GITHUB_RATE_LIMIT_WARN_THRESHOLD,
 } = require('../src/services/repoProfiler');
 
 describe('repoProfiler — file selection', () => {
@@ -201,5 +202,12 @@ describe('repoProfiler — LLM validation', () => {
     const result = validateInterpretation({ security_libraries: [] }, { auth_strategy: 'unknown' });
     expect(Array.isArray(result.security_posture)).toBe(true);
     expect(Array.isArray(result.risk_areas)).toBe(true);
+  });
+});
+
+describe('repoProfiler — rate limit handling', () => {
+  test('warn threshold stays below the previous hard failure threshold', () => {
+    expect(GITHUB_RATE_LIMIT_WARN_THRESHOLD).toBeLessThan(100);
+    expect(GITHUB_RATE_LIMIT_WARN_THRESHOLD).toBeGreaterThan(0);
   });
 });

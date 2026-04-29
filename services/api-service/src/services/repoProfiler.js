@@ -52,6 +52,7 @@ const IGNORE_PATTERNS = [
 
 const MAX_FILES_TO_FETCH = 15;
 const MAX_FILE_SIZE = 50000;
+const GITHUB_RATE_LIMIT_WARN_THRESHOLD = 25;
 
 // ── Framework detection from dependencies ────────────────────────────────
 
@@ -190,8 +191,16 @@ async function fetchRepoTree(owner, repo, branch, token) {
   });
 
   const remaining = parseInt(response.headers['x-ratelimit-remaining'] || '999', 10);
-  if (remaining < 100) {
-    throw new Error(`GitHub rate limit low: ${remaining} remaining`);
+  if (Number.isFinite(remaining) && remaining <= 0) {
+    throw new Error('GitHub rate limit exhausted');
+  }
+
+  if (Number.isFinite(remaining) && remaining > 0 && remaining < GITHUB_RATE_LIMIT_WARN_THRESHOLD) {
+    logger.warn('GitHub rate limit low during repo profiling', {
+      owner,
+      repo,
+      remaining,
+    });
   }
 
   return JSON.parse(response.data).tree || [];
@@ -466,4 +475,5 @@ module.exports = {
   detectSecurityLibs,
   parseDependencies,
   validateInterpretation,
+  GITHUB_RATE_LIMIT_WARN_THRESHOLD,
 };
