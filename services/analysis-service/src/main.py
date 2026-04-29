@@ -73,7 +73,7 @@ app.add_middleware(
 NON_RUNTIME_PATH_PATTERNS = [
     re.compile(r"(^|/)tests?/"),
     re.compile(r"(^|/)__tests?__/"),
-    re.compile(r"(^|/)test_.*\.py$"),
+    re.compile(r"(^|/)test_.*\.(py|js|jsx|ts|tsx|go|java|rb|php|cs)$"),
     re.compile(r"\.(test|spec)\.(js|jsx|ts|tsx|py|go|java|rb|php|cs)$"),
     re.compile(r"(^|/)opengrep_rules/"),
 ]

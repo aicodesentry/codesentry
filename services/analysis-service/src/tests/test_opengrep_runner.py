@@ -109,6 +109,8 @@ class TestRuntimeScannablePaths:
         assert _is_runtime_scannable_path("services/analysis-service/src/tests/test_llm_triage.py") is False
         assert _is_runtime_scannable_path("services/api-service/tests/orchestrator.test.js") is False
         assert _is_runtime_scannable_path("frontend/src/pages/__tests__/RepositoriesPage.test.jsx") is False
+        assert _is_runtime_scannable_path("test_vuln.js") is False
+        assert _is_runtime_scannable_path("fixtures/test_vuln.tsx") is False
 
     def test_rejects_rule_definition_paths(self):
         assert _is_runtime_scannable_path("services/analysis-service/src/opengrep_rules/javascript.yml") is False
@@ -441,6 +443,7 @@ class TestRunOpenGrep:
         files = [
             {"path": "services/analysis-service/src/tests/test_llm_triage.py", "patch": "+eval(req.body.code)\n"},
             {"path": "services/api-service/tests/orchestrator.test.js", "patch": '+db.query("SELECT * FROM users WHERE id = " + userId);\n'},
+            {"path": "test_vuln.js", "patch": "+eval(req.body.code)\n"},
             {"path": "services/analysis-service/src/opengrep_rules/javascript.yml", "patch": "+- pattern: $EL.innerHTML = $INPUT\n"},
         ]
         assert run_opengrep(files) == []
