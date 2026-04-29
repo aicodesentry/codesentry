@@ -103,13 +103,27 @@ async function updateBaseline(repoId, userId, enabled) {
 async function connect(repoId, userId) {
   const updated = await pool.query(
     `UPDATE repositories
-     SET is_active = true, updated_at = NOW()
+     SET is_active = true,
+         profile_status = CASE
+           WHEN profile_status IN ('ready', 'profiling', 'queued', 'urgent', 'stale') THEN profile_status
+           ELSE 'urgent'
+         END,
+         profile_priority = CASE
+           WHEN profile_status IN ('ready', 'profiling') THEN profile_priority
+           ELSE GREATEST(profile_priority, 2)
+         END,
+         profile_queued_at = CASE
+           WHEN profile_status IN ('ready', 'profiling') THEN profile_queued_at
+           ELSE NOW()
+         END,
+         settings = settings - 'profile_error',
+         updated_at = NOW()
      WHERE id = $1
        AND EXISTS (
          SELECT 1 FROM repository_access ra
          WHERE ra.repository_id = repositories.id AND ra.user_id = $2
        )
-     RETURNING id, full_name, is_active`,
+     RETURNING id, full_name, is_active, profile_status, profile_confidence, profile_updated_at`,
     [repoId, userId]
   );
   return updated.rowCount > 0 ? updated.rows[0] : null;
