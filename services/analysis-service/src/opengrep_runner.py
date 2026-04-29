@@ -27,6 +27,13 @@ SEVERITY_MAP = {
 }
 
 TRACE_STEP_KINDS = {"source", "assignment", "call", "sanitizer", "sink"}
+NON_RUNTIME_PATH_PATTERNS = [
+    re.compile(r"(^|/)tests?/"),
+    re.compile(r"(^|/)__tests?__/"),
+    re.compile(r"(^|/)test_.*\.py$"),
+    re.compile(r"\.(test|spec)\.(js|jsx|ts|tsx|py|go|java|rb|php|cs)$"),
+    re.compile(r"(^|/)opengrep_rules/"),
+]
 
 VALIDATED_SANITIZERS = {
     "path traversal": {"ensurewithbasedir", "validatesafepath", "allowlistedpath", "ensurewithinbasedir"},
@@ -78,6 +85,13 @@ def _extract_scan_content(file_info: Dict[str, Any]) -> str:
     if isinstance(content, str) and content:
         return content
     return _extract_file_content(file_info.get("patch", ""))
+
+
+def _is_runtime_scannable_path(path: str) -> bool:
+    normalized = str(path or "").strip().replace("\\", "/").lower()
+    if not normalized:
+        return False
+    return not any(pattern.search(normalized) for pattern in NON_RUNTIME_PATH_PATTERNS)
 
 
 def _build_evidence_details(metadata: Dict[str, Any]) -> Dict[str, Any]:
@@ -433,7 +447,8 @@ def run_opengrep(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     # Filter to supported file types
     scannable = [
         f for f in files
-        if _file_extension(f.get("path", "")) in SUPPORTED_EXTENSIONS
+        if _is_runtime_scannable_path(f.get("path", ""))
+        and _file_extension(f.get("path", "")) in SUPPORTED_EXTENSIONS
         and (f.get("patch") or f.get("content"))
     ]
 

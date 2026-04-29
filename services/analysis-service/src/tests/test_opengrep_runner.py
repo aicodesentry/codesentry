@@ -8,6 +8,7 @@ from opengrep_runner import (
     _classify_sanitizer_status,
     _enrich_metadata_from_match,
     _infer_local_propagation_kind,
+    _is_runtime_scannable_path,
     _normalize_trace_step,
     run_opengrep,
     _build_trace_steps,
@@ -98,6 +99,19 @@ class TestMakeFingerprint:
         fp1 = make_fingerprint("rule1", "file.py", 10, "code")
         fp2 = make_fingerprint("rule2", "file.py", 10, "code")
         assert fp1 != fp2
+
+
+class TestRuntimeScannablePaths:
+    def test_accepts_runtime_source_files(self):
+        assert _is_runtime_scannable_path("src/routes/download.js") is True
+
+    def test_rejects_test_fixture_paths(self):
+        assert _is_runtime_scannable_path("services/analysis-service/src/tests/test_llm_triage.py") is False
+        assert _is_runtime_scannable_path("services/api-service/tests/orchestrator.test.js") is False
+        assert _is_runtime_scannable_path("frontend/src/pages/__tests__/RepositoriesPage.test.jsx") is False
+
+    def test_rejects_rule_definition_paths(self):
+        assert _is_runtime_scannable_path("services/analysis-service/src/opengrep_rules/javascript.yml") is False
 
 
 class TestTraceSteps:
@@ -421,6 +435,14 @@ class TestRunOpenGrep:
 
     def test_skips_unsupported_extensions(self):
         files = [{"path": "readme.md", "patch": "+# Hello"}]
+        assert run_opengrep(files) == []
+
+    def test_skips_test_and_rule_files_even_when_extensions_match(self):
+        files = [
+            {"path": "services/analysis-service/src/tests/test_llm_triage.py", "patch": "+eval(req.body.code)\n"},
+            {"path": "services/api-service/tests/orchestrator.test.js", "patch": '+db.query("SELECT * FROM users WHERE id = " + userId);\n'},
+            {"path": "services/analysis-service/src/opengrep_rules/javascript.yml", "patch": "+- pattern: $EL.innerHTML = $INPUT\n"},
+        ]
         assert run_opengrep(files) == []
 
     def test_handles_no_findings_gracefully(self):
