@@ -94,6 +94,45 @@ router.post('/github/pulls/files', async (req, res) => {
   }
 });
 
+router.post('/github/files/content', async (req, res) => {
+  const { repository_full_name, installation_id, ref, paths } = req.body || {};
+  if (!repository_full_name || !installation_id || !ref || !Array.isArray(paths)) {
+    return res.status(400).json({ error: 'repository_full_name, installation_id, ref and paths are required' });
+  }
+  if (!repository_full_name.includes('/') || repository_full_name.split('/').length !== 2) {
+    return res.status(400).json({ error: 'Invalid repository_full_name format' });
+  }
+
+  try {
+    const token = await githubAppAuth.getInstallationToken(installation_id);
+    const [owner, repo] = repository_full_name.split('/');
+    const files = [];
+
+    for (const path of paths.slice(0, 200)) {
+      if (!path || typeof path !== 'string') continue;
+      const encodedPath = path.split('/').map(encodeURIComponent).join('/');
+      const response = await githubRequest(
+        'get',
+        `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`,
+        token
+      );
+      const content = typeof response.data === 'string'
+        ? response.data
+        : Buffer.from(response.data.content || '', 'base64').toString('utf8');
+
+      if (Buffer.byteLength(content || '', 'utf8') > 500000) continue;
+      files.push({ path, content });
+    }
+
+    return res.json({ files });
+  } catch (error) {
+    return res.status(502).json({
+      error: 'Failed to fetch file contents from GitHub',
+      detail: error.response?.data || error.message,
+    });
+  }
+});
+
 router.post('/github/reviews/submit', async (req, res) => {
   const { owner, repo, pr_number, installation_id, commit_sha, body, event, comments } = req.body || {};
   if (!owner || !repo || !pr_number || !installation_id || !commit_sha || !body || !event) {

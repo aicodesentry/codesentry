@@ -105,9 +105,32 @@ services:
     networks:
       - mitig8it-net
 
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: mitig8it-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      api-service:
+        condition: service_started
+      github-service:
+        condition: service_started
+      analysis-service:
+        condition: service_started
+    networks:
+      - mitig8it-net
+
 networks:
   mitig8it-net:
     driver: bridge
 
 volumes:
   postgres_data:
+  prometheus_data:

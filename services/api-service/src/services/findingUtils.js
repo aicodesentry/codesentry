@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 
+const TRACE_STEP_KINDS = new Set(['source', 'assignment', 'call', 'sanitizer', 'sink']);
+
 function calculateFingerprint(finding) {
   const data = [
     finding.rule_id,
@@ -40,8 +42,61 @@ function normalizeTaxonomyMappings(raw) {
   return { cwe, owasp, attack, capec };
 }
 
+function normalizeEvidenceDetails(raw) {
+  const input = raw.evidence_details && typeof raw.evidence_details === 'object'
+    ? raw.evidence_details
+    : {};
+  const analysisScope = raw.analysis_scope || input.analysis_scope || 'pattern';
+  const sanitizers = normalizeStringList(
+    raw.sanitizers_seen !== undefined ? raw.sanitizers_seen : input.sanitizer_exprs
+  );
+  const traceSteps = Array.isArray(input.trace_steps)
+    ? input.trace_steps
+      .filter((step) => step && typeof step === 'object')
+      .map((step) => {
+        const kind = String(step.kind || '').trim().toLowerCase();
+        const expr = String(step.expr || '').trim();
+        if (!TRACE_STEP_KINDS.has(kind) || !expr) return null;
+        const normalized = {
+          kind,
+          label: String(step.label || kind).trim(),
+          expr,
+          file: step.file ? String(step.file).trim() : (raw.file_path || null),
+          line: Number.isInteger(step.line) ? step.line : null,
+        };
+        if (step.status) normalized.status = String(step.status).trim();
+        return normalized;
+      })
+      .filter(Boolean)
+    : [];
+
+  return {
+    analysis_scope: analysisScope,
+    is_taint_based: Boolean(
+      raw.is_taint_based !== undefined
+        ? raw.is_taint_based
+        : (input.is_taint_based || String(analysisScope).startsWith('taint'))
+    ),
+    source_type: raw.source || input.source_type || null,
+    source_expr: input.source_expr || null,
+    sink_type: raw.sink || input.sink_type || null,
+    sink_expr: input.sink_expr || null,
+    sanitizer_exprs: sanitizers,
+    sanitizer_status: input.sanitizer_status || (sanitizers.length ? 'present' : 'none'),
+    trace_steps: traceSteps,
+    trace_summary: raw.trace_summary || input.trace_summary || null,
+    reviewability: input.reviewability || 'changed-lines-only',
+    fix_scope: input.fix_scope || 'line',
+    fix_target_line: Number.isInteger(input.fix_target_line) ? input.fix_target_line : null,
+    fix_target_expr: input.fix_target_expr || null,
+    missing_control_type: input.missing_control_type || null,
+    auto_fix_eligible: Boolean(input.auto_fix_eligible),
+  };
+}
+
 function normalizeFinding(raw) {
   const taxonomyMappings = normalizeTaxonomyMappings(raw);
+  const evidenceDetails = normalizeEvidenceDetails(raw);
   const taxonomyVersions = raw.taxonomy_versions && typeof raw.taxonomy_versions === 'object'
     ? {
         cwe: raw.taxonomy_versions.cwe || null,
@@ -72,6 +127,12 @@ function normalizeFinding(raw) {
     file_path: raw.file_path,
     line_start: raw.line_start || 1,
     line_end: raw.line_end || raw.line_start || 1,
+    analysis_scope: evidenceDetails.analysis_scope,
+    source: evidenceDetails.source_type,
+    sink: evidenceDetails.sink_type,
+    sanitizers_seen: evidenceDetails.sanitizer_exprs,
+    trace_summary: evidenceDetails.trace_summary || '',
+    evidence_details: evidenceDetails,
     code_snippet: raw.code_snippet || '',
     evidence: raw.evidence || raw.description || '',
     exploit_scenario: raw.exploit_scenario || '',
@@ -84,5 +145,6 @@ function normalizeFinding(raw) {
 module.exports = {
   calculateFingerprint,
   normalizeFinding,
+  normalizeEvidenceDetails,
   normalizeTaxonomyMappings,
 };

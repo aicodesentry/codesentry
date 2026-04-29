@@ -6,6 +6,11 @@ const findingsDb = require('../db/findings');
 const analysisRunsDb = require('../db/analysisRuns');
 const repositoriesDb = require('../db/repositories');
 
+const TIER2_SUPPORTED_EXTENSIONS = new Set([
+  '.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.go', '.rb', '.php',
+  '.cs', '.c', '.cpp', '.h', '.hpp', '.rs', '.swift', '.kt',
+]);
+
 function markdownEscape(text) {
   return String(text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -26,6 +31,7 @@ function severityIcon(severity) {
 
 const normalizeSuggestionPatch = validatorPrivate.normalizePatch;
 const looksLikeUnifiedDiff = validatorPrivate.looksLikeUnifiedDiff;
+const buildRepoAwareRemediation = validatorPrivate.buildRepoAwareRemediation;
 
 function shouldRenderSuggestion(finding, suggestionPatch) {
   if (!suggestionPatch) return false;
@@ -164,6 +170,10 @@ function buildReviewComment(finding, options = {}) {
     tierLabel: options.tierLabel || 'manual',
     repoProfile: options.repoProfile || null,
   });
+  const repoAwareRemediation =
+    buildRepoAwareRemediation(finding, options.repoProfile || null)
+    || finding.remediation
+    || 'Apply input validation and secure handling.';
   const lines = [
     `${severityIcon(finding.severity)} **${finding.severity.toUpperCase()}** — ${markdownEscape(finding.title)}`,
     '',
@@ -180,7 +190,7 @@ function buildReviewComment(finding, options = {}) {
   if (showSuggestion) {
     lines.push('', '```suggestion', suggestionPatch, '```');
   } else {
-    lines.push('', `**Fix:** ${markdownEscape(finding.remediation || 'Apply input validation and secure handling.')}`);
+    lines.push('', `**Fix:** ${markdownEscape(repoAwareRemediation)}`);
     if (showFixCodeBlock) {
       lines.push('', `\`\`\`${codeFenceLanguage}`, suggestionPatch, '```');
     }
@@ -190,6 +200,60 @@ function buildReviewComment(finding, options = {}) {
 }
 
 const extractReviewableLines = validatorPrivate.extractReviewableLines;
+const extractReviewableLineSpans = validatorPrivate.extractReviewableLineSpans;
+
+function fileExtension(path) {
+  const match = String(path || '').toLowerCase().match(/(\.[^.\/]+)$/);
+  return match ? match[1] : '';
+}
+
+function shouldFetchFullFileContent(file) {
+  const path = String(file?.path || '');
+  const ext = fileExtension(path);
+  if (!TIER2_SUPPORTED_EXTENSIONS.has(ext)) return false;
+  if (path.startsWith('dist/') || path.includes('node_modules/')) return false;
+  if (path.endsWith('.min.js') || path.endsWith('.min.css')) return false;
+  return true;
+}
+
+function buildTier2FilePayload(file, contentByPath = new Map()) {
+  const content = contentByPath.get(file.path);
+  return {
+    ...file,
+    content: typeof content === 'string' ? content : '',
+    reviewable_line_spans: extractReviewableLineSpans(file.patch),
+  };
+}
+
+async function enrichFilesForTier2({ files, repositoryFullName, installationId, commitSha }) {
+  const sourceFiles = Array.isArray(files) ? files : [];
+  const candidates = sourceFiles.filter(shouldFetchFullFileContent);
+  const contentByPath = new Map();
+
+  if (candidates.length > 0) {
+    try {
+      const response = await githubServiceRequest('/internal/github/files/content', {
+        repository_full_name: repositoryFullName,
+        installation_id: installationId,
+        ref: commitSha,
+        paths: candidates.map((file) => file.path),
+      });
+
+      for (const file of response.files || []) {
+        if (!file?.path || typeof file.content !== 'string') continue;
+        contentByPath.set(file.path, file.content);
+      }
+    } catch (error) {
+      logger.warn('Failed to enrich Tier 2 files with full content', {
+        repositoryFullName,
+        commitSha,
+        error: error.message,
+      });
+    }
+  }
+
+  return sourceFiles.map((file) => buildTier2FilePayload(file, contentByPath));
+}
 
 function severityRank(severity) {
   return { critical: 4, high: 3, medium: 2, low: 1 }[String(severity || '').toLowerCase()] || 0;
@@ -365,6 +429,8 @@ async function upsertFinding({ finding, runId, pullRequestId, repositoryId, inst
     lineStart: normalized.line_start || null,
     lineEnd: normalized.line_end || null,
     codeSnippet: normalized.code_snippet || null,
+    analysisScope: normalized.analysis_scope || 'pattern',
+    evidenceDetails: normalized.evidence_details || {},
     evidence: normalized.evidence || null,
     exploitScenario: normalized.exploit_scenario || null,
     remediation: normalized.remediation || null,
@@ -520,6 +586,7 @@ async function runAnalysisJob(payload) {
 
   let allFindings = [];
   let files = [];
+  let tier2Files = [];
   let lastCounts = {};
   let lastHighOrCritical = 0;
   let reviewResp = {};
@@ -534,6 +601,12 @@ async function runAnalysisJob(payload) {
       installation_id: installationId,
     });
     files = filesResp.files || [];
+    tier2Files = await enrichFilesForTier2({
+      files,
+      repositoryFullName,
+      installationId,
+      commitSha,
+    });
 
     // ── Tier 1: Regex (<100ms) — post initial review immediately ─────
     try {
@@ -559,7 +632,7 @@ async function runAnalysisJob(payload) {
 
     // ── Tier 2: OpenGrep (2-5s) — update review with AST findings ────
     try {
-      const tier2 = await callAnalysisTier('/analyze/pr/tier2', { ...analysisPayload, files }, 60000);
+      const tier2 = await callAnalysisTier('/analyze/pr/tier2', { ...analysisPayload, files: tier2Files }, 60000);
       const tier2Findings = tier2.findings || [];
 
       if (tier2Findings.length > 0) {
@@ -680,11 +753,15 @@ module.exports = {
   __private: {
     buildReviewBody,
     buildReviewComment,
+    buildTier2FilePayload,
     compareReviewComments,
     didTier3MeaningfullyChangeFindings,
+    enrichFilesForTier2,
+    fileExtension,
     hasTier3RenderableSuggestions,
     normalizeSuggestionPatch,
     prioritizeReviewComments,
+    shouldFetchFullFileContent,
     shouldRenderSuggestion,
     validateSuggestedFix,
   },
