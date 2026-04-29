@@ -4,7 +4,20 @@ import subprocess
 import shutil
 import pytest
 from pathlib import Path
-from opengrep_runner import run_opengrep, _extract_exact_lines, _extract_file_content, make_fingerprint, RULES_DIR
+from opengrep_runner import (
+    _classify_sanitizer_status,
+    _enrich_metadata_from_match,
+    _infer_local_propagation_kind,
+    _is_runtime_scannable_path,
+    _normalize_trace_step,
+    run_opengrep,
+    _build_trace_steps,
+    _extract_exact_lines,
+    _extract_file_content,
+    _extract_scan_content,
+    make_fingerprint,
+    RULES_DIR,
+)
 
 
 def _can_run_opengrep() -> bool:
@@ -59,6 +72,14 @@ class TestExtractFileContent:
         )
         assert _extract_file_content(patch) == 'api_key = "sk_live_4eC39HqLyjWDarjtT1zdp7dc"'
 
+    def test_prefers_full_file_content_when_available(self):
+        file_info = {
+            "path": "handler.js",
+            "patch": "@@ -0,0 +1 @@\n+eval(req.body.code)",
+            "content": "const value = req.body.code;\neval(value);\n",
+        }
+        assert _extract_scan_content(file_info) == "const value = req.body.code;\neval(value);\n"
+
     def test_extract_exact_lines_returns_only_target_range(self):
         content = "\n".join([
             "const a = 1;",
@@ -80,6 +101,333 @@ class TestMakeFingerprint:
         assert fp1 != fp2
 
 
+class TestRuntimeScannablePaths:
+    def test_accepts_runtime_source_files(self):
+        assert _is_runtime_scannable_path("src/routes/download.js") is True
+
+    def test_rejects_test_fixture_paths(self):
+        assert _is_runtime_scannable_path("services/analysis-service/src/tests/test_llm_triage.py") is False
+        assert _is_runtime_scannable_path("services/api-service/tests/orchestrator.test.js") is False
+        assert _is_runtime_scannable_path("frontend/src/pages/__tests__/RepositoriesPage.test.jsx") is False
+
+    def test_rejects_rule_definition_paths(self):
+        assert _is_runtime_scannable_path("services/analysis-service/src/opengrep_rules/javascript.yml") is False
+
+
+class TestTraceSteps:
+    def test_normalizes_trace_step_to_language_agnostic_shape(self):
+        step = _normalize_trace_step(
+            {"kind": "Assignment", "expr": "const file = req.query.file", "line": "12"},
+            "download.js",
+        )
+        assert step == {
+            "kind": "assignment",
+            "label": "assignment",
+            "expr": "const file = req.query.file",
+            "file": "download.js",
+            "line": 12,
+        }
+
+    def test_rejects_language_specific_trace_step_kind(self):
+        step = _normalize_trace_step(
+            {"kind": "member_expression", "expr": "req.query.file", "line": 12},
+            "download.js",
+        )
+        assert step is None
+
+    def test_builds_taint_trace_steps_from_metadata(self):
+        steps = _build_trace_steps(
+            {
+                "analysis_scope": "taint-intraprocedural",
+                "source_description": "request-controlled file path",
+                "source_expr": "req.query.file",
+                "sink_description": "filesystem access",
+                "sink_expr": "fs.readFile(file)",
+                "sanitizers_seen": ["path.basename(file)"],
+                "sanitizer_status": "present-but-insufficient",
+                "propagation_steps": [
+                    {"kind": "assignment", "expr": "const file = req.query.file", "line": 12},
+                ],
+                "source_line": 12,
+                "sink_line": 18,
+            },
+            file_path="download.js",
+            line_start=18,
+            line_end=18,
+            code_snippet="fs.readFile(file)",
+        )
+        assert [step["kind"] for step in steps] == ["source", "assignment", "sanitizer", "sink"]
+        assert steps[0]["expr"] == "req.query.file"
+        assert steps[0]["line"] == 12
+        assert steps[1]["expr"] == "const file = req.query.file"
+        assert steps[2]["status"] == "present-but-insufficient"
+        assert steps[3]["expr"] == "fs.readFile(file)"
+        assert steps[3]["line"] == 18
+
+    def test_returns_empty_trace_steps_for_pattern_findings(self):
+        steps = _build_trace_steps(
+            {"analysis_scope": "pattern"},
+            file_path="app.js",
+            line_start=10,
+            line_end=10,
+            code_snippet="eval(input)",
+        )
+        assert steps == []
+
+    def test_preserves_prebuilt_trace_steps_when_present(self):
+        prebuilt = [{"kind": "source", "expr": "req.query.url", "file": "handler.js", "line": 4}]
+        steps = _build_trace_steps(
+            {"analysis_scope": "taint-intraprocedural", "trace_steps": prebuilt},
+            file_path="handler.js",
+            line_start=10,
+            line_end=10,
+            code_snippet="fetch(url)",
+        )
+        assert steps == [{"kind": "source", "label": "source", "expr": "req.query.url", "file": "handler.js", "line": 4}]
+
+    def test_filters_invalid_prebuilt_trace_steps(self):
+        steps = _build_trace_steps(
+            {
+                "analysis_scope": "taint-intraprocedural",
+                "trace_steps": [
+                    {"kind": "source", "expr": "req.query.url", "file": "handler.js", "line": 4},
+                    {"kind": "identifier_reference", "expr": "url", "file": "handler.js", "line": 5},
+                ],
+            },
+            file_path="handler.js",
+            line_start=10,
+            line_end=10,
+            code_snippet="fetch(url)",
+        )
+        assert steps == [{"kind": "source", "expr": "req.query.url", "file": "handler.js", "line": 4, "label": "source"}]
+
+
+class TestMatchMetadataEnrichment:
+    def test_classifies_path_traversal_basename_as_present_but_insufficient(self):
+        assert _classify_sanitizer_status({
+            "category": "path traversal",
+            "sanitizers_seen": ["path.basename(file)"],
+        }) == "present-but-insufficient"
+
+    def test_classifies_open_redirect_relative_helper_as_validated(self):
+        assert _classify_sanitizer_status({
+            "category": "open redirect",
+            "sanitizers_seen": ["ensureRelativeRedirect(nextUrl)"],
+        }) == "validated"
+
+    def test_classifies_ssrf_allowlist_helper_as_validated(self):
+        assert _classify_sanitizer_status({
+            "category": "SSRF",
+            "sanitizers_seen": ["allowlistedUrl(target)"],
+        }) == "validated"
+
+    def test_classifies_xss_dompurify_as_validated(self):
+        assert _classify_sanitizer_status({
+            "category": "XSS",
+            "sanitizers_seen": ["DOMPurify.sanitize(name)"],
+        }) == "validated"
+
+    def test_classifies_unknown_sanitizer_as_present(self):
+        assert _classify_sanitizer_status({
+            "category": "path traversal",
+            "sanitizers_seen": ["safeWrapper(file)"],
+        }) == "present"
+
+    def test_enriches_fix_metadata_for_path_traversal(self):
+        metadata = {
+            "analysis_scope": "taint-intraprocedural",
+            "category": "path traversal",
+            "source_description": "request-controlled file path",
+            "sink_description": "filesystem access",
+            "source_var": "$INPUT",
+            "sink_var": "$PATH",
+        }
+        match = {
+            "extra": {
+                "metavars": {
+                    "$INPUT": {
+                        "abstract_content": "req.query.file",
+                        "start": {"line": 2},
+                    },
+                    "$PATH": {
+                        "abstract_content": "file",
+                        "start": {"line": 3},
+                    },
+                }
+            }
+        }
+        content = "\n".join([
+            "const path = require('path')",
+            "const file = req.query.file",
+            "fs.readFile(file, () => {})",
+        ])
+        enriched = _enrich_metadata_from_match(
+            metadata,
+            match,
+            file_path="download.js",
+            file_content=content,
+            line_start=3,
+            code_snippet="fs.readFile(file, () => {})",
+        )
+        assert enriched["missing_control_type"] == "base_dir_validation"
+        assert enriched["fix_target_line"] == 3
+        assert enriched["fix_target_expr"] == "fs.readFile(file, () => {})"
+        assert enriched["fix_scope"] == "line"
+        assert enriched["auto_fix_eligible"] is True
+
+    def test_marks_validated_sanitizer_as_not_auto_fix_eligible(self):
+        metadata = {
+            "analysis_scope": "taint-intraprocedural",
+            "category": "open redirect",
+            "source_description": "request-controlled redirect target",
+            "sink_description": "HTTP redirect",
+            "source_var": "$URL",
+            "sink_var": "$URL",
+            "sanitizers_seen": ["ensureRelativeRedirect(nextUrl)"],
+        }
+        match = {
+            "extra": {
+                "metavars": {
+                    "$URL": {
+                        "abstract_content": "nextUrl",
+                        "start": {"line": 5},
+                    },
+                }
+            }
+        }
+        enriched = _enrich_metadata_from_match(
+            metadata,
+            match,
+            file_path="handler.js",
+            file_content="res.redirect(nextUrl)\n",
+            line_start=5,
+            code_snippet="res.redirect(nextUrl)",
+        )
+        assert enriched["sanitizer_status"] == "validated"
+        assert enriched["missing_control_type"] == "relative_or_allowlisted_redirect_validation"
+        assert enriched["auto_fix_eligible"] is False
+
+    def test_infers_call_propagation_for_wrapper_assignment(self):
+        assert _infer_local_propagation_kind(
+            "const file = path.basename(req.query.file)",
+            "req.query.file",
+        ) == "call"
+
+    def test_infers_assignment_propagation_for_direct_copy(self):
+        assert _infer_local_propagation_kind(
+            "const file = req.query.file",
+            "req.query.file",
+        ) == "assignment"
+
+    def test_enriches_metadata_from_metavars(self):
+        metadata = {
+            "analysis_scope": "taint-intraprocedural",
+            "source_description": "request-controlled file path",
+            "sink_description": "filesystem access",
+            "source_var": "$INPUT",
+            "sink_var": "$PATH",
+        }
+        match = {
+            "extra": {
+                "metavars": {
+                    "$INPUT": {
+                        "abstract_content": "req.query.file",
+                        "start": {"line": 2},
+                    },
+                    "$PATH": {
+                        "abstract_content": "file",
+                        "start": {"line": 3},
+                    },
+                }
+            }
+        }
+        content = "\n".join([
+            "const child_process = require('child_process')",
+            "const file = req.query.file",
+            "fs.readFile(file, () => {})",
+        ])
+        enriched = _enrich_metadata_from_match(
+            metadata,
+            match,
+            file_path="download.js",
+            file_content=content,
+            line_start=3,
+            code_snippet="fs.readFile(file, () => {})",
+        )
+        assert enriched["source_expr"] == "req.query.file"
+        assert enriched["source_line"] == 2
+        assert enriched["sink_expr"] == "fs.readFile(file, () => {})"
+        assert enriched["sink_line"] == 3
+        assert enriched["sink_arg_expr"] == "file"
+        assert enriched["propagation_steps"][0]["kind"] == "assignment"
+        assert enriched["propagation_steps"][0]["expr"] == "const file = req.query.file"
+
+    def test_marks_wrapper_assignment_as_call_propagation(self):
+        metadata = {
+            "analysis_scope": "taint-intraprocedural",
+            "source_description": "request-controlled file path",
+            "sink_description": "filesystem access",
+            "source_var": "$INPUT",
+            "sink_var": "$PATH",
+        }
+        match = {
+            "extra": {
+                "metavars": {
+                    "$INPUT": {
+                        "abstract_content": "req.query.file",
+                        "start": {"line": 2},
+                    },
+                    "$PATH": {
+                        "abstract_content": "file",
+                        "start": {"line": 3},
+                    },
+                }
+            }
+        }
+        content = "\n".join([
+            "const path = require('path')",
+            "const file = path.basename(req.query.file)",
+            "fs.readFile(file, () => {})",
+        ])
+        enriched = _enrich_metadata_from_match(
+            metadata,
+            match,
+            file_path="download.js",
+            file_content=content,
+            line_start=3,
+            code_snippet="fs.readFile(file, () => {})",
+        )
+        assert enriched["propagation_steps"][0]["kind"] == "call"
+        assert enriched["propagation_steps"][0]["expr"] == "const file = path.basename(req.query.file)"
+
+    def test_does_not_add_propagation_step_when_source_is_on_sink_line(self):
+        metadata = {
+            "analysis_scope": "taint-intraprocedural",
+            "source_var": "$URL",
+            "sink_var": "$URL",
+        }
+        match = {
+            "extra": {
+                "metavars": {
+                    "$URL": {
+                        "abstract_content": "req.query.url",
+                        "start": {"line": 5},
+                    },
+                }
+            }
+        }
+        enriched = _enrich_metadata_from_match(
+            metadata,
+            match,
+            file_path="handler.js",
+            file_content="axios.get(req.query.url)\n",
+            line_start=5,
+            code_snippet="axios.get(req.query.url)",
+        )
+        assert enriched["source_expr"] == "req.query.url"
+        assert "propagation_steps" not in enriched
+
+
 class TestRunOpenGrep:
     def test_returns_list(self):
         result = run_opengrep([])
@@ -87,6 +435,14 @@ class TestRunOpenGrep:
 
     def test_skips_unsupported_extensions(self):
         files = [{"path": "readme.md", "patch": "+# Hello"}]
+        assert run_opengrep(files) == []
+
+    def test_skips_test_and_rule_files_even_when_extensions_match(self):
+        files = [
+            {"path": "services/analysis-service/src/tests/test_llm_triage.py", "patch": "+eval(req.body.code)\n"},
+            {"path": "services/api-service/tests/orchestrator.test.js", "patch": '+db.query("SELECT * FROM users WHERE id = " + userId);\n'},
+            {"path": "services/analysis-service/src/opengrep_rules/javascript.yml", "patch": "+- pattern: $EL.innerHTML = $INPUT\n"},
+        ]
         assert run_opengrep(files) == []
 
     def test_handles_no_findings_gracefully(self):
@@ -115,6 +471,72 @@ class TestRunOpenGrep:
         assert any("path-traversal" in f["rule_id"] for f in result)
 
     @skip_no_opengrep
+    def test_detects_javascript_path_traversal_when_request_value_is_assigned_first(self):
+        files = [{
+            "path": "download.js",
+            "patch": "\n".join([
+                "+const file = req.query.file",
+                "+fs.readFile(file, () => {})",
+            ]),
+        }]
+        result = run_opengrep(files)
+        assert any("path-traversal" in f["rule_id"] for f in result)
+
+    @skip_no_opengrep
+    def test_detects_javascript_command_injection_when_request_value_is_assigned_first(self):
+        files = [{
+            "path": "handler.js",
+            "content": "\n".join([
+                "const child_process = require('child_process')",
+                "const cmd = req.query.cmd",
+                "child_process.exec(cmd)",
+            ]),
+            "patch": "@@ -0,0 +1,3 @@\n+const child_process = require('child_process')\n+const cmd = req.query.cmd\n+child_process.exec(cmd)",
+        }]
+        result = run_opengrep(files)
+        assert any("child-process-exec" in f["rule_id"] for f in result)
+
+    @skip_no_opengrep
+    def test_detects_javascript_ssrf_when_request_value_is_assigned_first(self):
+        files = [{
+            "path": "handler.js",
+            "content": "\n".join([
+                "const axios = require('axios')",
+                "const target = req.query.url",
+                "axios.get(target)",
+            ]),
+            "patch": "@@ -0,0 +1,3 @@\n+const axios = require('axios')\n+const target = req.query.url\n+axios.get(target)",
+        }]
+        result = run_opengrep(files)
+        assert any("ssrf-axios" in f["rule_id"] for f in result)
+
+    @skip_no_opengrep
+    def test_detects_javascript_open_redirect_when_request_value_is_assigned_first(self):
+        files = [{
+            "path": "handler.js",
+            "content": "\n".join([
+                "const nextUrl = req.query.next",
+                "res.redirect(nextUrl)",
+            ]),
+            "patch": "@@ -0,0 +1,2 @@\n+const nextUrl = req.query.next\n+res.redirect(nextUrl)",
+        }]
+        result = run_opengrep(files)
+        assert any("open-redirect" in f["rule_id"] for f in result)
+
+    @skip_no_opengrep
+    def test_detects_javascript_xss_when_request_value_is_assigned_first(self):
+        files = [{
+            "path": "handler.js",
+            "content": "\n".join([
+                "const name = req.query.name",
+                "el.innerHTML = name",
+            ]),
+            "patch": "@@ -0,0 +1,2 @@\n+const name = req.query.name\n+el.innerHTML = name",
+        }]
+        result = run_opengrep(files)
+        assert any("xss-innerhtml" in f["rule_id"] for f in result)
+
+    @skip_no_opengrep
     def test_detects_go_path_traversal_via_readfile_join(self):
         files = [{
             "path": "download.go",
@@ -122,6 +544,68 @@ class TestRunOpenGrep:
         }]
         result = run_opengrep(files)
         assert any("go-path-traversal" in f["rule_id"] for f in result)
+
+    @skip_no_opengrep
+    def test_detects_go_path_traversal_when_query_value_is_assigned_first(self):
+        files = [{
+            "path": "download.go",
+            "patch": "\n".join([
+                "+name := r.URL.Query().Get(\"file\")",
+                "+data, _ := os.ReadFile(name)",
+            ]),
+        }]
+        result = run_opengrep(files)
+        assert any("go-path-traversal" in f["rule_id"] for f in result)
+
+    @skip_no_opengrep
+    def test_detects_go_command_injection_when_request_value_is_assigned_first(self):
+        files = [{
+            "path": "run.go",
+            "content": "\n".join([
+                "package main",
+                "import \"os/exec\"",
+                "func run(r *Request) {",
+                "  cmd := r.URL.Query().Get(\"cmd\")",
+                "  exec.Command(\"sh\", \"-c\", cmd)",
+                "}",
+            ]),
+            "patch": "\n".join([
+                "@@ -0,0 +1,6 @@",
+                "+package main",
+                "+import \"os/exec\"",
+                "+func run(r *Request) {",
+                "+  cmd := r.URL.Query().Get(\"cmd\")",
+                "+  exec.Command(\"sh\", \"-c\", cmd)",
+                "+}",
+            ]),
+        }]
+        result = run_opengrep(files)
+        assert any("go-exec-command" in f["rule_id"] for f in result)
+
+    @skip_no_opengrep
+    def test_detects_go_xss_when_request_value_is_assigned_first(self):
+        files = [{
+            "path": "render.go",
+            "content": "\n".join([
+                "package main",
+                "import \"fmt\"",
+                "func render(w Writer, r *Request) {",
+                "  name := r.URL.Query().Get(\"name\")",
+                "  fmt.Fprintf(w, \"%s\", name)",
+                "}",
+            ]),
+            "patch": "\n".join([
+                "@@ -0,0 +1,6 @@",
+                "+package main",
+                "+import \"fmt\"",
+                "+func render(w Writer, r *Request) {",
+                "+  name := r.URL.Query().Get(\"name\")",
+                "+  fmt.Fprintf(w, \"%s\", name)",
+                "+}",
+            ]),
+        }]
+        result = run_opengrep(files)
+        assert any("go-template-html" in f["rule_id"] for f in result)
 
     @skip_no_opengrep
     def test_finding_has_required_fields(self):

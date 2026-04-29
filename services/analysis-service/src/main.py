@@ -1,6 +1,7 @@
 import hashlib
 import os
 import time
+import re
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException, Request
@@ -24,9 +25,12 @@ from taxonomy import build_taxonomy_metadata
 class ChangedFile(BaseModel):
     path: str
     patch: str = ""
+    content: str = ""
     additions: int = 0
     deletions: int = 0
     status: str = "modified"
+    raw_url: str = ""
+    reviewable_line_spans: List[Dict[str, int]] = Field(default_factory=list)
 
 
 class AnalyzePRRequest(BaseModel):
@@ -66,6 +70,14 @@ app.add_middleware(
     allow_credentials=True,
 )
 
+NON_RUNTIME_PATH_PATTERNS = [
+    re.compile(r"(^|/)tests?/"),
+    re.compile(r"(^|/)__tests?__/"),
+    re.compile(r"(^|/)test_.*\.py$"),
+    re.compile(r"\.(test|spec)\.(js|jsx|ts|tsx|py|go|java|rb|php|cs)$"),
+    re.compile(r"(^|/)opengrep_rules/"),
+]
+
 
 def require_internal_auth(request: Request) -> None:
     expected = (
@@ -78,6 +90,13 @@ def require_internal_auth(request: Request) -> None:
     provided = request.headers.get("x-internal-secret", "")
     if provided != expected:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+def is_runtime_scannable_path(path: str) -> bool:
+    normalized = str(path or "").strip().replace("\\", "/").lower()
+    if not normalized:
+        return False
+    return not any(pattern.search(normalized) for pattern in NON_RUNTIME_PATH_PATTERNS)
 
 
 def make_fingerprint(rule_id: str, path: str, line_start: int, snippet: str) -> str:
@@ -219,9 +238,10 @@ async def analyze_pr(payload: AnalyzePRRequest, request: Request):
 
     findings: List[Dict[str, Any]] = []
 
-    repo_has_llm_flow = any(likely_llm_repo(f.path, f.patch) for f in payload.files)
+    scannable_files = [f for f in payload.files if is_runtime_scannable_path(f.path)]
+    repo_has_llm_flow = any(likely_llm_repo(f.path, f.patch) for f in scannable_files)
 
-    for changed_file in payload.files:
+    for changed_file in scannable_files:
         path = changed_file.path
         patch = changed_file.patch or ""
 
@@ -238,7 +258,7 @@ async def analyze_pr(payload: AnalyzePRRequest, request: Request):
 
     # Tier 2: OpenGrep AST analysis
     try:
-        opengrep_files = [{"path": f.path, "patch": f.patch} for f in payload.files]
+        opengrep_files = [{"path": f.path, "patch": f.patch} for f in scannable_files]
         opengrep_findings = run_opengrep(opengrep_files)
         findings.extend(opengrep_findings)
     except Exception as e:
@@ -246,7 +266,7 @@ async def analyze_pr(payload: AnalyzePRRequest, request: Request):
 
     # Tier 3: LLM triage (non-blocking)
     try:
-        file_patches = {f.path: f.patch for f in payload.files}
+        file_patches = {f.path: f.patch for f in scannable_files}
         findings = triage_findings(findings, file_patches, None)
     except Exception as e:
         print(f"LLM triage failed (non-blocking): {e}")
@@ -272,9 +292,10 @@ async def analyze_pr_tier1(payload: AnalyzePRRequest, request: Request):
         raise HTTPException(status_code=413, detail="Too many files in PR payload")
 
     findings: List[Dict[str, Any]] = []
-    repo_has_llm_flow = any(likely_llm_repo(f.path, f.patch) for f in payload.files)
+    scannable_files = [f for f in payload.files if is_runtime_scannable_path(f.path)]
+    repo_has_llm_flow = any(likely_llm_repo(f.path, f.patch) for f in scannable_files)
 
-    for changed_file in payload.files:
+    for changed_file in scannable_files:
         path = changed_file.path
         patch = changed_file.patch or ""
         if len(patch) > 200_000:
@@ -306,7 +327,7 @@ async def analyze_pr_tier2(payload: AnalyzePRRequest, request: Request):
 
     findings: List[Dict[str, Any]] = []
     try:
-        opengrep_files = [{"path": f.path, "patch": f.patch} for f in payload.files]
+        opengrep_files = [{"path": f.path, "patch": f.patch} for f in scannable_files]
         findings = run_opengrep(opengrep_files)
     except Exception as e:
         print(f"OpenGrep analysis failed (non-blocking): {e}")

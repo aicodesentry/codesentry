@@ -1,6 +1,7 @@
 const {
   calculateFingerprint,
   normalizeFinding,
+  normalizeEvidenceDetails,
   normalizeTaxonomyMappings,
 } = require('../services/findingUtils');
 
@@ -86,6 +87,11 @@ describe('normalizeFinding', () => {
     exploit_scenario: 'auth bypass',
     remediation: 'use parameterized queries',
     remediation_patch: 'fix code',
+    analysis_scope: 'taint-intraprocedural',
+    source: 'request-controlled input',
+    sink: 'filesystem access',
+    sanitizers_seen: ['path.basename'],
+    trace_summary: 'Taint-tracked flow from request input to a sink.',
   };
 
   it('maps all fields from raw input', () => {
@@ -99,6 +105,10 @@ describe('normalizeFinding', () => {
     expect(n.file_path).toBe(raw.file_path);
     expect(n.line_start).toBe(10);
     expect(n.line_end).toBe(12);
+    expect(n.analysis_scope).toBe('taint-intraprocedural');
+    expect(n.source).toBe('request-controlled input');
+    expect(n.sanitizers_seen).toEqual(['path.basename']);
+    expect(n.evidence_details.trace_summary).toContain('Taint-tracked');
   });
 
   it('lowercases severity', () => {
@@ -146,6 +156,107 @@ describe('normalizeFinding', () => {
     expect(n.cwe_id).toBeNull();
     expect(n.owasp_category).toBeNull();
     expect(n.taxonomy_mappings).toEqual({ cwe: [], owasp: [], attack: [], capec: [] });
+  });
+});
+
+describe('normalizeEvidenceDetails', () => {
+  it('hydrates structured evidence from top-level fields', () => {
+    expect(normalizeEvidenceDetails({
+      analysis_scope: 'taint-intraprocedural',
+      source: 'request-controlled input',
+      sink: 'filesystem access',
+      sanitizers_seen: ['path.basename'],
+      trace_summary: 'Taint flow',
+    })).toEqual({
+      analysis_scope: 'taint-intraprocedural',
+      is_taint_based: true,
+      source_type: 'request-controlled input',
+      source_expr: null,
+      sink_type: 'filesystem access',
+      sink_expr: null,
+      sanitizer_exprs: ['path.basename'],
+      sanitizer_status: 'present',
+      trace_steps: [],
+      trace_summary: 'Taint flow',
+      reviewability: 'changed-lines-only',
+      fix_scope: 'line',
+      fix_target_line: null,
+      fix_target_expr: null,
+      missing_control_type: null,
+      auto_fix_eligible: false,
+    });
+  });
+
+  it('normalizes trace steps to a language-agnostic shape', () => {
+    expect(normalizeEvidenceDetails({
+      file_path: 'handler.js',
+      evidence_details: {
+        sanitizer_status: 'present-but-insufficient',
+        trace_steps: [
+          { kind: 'Assignment', expr: 'const file = req.query.file', line: 12 },
+          { kind: 'sink', expr: 'fs.readFile(file)', file: 'handler.js', line: 18, status: 'present' },
+        ],
+        fix_scope: 'block',
+        fix_target_line: 18,
+        fix_target_expr: 'fs.readFile(file)',
+        missing_control_type: 'base_dir_validation',
+        auto_fix_eligible: true,
+      },
+    })).toEqual({
+      analysis_scope: 'pattern',
+      is_taint_based: false,
+      source_type: null,
+      source_expr: null,
+      sink_type: null,
+      sink_expr: null,
+      sanitizer_exprs: [],
+      sanitizer_status: 'present-but-insufficient',
+      trace_steps: [
+        {
+          kind: 'assignment',
+          label: 'assignment',
+          expr: 'const file = req.query.file',
+          file: 'handler.js',
+          line: 12,
+        },
+        {
+          kind: 'sink',
+          label: 'sink',
+          expr: 'fs.readFile(file)',
+          file: 'handler.js',
+          line: 18,
+          status: 'present',
+        },
+      ],
+      trace_summary: null,
+      reviewability: 'changed-lines-only',
+      fix_scope: 'block',
+      fix_target_line: 18,
+      fix_target_expr: 'fs.readFile(file)',
+      missing_control_type: 'base_dir_validation',
+      auto_fix_eligible: true,
+    });
+  });
+
+  it('drops language-specific or malformed trace steps', () => {
+    expect(normalizeEvidenceDetails({
+      file_path: 'handler.js',
+      evidence_details: {
+        trace_steps: [
+          { kind: 'member_expression', expr: 'req.query.file', line: 12 },
+          { kind: 'source', expr: '', line: 12 },
+          { kind: 'source', expr: 'req.query.file', line: 12 },
+        ],
+      },
+    }).trace_steps).toEqual([
+      {
+        kind: 'source',
+        label: 'source',
+        expr: 'req.query.file',
+        file: 'handler.js',
+        line: 12,
+      },
+    ]);
   });
 });
 

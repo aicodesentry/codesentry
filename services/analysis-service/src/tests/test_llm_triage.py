@@ -10,9 +10,13 @@ from llm_triage import (
     LLM_TRIAGE_MAX_FINDINGS,
     _apply_verdicts,
     _build_finding_context,
+    _build_triage_prompt,
+    _evidence_strength,
     _normalize_fixed_code,
     _parse_triage_response,
+    _sanitizer_status,
     _select_findings_for_triage,
+    _trace_features,
     is_llm_triage_enabled,
     triage_findings,
 )
@@ -38,9 +42,25 @@ def _make_finding(**overrides):
         "remediation": "Use parameterized queries",
         "remediation_patch": "",
         "exploit_scenario": "",
+        "evidence_details": {},
     }
     base.update(overrides)
     return base
+
+
+def _moderate_trace_steps():
+    return [
+        {"kind": "source", "expr": "req.query.input", "line": 10},
+        {"kind": "sink", "expr": "dangerousCall(req.query.input)", "line": 11},
+    ]
+
+
+def _strong_trace_steps():
+    return [
+        {"kind": "source", "expr": "req.query.input", "line": 10},
+        {"kind": "assignment", "expr": "const value = req.query.input", "line": 10},
+        {"kind": "sink", "expr": "dangerousCall(value)", "line": 11},
+    ]
 
 
 class TestIsEnabled:
@@ -108,6 +128,176 @@ class TestBuildFindingContext:
         assert ctx["description"] == "desc"
         assert ctx["remediation_hint"] == "Use parameterized queries"
         assert ctx["exploit_scenario"] == "boom"
+
+    def test_includes_structured_analysis_evidence_when_present(self):
+        ctx = _build_finding_context(
+            _make_finding(
+                analysis_scope="taint-intraprocedural",
+                source="request-controlled file path",
+                sink="filesystem access",
+                sanitizers_seen=["path.basename"],
+                trace_summary="Taint-tracked flow from request input into fs.readFile.",
+                evidence_details={
+                    "fix_scope": "line",
+                    "fix_target_line": 18,
+                    "fix_target_expr": "fs.readFile(file)",
+                    "missing_control_type": "base_dir_validation",
+                    "auto_fix_eligible": True,
+                    "trace_steps": [
+                        {"kind": "source", "expr": "req.query.file", "line": 12},
+                        {"kind": "assignment", "expr": "const file = req.query.file", "line": 12},
+                        {"kind": "sink", "expr": "fs.readFile(file)", "line": 18},
+                    ]
+                },
+            ),
+            {"app.py": "+some code"},
+        )
+        assert ctx["analysis_scope"] == "taint-intraprocedural"
+        assert ctx["source"] == "request-controlled file path"
+        assert ctx["sink"] == "filesystem access"
+        assert ctx["sanitizers_seen"] == ["path.basename"]
+        assert "fs.readFile" in ctx["trace_summary"]
+        assert ctx["inline_fix_eligible"] is True
+        assert ctx["sanitizer_status"] == "present"
+        assert ctx["trace_length"] == 3
+        assert ctx["trace_quality"] == "strong"
+        assert ctx["has_meaningful_trace"] is True
+        assert ctx["fix_scope"] == "line"
+        assert ctx["fix_target_line"] == 18
+        assert ctx["fix_target_expr"] == "fs.readFile(file)"
+        assert ctx["missing_control_type"] == "base_dir_validation"
+        assert ctx["auto_fix_eligible"] is True
+
+    def test_uses_nested_evidence_details_when_top_level_fields_are_missing(self):
+        ctx = _build_finding_context(
+            _make_finding(
+                analysis_scope=None,
+                source=None,
+                sink=None,
+                sanitizers_seen=None,
+                trace_summary=None,
+                evidence_details={
+                    "analysis_scope": "taint-intraprocedural",
+                    "source_type": "request-controlled redirect target",
+                    "sink_type": "HTTP redirect",
+                    "sanitizer_exprs": ["ensureRelativeRedirect"],
+                    "trace_summary": "Taint flow into redirect.",
+                    "is_taint_based": True,
+                },
+            ),
+            {"app.py": "+code"},
+        )
+        assert ctx["analysis_scope"] == "taint-intraprocedural"
+        assert ctx["source"] == "request-controlled redirect target"
+        assert ctx["sink"] == "HTTP redirect"
+        assert ctx["sanitizers_seen"] == ["ensureRelativeRedirect"]
+        assert ctx["is_taint_based"] is True
+        assert ctx["evidence_strength"] == "strong"
+        assert ctx["sanitizer_status"] == "present"
+
+    def test_marks_context_only_findings_as_not_inline_fix_eligible(self):
+        ctx = _build_finding_context(
+            _make_finding(
+                analysis_scope="taint-intraprocedural",
+                evidence_details={"reviewability": "context-only"},
+            ),
+            {"app.py": "+code"},
+        )
+        assert ctx["reviewability"] == "context-only"
+        assert ctx["inline_fix_eligible"] is False
+
+
+class TestBuildTriagePrompt:
+    def test_includes_structured_evidence_and_repo_profile(self):
+        prompt = _build_triage_prompt(
+            [
+                _make_finding(
+                    rule_id="opengrep.cwe-22.path-traversal-fs",
+                    analysis_scope="taint-intraprocedural",
+                    source="request-controlled file path",
+                    sink="filesystem access",
+                    sanitizers_seen=["path.basename"],
+                    trace_summary="Taint-tracked flow from request input into fs.readFile.",
+                )
+            ],
+            {"app.py": "+const file = req.query.file\n+fs.readFile(file)\n"},
+            {
+                "deterministic": {"framework": "express", "languages": ["javascript"]},
+                "interpreted": {"auth_strategy": "middleware", "risk_areas": ["file handling"]},
+            },
+        )
+        assert "Repository Profile" in prompt
+        assert "taint-intraprocedural" in prompt
+        assert "request-controlled file path" in prompt
+        assert "filesystem access" in prompt
+        assert "path.basename" in prompt
+        assert "inline_fix_eligible" in prompt
+        assert "auto_fix_eligible" in prompt
+        assert "missing_control_type" in prompt
+        assert "fix_scope=line" in prompt
+        assert "If reviewability is context-only" in prompt
+        assert "trace_quality=strong" in prompt
+
+
+class TestEvidenceStrength:
+    def test_marks_taint_findings_as_strong(self):
+        assert _evidence_strength(_make_finding(analysis_scope="taint-intraprocedural")) == "strong"
+
+    def test_marks_ast_pattern_findings_as_medium(self):
+        assert _evidence_strength(_make_finding(analysis_scope="ast-pattern")) == "medium"
+
+    def test_marks_pattern_findings_as_light(self):
+        assert _evidence_strength(_make_finding(analysis_scope="pattern")) == "light"
+
+
+class TestTraceFeatures:
+    def test_marks_source_assignment_sink_trace_as_strong(self):
+        finding = _make_finding(evidence_details={
+            "trace_steps": [
+                {"kind": "source", "expr": "req.query.file"},
+                {"kind": "assignment", "expr": "const file = req.query.file"},
+                {"kind": "sink", "expr": "fs.readFile(file)"},
+            ]
+        })
+        features = _trace_features(finding)
+        assert features["trace_quality"] == "strong"
+        assert features["trace_length"] == 3
+        assert features["has_meaningful_trace"] is True
+
+    def test_marks_source_sink_only_trace_as_moderate(self):
+        finding = _make_finding(evidence_details={
+            "trace_steps": [
+                {"kind": "source", "expr": "req.query.url"},
+                {"kind": "sink", "expr": "fetch(req.query.url)"},
+            ]
+        })
+        features = _trace_features(finding)
+        assert features["trace_quality"] == "moderate"
+        assert features["has_only_source_and_sink"] is True
+
+    def test_marks_missing_sink_trace_as_weak(self):
+        finding = _make_finding(evidence_details={
+            "trace_steps": [
+                {"kind": "source", "expr": "req.query.name"},
+            ]
+        })
+        features = _trace_features(finding)
+        assert features["trace_quality"] == "weak"
+
+    def test_marks_empty_trace_as_none(self):
+        features = _trace_features(_make_finding(analysis_scope="pattern", evidence_details={"trace_steps": []}))
+        assert features["trace_quality"] == "none"
+
+
+class TestSanitizerStatus:
+    def test_defaults_to_none_without_sanitizers(self):
+        assert _sanitizer_status(_make_finding()) == "none"
+
+    def test_uses_explicit_validated_status(self):
+        assert _sanitizer_status(_make_finding(evidence_details={"sanitizer_status": "validated"})) == "validated"
+
+    def test_falls_back_to_present_when_signal_exists_without_status(self):
+        assert _sanitizer_status(_make_finding(evidence_details={"sanitizer_exprs": ["path.basename(file)"]})) == "present"
 
 
 class TestNormalizeFixedCode:
@@ -228,11 +418,59 @@ class TestApplyVerdicts:
         assert len(result) == 0
 
     def test_boosts_true_positive_confidence(self):
-        findings = [_make_finding(confidence=0.7)]
+        findings = [_make_finding(confidence=0.7, analysis_scope="taint-intraprocedural", evidence_details={"trace_steps": _strong_trace_steps()})]
         verdicts = [{"fingerprint": "abc123", "verdict": "true_positive", "reasoning": "confirmed", "adjusted_severity": None, "adjusted_confidence": None}]
         result = _apply_verdicts(findings, verdicts)
         assert len(result) == 1
         assert result[0]["confidence"] == 0.8
+
+    def test_uses_smaller_confidence_boost_for_lightweight_evidence(self):
+        findings = [_make_finding(confidence=0.7, analysis_scope="pattern", evidence_details={"trace_steps": _moderate_trace_steps()})]
+        verdicts = [{"fingerprint": "abc123", "verdict": "true_positive", "reasoning": "confirmed", "adjusted_severity": None, "adjusted_confidence": None}]
+        result = _apply_verdicts(findings, verdicts)
+        assert len(result) == 1
+        assert result[0]["confidence"] == 0.75
+
+    def test_caps_confidence_boost_when_sanitizer_signal_exists(self):
+        findings = [_make_finding(
+            confidence=0.7,
+            analysis_scope="taint-intraprocedural",
+            evidence_details={"sanitizer_exprs": ["path.basename"], "trace_steps": _strong_trace_steps()},
+        )]
+        verdicts = [{"fingerprint": "abc123", "verdict": "true_positive", "reasoning": "confirmed", "adjusted_severity": None, "adjusted_confidence": None}]
+        result = _apply_verdicts(findings, verdicts)
+        assert len(result) == 1
+        assert result[0]["confidence"] == 0.75
+
+    def test_uses_smaller_boost_for_present_but_insufficient_sanitizer(self):
+        findings = [_make_finding(
+            confidence=0.7,
+            analysis_scope="taint-intraprocedural",
+            evidence_details={
+                "sanitizer_exprs": ["path.basename(file)"],
+                "sanitizer_status": "present-but-insufficient",
+                "trace_steps": _strong_trace_steps(),
+            },
+        )]
+        verdicts = [{"fingerprint": "abc123", "verdict": "true_positive", "reasoning": "confirmed", "adjusted_severity": None, "adjusted_confidence": None}]
+        result = _apply_verdicts(findings, verdicts)
+        assert len(result) == 1
+        assert result[0]["confidence"] == 0.73
+
+    def test_removes_boost_for_validated_sanitizer(self):
+        findings = [_make_finding(
+            confidence=0.7,
+            analysis_scope="taint-intraprocedural",
+            evidence_details={
+                "sanitizer_exprs": ["ensureRelativeRedirect(nextUrl)"],
+                "sanitizer_status": "validated",
+                "trace_steps": _strong_trace_steps(),
+            },
+        )]
+        verdicts = [{"fingerprint": "abc123", "verdict": "true_positive", "reasoning": "confirmed", "adjusted_severity": None, "adjusted_confidence": None}]
+        result = _apply_verdicts(findings, verdicts)
+        assert len(result) == 1
+        assert result[0]["confidence"] == 0.7
 
     def test_adjusts_severity(self):
         findings = [_make_finding(severity="high")]
@@ -247,7 +485,7 @@ class TestApplyVerdicts:
         assert result[0]["confidence"] == 0.95
 
     def test_leaves_uncertain_unchanged(self):
-        findings = [_make_finding(confidence=0.7, severity="high")]
+        findings = [_make_finding(confidence=0.7, severity="high", analysis_scope="taint-intraprocedural", evidence_details={"trace_steps": _strong_trace_steps()})]
         verdicts = [{"fingerprint": "abc123", "verdict": "uncertain", "reasoning": "unclear", "adjusted_severity": None, "adjusted_confidence": None}]
         result = _apply_verdicts(findings, verdicts)
         assert len(result) == 1
@@ -265,15 +503,100 @@ class TestApplyVerdicts:
         assert result[0]["fingerprint"] == "not_triaged"
 
     def test_adds_llm_triage_metadata(self):
-        findings = [_make_finding()]
+        findings = [_make_finding(evidence_details={
+            "trace_steps": _moderate_trace_steps(),
+            "fix_scope": "line",
+            "missing_control_type": "output_encoding",
+            "auto_fix_eligible": True,
+        })]
         verdicts = [{"fingerprint": "abc123", "verdict": "true_positive", "reasoning": "user input flows to query", "adjusted_severity": None, "adjusted_confidence": None}]
         result = _apply_verdicts(findings, verdicts)
         assert "llm_triage" in result[0]
         assert result[0]["llm_triage"]["verdict"] == "true_positive"
         assert "user input" in result[0]["llm_triage"]["reasoning"]
+        assert result[0]["llm_triage"]["evidence_strength"] == "light"
+        assert result[0]["llm_triage"]["reviewability"] == "changed-lines-only"
+        assert result[0]["llm_triage"]["has_sanitizer_signal"] is False
+        assert result[0]["llm_triage"]["fix_scope"] == "line"
+        assert result[0]["llm_triage"]["missing_control_type"] == "output_encoding"
+        assert result[0]["llm_triage"]["auto_fix_eligible"] is True
+
+    def test_dampens_confidence_boost_for_context_only_findings(self):
+        findings = [_make_finding(
+            confidence=0.7,
+            analysis_scope="taint-intraprocedural",
+            evidence_details={
+                "reviewability": "context-only",
+                "trace_steps": [
+                    {"kind": "source", "expr": "req.query.file"},
+                    {"kind": "assignment", "expr": "const file = req.query.file"},
+                    {"kind": "sink", "expr": "fs.readFile(file)"},
+                ],
+            },
+        )]
+        verdicts = [{"fingerprint": "abc123", "verdict": "true_positive", "reasoning": "confirmed by trace", "adjusted_severity": None, "adjusted_confidence": None}]
+        result = _apply_verdicts(findings, verdicts)
+        assert len(result) == 1
+        assert result[0]["confidence"] == 0.72
+
+    def test_removes_confidence_boost_for_context_only_findings_with_sanitizer_signal(self):
+        findings = [_make_finding(
+            confidence=0.7,
+            analysis_scope="taint-intraprocedural",
+            evidence_details={
+                "reviewability": "context-only",
+                "sanitizer_exprs": ["path.basename"],
+                "trace_steps": [
+                    {"kind": "source", "expr": "req.query.file"},
+                    {"kind": "assignment", "expr": "const file = req.query.file"},
+                    {"kind": "sanitizer", "expr": "path.basename(file)", "status": "present-but-insufficient"},
+                    {"kind": "sink", "expr": "fs.readFile(file)"},
+                ],
+            },
+        )]
+        verdicts = [{"fingerprint": "abc123", "verdict": "true_positive", "reasoning": "confirmed by trace", "adjusted_severity": None, "adjusted_confidence": None}]
+        result = _apply_verdicts(findings, verdicts)
+        assert len(result) == 1
+        assert result[0]["confidence"] == 0.7
+
+    def test_uses_moderate_trace_to_limit_confidence_boost(self):
+        findings = [_make_finding(
+            confidence=0.7,
+            analysis_scope="taint-intraprocedural",
+            evidence_details={
+                "trace_steps": [
+                    {"kind": "source", "expr": "req.query.url"},
+                    {"kind": "sink", "expr": "res.redirect(req.query.url)"},
+                ]
+            },
+        )]
+        verdicts = [{"fingerprint": "abc123", "verdict": "true_positive", "reasoning": "confirmed", "adjusted_severity": None, "adjusted_confidence": None}]
+        result = _apply_verdicts(findings, verdicts)
+        assert len(result) == 1
+        assert result[0]["confidence"] == 0.75
+
+    def test_uses_weak_trace_to_prevent_automatic_confidence_boost(self):
+        findings = [_make_finding(
+            confidence=0.7,
+            analysis_scope="taint-intraprocedural",
+            evidence_details={
+                "trace_steps": [
+                    {"kind": "source", "expr": "req.query.name"},
+                ]
+            },
+        )]
+        verdicts = [{"fingerprint": "abc123", "verdict": "true_positive", "reasoning": "confirmed", "adjusted_severity": None, "adjusted_confidence": None}]
+        result = _apply_verdicts(findings, verdicts)
+        assert len(result) == 1
+        assert result[0]["confidence"] == 0.7
 
     def test_applies_inline_fix_patch_for_true_positive(self):
-        findings = [_make_finding()]
+        findings = [_make_finding(evidence_details={
+            "trace_steps": _moderate_trace_steps(),
+            "auto_fix_eligible": True,
+            "fix_scope": "line",
+            "missing_control_type": "output_encoding",
+        })]
         verdicts = [{
             "fingerprint": "abc123",
             "verdict": "true_positive",
@@ -285,12 +608,92 @@ class TestApplyVerdicts:
         result = _apply_verdicts(findings, verdicts)
         assert result[0]["remediation_patch"] == 'cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))'
 
+    def test_skips_inline_fix_patch_when_auto_fix_is_not_eligible(self):
+        findings = [_make_finding(evidence_details={
+            "trace_steps": _strong_trace_steps(),
+            "auto_fix_eligible": False,
+            "fix_scope": "line",
+            "missing_control_type": "base_dir_validation",
+        })]
+        verdicts = [{
+            "fingerprint": "abc123",
+            "verdict": "true_positive",
+            "reasoning": "confirmed",
+            "adjusted_severity": None,
+            "adjusted_confidence": None,
+            "fixed_code": 'safeOpen(resolveWithinBaseDir(req.query.file))',
+        }]
+        result = _apply_verdicts(findings, verdicts)
+        assert "remediation_patch" not in result[0]
+
+    def test_skips_inline_fix_patch_for_context_only_true_positive(self):
+        findings = [_make_finding(evidence_details={
+            "reviewability": "context-only",
+            "auto_fix_eligible": True,
+            "trace_steps": [
+                {"kind": "source", "expr": "req.query.file"},
+                {"kind": "assignment", "expr": "const file = req.query.file"},
+                {"kind": "sink", "expr": "fs.readFile(file)"},
+            ],
+        })]
+        verdicts = [{
+            "fingerprint": "abc123",
+            "verdict": "true_positive",
+            "reasoning": "confirmed",
+            "adjusted_severity": None,
+            "adjusted_confidence": None,
+            "fixed_code": 'cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))',
+        }]
+        result = _apply_verdicts(findings, verdicts)
+        assert "remediation_patch" not in result[0]
+
+    def test_skips_inline_fix_patch_for_weak_trace_true_positive(self):
+        findings = [_make_finding(evidence_details={
+            "auto_fix_eligible": True,
+            "trace_steps": [
+                {"kind": "source", "expr": "req.query.url"},
+            ],
+        })]
+        verdicts = [{
+            "fingerprint": "abc123",
+            "verdict": "true_positive",
+            "reasoning": "confirmed",
+            "adjusted_severity": None,
+            "adjusted_confidence": None,
+            "fixed_code": 'res.redirect(ensureRelativeRedirect(req.query.url))',
+        }]
+        result = _apply_verdicts(findings, verdicts)
+        assert "remediation_patch" not in result[0]
+
+    def test_skips_inline_fix_patch_for_validated_sanitizer(self):
+        findings = [_make_finding(evidence_details={
+            "auto_fix_eligible": True,
+            "sanitizer_exprs": ["ensureRelativeRedirect(nextUrl)"],
+            "sanitizer_status": "validated",
+            "trace_steps": _strong_trace_steps(),
+        })]
+        verdicts = [{
+            "fingerprint": "abc123",
+            "verdict": "true_positive",
+            "reasoning": "confirmed",
+            "adjusted_severity": None,
+            "adjusted_confidence": None,
+            "fixed_code": 'res.redirect(ensureRelativeRedirect(req.query.next))',
+        }]
+        result = _apply_verdicts(findings, verdicts)
+        assert "remediation_patch" not in result[0]
+
     def test_normalizes_fixed_code_using_real_snippet_context(self):
         findings = [_make_finding(code_snippet="\n".join([
             'const text = String(req.query.id)',
             'const userId = Number(text)',
             'db.query("SELECT * FROM users WHERE id = " + userId);',
-        ]))]
+        ]), evidence_details={
+            "trace_steps": _strong_trace_steps(),
+            "auto_fix_eligible": True,
+            "fix_scope": "block",
+            "missing_control_type": "output_encoding",
+        })]
         verdicts = [{
             "fingerprint": "abc123",
             "verdict": "true_positive",
@@ -306,6 +709,45 @@ class TestApplyVerdicts:
         }]
         result = _apply_verdicts(findings, verdicts)
         assert result[0]["remediation_patch"].endswith('[userId]);')
+
+    def test_skips_fallback_fix_when_sanitizer_signal_exists(self):
+        findings = [_make_finding(
+            file_path="app.js",
+            code_snippet='db.query("SELECT * FROM users WHERE id = " + userId);',
+            evidence_details={"sanitizer_exprs": ["validateUserId"], "auto_fix_eligible": True},
+        )]
+        verdicts = [{
+            "fingerprint": "abc123",
+            "verdict": "true_positive",
+            "reasoning": "confirmed",
+            "adjusted_severity": None,
+            "adjusted_confidence": None,
+            "fixed_code": None,
+        }]
+        result = _apply_verdicts(findings, verdicts)
+        assert "remediation_patch" not in result[0]
+
+    def test_uses_missing_control_specific_fallback_remediation(self):
+        findings = [_make_finding(
+            remediation="",
+            category="path traversal",
+            cwe_id="CWE-22",
+            evidence_details={
+                "missing_control_type": "base_dir_validation",
+                "auto_fix_eligible": False,
+            },
+        )]
+        verdicts = [{
+            "fingerprint": "abc123",
+            "verdict": "true_positive",
+            "reasoning": "confirmed",
+            "adjusted_severity": None,
+            "adjusted_confidence": None,
+            "remediation": None,
+            "fixed_code": None,
+        }]
+        result = _apply_verdicts(findings, verdicts)
+        assert "fixed base directory" in result[0]["remediation"]
 
     def test_backfills_exploit_scenario_when_missing(self):
         findings = [_make_finding(exploit_scenario="", remediation="")]
@@ -399,7 +841,12 @@ class TestTriageFindings:
             500,
             200,
         )
-        findings = [_make_finding(confidence=0.7, severity="high")]
+        findings = [_make_finding(
+            confidence=0.7,
+            severity="high",
+            analysis_scope="taint-intraprocedural",
+            evidence_details={"trace_steps": _strong_trace_steps()},
+        )]
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
             result = triage_findings(findings, {"app.py": "+code"})
         assert len(result) == 1
@@ -421,7 +868,12 @@ class TestTriageFindings:
             500,
             200,
         )
-        findings = [_make_finding()]
+        findings = [_make_finding(evidence_details={
+            "trace_steps": _moderate_trace_steps(),
+            "auto_fix_eligible": True,
+            "fix_scope": "line",
+            "missing_control_type": "output_encoding",
+        })]
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
             result = triage_findings(findings, {"app.py": "+cursor.execute(query)\n"})
         assert len(result) == 1
@@ -444,6 +896,12 @@ class TestTriageFindings:
         findings = [_make_finding(
             file_path="app.js",
             code_snippet='db.query("SELECT * FROM users WHERE id = " + userId);',
+            evidence_details={
+                "trace_steps": _moderate_trace_steps(),
+                "auto_fix_eligible": True,
+                "fix_scope": "line",
+                "missing_control_type": "output_encoding",
+            },
         )]
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
             result = triage_findings(findings, {"app.js": '+db.query("SELECT * FROM users WHERE id = " + userId);\n'})
@@ -471,6 +929,11 @@ class TestTriageFindings:
             cwe_id="CWE-798",
             file_path="config.js",
             code_snippet='const apiKey = "sk_live_1234567890abcdef";',
+            evidence_details={
+                "trace_steps": _moderate_trace_steps(),
+                "auto_fix_eligible": True,
+                "fix_scope": "line",
+            },
         )]
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
             result = triage_findings(findings, {"config.js": '+const apiKey = "sk_live_1234567890abcdef";\n'})
@@ -498,6 +961,11 @@ class TestTriageFindings:
             cwe_id="CWE-94",
             file_path="app.js",
             code_snippet="eval(req.body.code);",
+            evidence_details={
+                "trace_steps": _moderate_trace_steps(),
+                "auto_fix_eligible": True,
+                "fix_scope": "line",
+            },
         )]
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
             result = triage_findings(findings, {"app.js": "+eval(req.body.code);\n"})
@@ -525,6 +993,11 @@ class TestTriageFindings:
             cwe_id="CWE-78",
             file_path="app.js",
             code_snippet="exec(req.query.cmd);",
+            evidence_details={
+                "trace_steps": _moderate_trace_steps(),
+                "auto_fix_eligible": True,
+                "fix_scope": "line",
+            },
         )]
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
             result = triage_findings(findings, {"app.js": "+exec(req.query.cmd);\n"})
@@ -552,6 +1025,12 @@ class TestTriageFindings:
             cwe_id="CWE-79",
             file_path="app.js",
             code_snippet="element.innerHTML = req.query.name;",
+            evidence_details={
+                "trace_steps": _moderate_trace_steps(),
+                "auto_fix_eligible": True,
+                "fix_scope": "line",
+                "missing_control_type": "html_sanitization_or_safe_text_rendering",
+            },
         )]
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
             result = triage_findings(findings, {"app.js": "+element.innerHTML = req.query.name;\n"})

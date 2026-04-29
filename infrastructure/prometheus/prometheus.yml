@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "api-service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api-service:3000"]
+
+  - job_name: "github-service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["github-service:3002"]
+
+  - job_name: "analysis-service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["analysis-service:8001"]

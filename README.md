@@ -99,6 +99,7 @@ docker-compose up --build
 - Frontend: http://localhost:5173
 - API: http://localhost:3000
 - Analysis: http://localhost:8001
+- Prometheus: http://localhost:9090
 
 Single root `.env` feeds all services via `docker-compose env_file:`. No per-service env files needed.
 
@@ -107,6 +108,7 @@ Single root `.env` feeds all services via `docker-compose env_file:`. No per-ser
 - `./scripts/setup-local-dev.sh` creates a root `.env` from `.env.example` and generates local-only app secrets when placeholders are still present.
 - `./scripts/install-git-hooks.sh` configures `.githooks/pre-push`, which blocks direct pushes to `main` and `master`.
 - `docker-compose up --build` runs the full stack locally.
+- Local Prometheus scrapes `api-service`, `github-service`, and `analysis-service` on `http://localhost:9090`.
 - If Docker is not running, the app stack will not start and the API/database-backed counts will be unavailable.
 
 Recommended workflow:

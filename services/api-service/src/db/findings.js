@@ -132,7 +132,7 @@ async function upsert(params) {
     fingerprint, ruleId, internalType, title, description, category, cweId, owaspCategory,
     taxonomyMappings, taxonomyVersions,
     severity, confidence, exploitability, filePath, lineStart, lineEnd,
-    codeSnippet, evidence, exploitScenario, remediation, remediationPatch, isBaseline,
+    codeSnippet, analysisScope, evidenceDetails, evidence, exploitScenario, remediation, remediationPatch, isBaseline,
   } = params;
 
   if (id) {
@@ -142,16 +142,19 @@ async function upsert(params) {
            commit_sha = $4, internal_type = $5, title = $6, description = $7, category = $8,
            cwe_id = $9, owasp_category = $10, taxonomy_mappings = $11, taxonomy_versions = $12,
            severity = $13, confidence = $14, exploitability = $15, file_path = $16, line_start = $17, line_end = $18,
-           code_snippet = $19, evidence = $20, exploit_scenario = $21,
-           remediation = $22, remediation_patch = $23, is_baseline = $24,
+           code_snippet = $19, evidence_details = $20, evidence = $21, exploit_scenario = $22,
+           remediation = $23, remediation_patch = $24, is_baseline = $25,
            last_seen_at = NOW(), updated_at = NOW(),
            status = CASE WHEN status = 'fixed' THEN 'open' ELSE status END
-       WHERE id = $25
+       WHERE id = $26
        RETURNING *`,
       [runId, pullRequestId, prNumber, commitSha, internalType, title, description, category,
        cweId, owaspCategory, JSON.stringify(taxonomyMappings || {}), JSON.stringify(taxonomyVersions || {}),
        severity, confidence, exploitability,
-       filePath, lineStart, lineEnd, codeSnippet, evidence, exploitScenario,
+       filePath, lineStart, lineEnd, codeSnippet, JSON.stringify({
+         analysis_scope: analysisScope || 'pattern',
+         ...(evidenceDetails || {}),
+       }), evidence, exploitScenario,
        remediation, remediationPatch, isBaseline, id]
     );
     return updated.rows[0];
@@ -162,16 +165,19 @@ async function upsert(params) {
        repository_id, installation_id, pull_request_number, pull_request_id,
        analysis_run_id, commit_sha, fingerprint, rule_id, internal_type, title, description,
        category, cwe_id, owasp_category, taxonomy_mappings, taxonomy_versions, severity, confidence, exploitability,
-       file_path, line_start, line_end, code_snippet, evidence, exploit_scenario,
+       file_path, line_start, line_end, code_snippet, evidence_details, evidence, exploit_scenario,
        remediation, remediation_patch, status, is_baseline, first_seen_at, last_seen_at
      ) VALUES (
-       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,
-       'open',$28,NOW(),NOW()
+       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,
+       'open',$29,NOW(),NOW()
      ) RETURNING *`,
     [repositoryId, installationId, prNumber, pullRequestId, runId, commitSha,
      fingerprint, ruleId, internalType, title, description, category, cweId, owaspCategory,
      JSON.stringify(taxonomyMappings || {}), JSON.stringify(taxonomyVersions || {}), severity, confidence, exploitability,
-     filePath, lineStart, lineEnd, codeSnippet, evidence, exploitScenario, remediation, remediationPatch, isBaseline]
+     filePath, lineStart, lineEnd, codeSnippet, JSON.stringify({
+       analysis_scope: analysisScope || 'pattern',
+       ...(evidenceDetails || {}),
+     }), evidence, exploitScenario, remediation, remediationPatch, isBaseline]
   );
   return inserted.rows[0];
 }
