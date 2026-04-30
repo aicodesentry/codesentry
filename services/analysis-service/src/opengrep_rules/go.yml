@@ -82,53 +82,6 @@ rules:
       sink_var: "$PATH"
       trace_summary: "Taint-tracked flow from request-controlled path input into a filesystem access sink."
 
-  - id: cwe-22.go-path-traversal-readfile-join
-    patterns:
-      - pattern-either:
-        - pattern: os.ReadFile(filepath.Join($BASE, r.URL.Query().Get(...)))
-        - pattern: os.ReadFile(filepath.Join($BASE, req.URL.Query().Get(...)))
-        - pattern: ioutil.ReadFile(filepath.Join($BASE, r.URL.Query().Get(...)))
-        - pattern: ioutil.ReadFile(filepath.Join($BASE, req.URL.Query().Get(...)))
-        - pattern: os.ReadFile(filepath.Join($BASE, r.FormValue(...)))
-        - pattern: os.ReadFile(filepath.Join($BASE, req.FormValue(...)))
-        - pattern: ioutil.ReadFile(filepath.Join($BASE, r.FormValue(...)))
-        - pattern: ioutil.ReadFile(filepath.Join($BASE, req.FormValue(...)))
-    message: "File path with user input — use filepath.Clean and validate against base directory"
-    severity: WARNING
-    languages: [go]
-    metadata:
-      cwe: "CWE-22"
-      owasp: "A01:2021"
-      category: "path traversal"
-      confidence: "0.82"
-
-  - id: cwe-22.go-path-traversal-readfile-assigned
-    patterns:
-      - pattern-either:
-        - pattern-inside: |
-            $PATH := r.URL.Query().Get(...)
-            ...
-        - pattern-inside: |
-            $PATH := req.URL.Query().Get(...)
-            ...
-        - pattern-inside: |
-            $PATH := r.FormValue(...)
-            ...
-        - pattern-inside: |
-            $PATH := req.FormValue(...)
-            ...
-      - pattern-either:
-        - pattern: os.ReadFile($PATH)
-        - pattern: ioutil.ReadFile($PATH)
-    message: "File path with user input — use filepath.Clean and validate against base directory"
-    severity: WARNING
-    languages: [go]
-    metadata:
-      cwe: "CWE-22"
-      owasp: "A01:2021"
-      category: "path traversal"
-      confidence: "0.82"
-
   - id: cwe-295.go-tls-insecure
     pattern: "tls.Config{..., InsecureSkipVerify: true, ...}"
     message: "TLS verification disabled — remove InsecureSkipVerify"
