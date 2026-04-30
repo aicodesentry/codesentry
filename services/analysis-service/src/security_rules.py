@@ -55,7 +55,7 @@ SECURITY_RULES: List[SecurityRule] = [
         confidence=0.83,
         exploitability="medium",
         pattern=re.compile(
-            r"(open\(|send_file\(|File\(|readFile\(|readFileSync\(|createReadStream\()"
+            r"(\bopen\(|\bsend_file\(|\bFile\(|\breadFile\(|\breadFileSync\(|\bcreateReadStream\()"
             r".*(\.\./|req\.|input\(|\+|f\"|\{)",
             re.IGNORECASE,
         ),
