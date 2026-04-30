@@ -51,7 +51,9 @@ const IGNORE_PATTERNS = [
 ];
 
 const MAX_FILES_TO_FETCH = 15;
-const MAX_FILE_SIZE = 50000;
+const FILE_MAX_RESPONSE_BYTES = 50000;
+const TREE_MAX_RESPONSE_BYTES = 2000000;
+const GITHUB_RATE_LIMIT_WARN_THRESHOLD = 25;
 
 // ── Framework detection from dependencies ────────────────────────────────
 
@@ -109,7 +111,7 @@ const DB_DRIVERS = {
 
 // ── Native HTTPS helpers ─────────────────────────────────────────────────
 
-function httpsGet(url, headers, timeout = 30000) {
+function httpsGet(url, headers, timeout = 30000, maxBytes = FILE_MAX_RESPONSE_BYTES) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
     const req = https.request(
@@ -124,9 +126,9 @@ function httpsGet(url, headers, timeout = 30000) {
         let size = 0;
         res.on('data', (chunk) => {
           size += chunk.length;
-          if (size > MAX_FILE_SIZE) {
+          if (size > maxBytes) {
             req.destroy();
-            reject(new Error(`Response exceeded ${MAX_FILE_SIZE} bytes`));
+            reject(new Error(`Response exceeded ${maxBytes} bytes`));
             return;
           }
           data += chunk;
@@ -187,11 +189,19 @@ async function fetchRepoTree(owner, repo, branch, token) {
   const response = await httpsGet(url, {
     Authorization: `token ${token}`,
     Accept: 'application/vnd.github.v3+json',
-  });
+  }, 30000, TREE_MAX_RESPONSE_BYTES);
 
   const remaining = parseInt(response.headers['x-ratelimit-remaining'] || '999', 10);
-  if (remaining < 100) {
-    throw new Error(`GitHub rate limit low: ${remaining} remaining`);
+  if (Number.isFinite(remaining) && remaining <= 0) {
+    throw new Error('GitHub rate limit exhausted');
+  }
+
+  if (Number.isFinite(remaining) && remaining > 0 && remaining < GITHUB_RATE_LIMIT_WARN_THRESHOLD) {
+    logger.warn('GitHub rate limit low during repo profiling', {
+      owner,
+      repo,
+      remaining,
+    });
   }
 
   return JSON.parse(response.data).tree || [];
@@ -204,7 +214,7 @@ async function fetchFileContent(owner, repo, path, branch, token) {
     const response = await httpsGet(url, {
       Authorization: `token ${token}`,
       Accept: 'application/vnd.github.v3.raw',
-    }, 15000);
+    }, 15000, FILE_MAX_RESPONSE_BYTES);
     return response.data;
   } catch (err) {
     logger.warn('Failed to fetch file content', { path, error: err.message });
@@ -466,4 +476,7 @@ module.exports = {
   detectSecurityLibs,
   parseDependencies,
   validateInterpretation,
+  FILE_MAX_RESPONSE_BYTES,
+  TREE_MAX_RESPONSE_BYTES,
+  GITHUB_RATE_LIMIT_WARN_THRESHOLD,
 };

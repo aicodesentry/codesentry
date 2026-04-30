@@ -6,6 +6,9 @@ const {
   detectSecurityLibs,
   parseDependencies,
   validateInterpretation,
+  FILE_MAX_RESPONSE_BYTES,
+  TREE_MAX_RESPONSE_BYTES,
+  GITHUB_RATE_LIMIT_WARN_THRESHOLD,
 } = require('../src/services/repoProfiler');
 
 describe('repoProfiler — file selection', () => {
@@ -201,5 +204,16 @@ describe('repoProfiler — LLM validation', () => {
     const result = validateInterpretation({ security_libraries: [] }, { auth_strategy: 'unknown' });
     expect(Array.isArray(result.security_posture)).toBe(true);
     expect(Array.isArray(result.risk_areas)).toBe(true);
+  });
+});
+
+describe('repoProfiler — response limits', () => {
+  test('uses a larger cap for repository tree fetches than file fetches', () => {
+    expect(TREE_MAX_RESPONSE_BYTES).toBeGreaterThan(FILE_MAX_RESPONSE_BYTES);
+  });
+
+  test('warn threshold is lower than the old hard failure threshold', () => {
+    expect(GITHUB_RATE_LIMIT_WARN_THRESHOLD).toBeLessThan(100);
+    expect(GITHUB_RATE_LIMIT_WARN_THRESHOLD).toBeGreaterThan(0);
   });
 });
