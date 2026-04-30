@@ -326,10 +326,6 @@ async function getProfile(repoId) {
 
 module.exports = {
   list, getById, updateBaseline, connect, disconnect, revokeMissingAccessForInstallation,
-<<<<<<< HEAD
-  queueManualReprofile, queueForProfiling, queueUrgentProfiling, markProfileStale, recoverStaleProfilingJobs,
-=======
-  queueForProfiling, queueTopReposForProfiling, queueUrgentProfiling, markProfileStale,
->>>>>>> origin/main
+  queueManualReprofile, queueForProfiling, queueTopReposForProfiling, queueUrgentProfiling, markProfileStale, recoverStaleProfilingJobs,
   claimNextProfileJob, saveProfile, markProfileFailed, getProfile,
 };
