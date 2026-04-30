@@ -41,14 +41,10 @@ const Protected = ({ children }) => {
 }
 
 const DashboardIndexRoute = () => {
-  const { loading, status } = useOnboarding()
+  const { loading } = useOnboarding()
 
   if (loading) {
     return <div className="flex min-h-[40vh] items-center justify-center text-neutral-500">Loading workspace...</div>
-  }
-
-  if (status.needsOnboarding) {
-    return <Navigate to="/dashboard/onboarding" replace />
   }
 
   return <Navigate to="/dashboard/home" replace />

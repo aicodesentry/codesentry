@@ -26,6 +26,7 @@ jest.mock('../src/db/installations', () => ({
 jest.mock('../src/db/repositories', () => ({
   revokeMissingAccessForInstallation: jest.fn(),
   queueForProfiling: jest.fn(),
+  queueTopReposForProfiling: jest.fn(),
 }));
 
 const axios = require('axios');
@@ -69,6 +70,7 @@ describe('installation sync', () => {
     installationsDb.reconcileUserInstallations.mockResolvedValue({});
     installationsDb.deleteUnreferencedInstallations.mockResolvedValue({});
     repositoriesDb.revokeMissingAccessForInstallation.mockResolvedValue({});
+    repositoriesDb.queueTopReposForProfiling.mockResolvedValue(['repo-1']);
     getInstallationToken.mockRejectedValue(new Error('app token unavailable'));
     axios.get
       .mockResolvedValueOnce({
@@ -123,6 +125,7 @@ describe('installation sync', () => {
       42,
       [999]
     );
+    expect(repositoriesDb.queueTopReposForProfiling).toHaveBeenCalledWith(['repo-1'], 10);
 
     const executedSql = pool.query.mock.calls.map(([sql]) => sql);
     expect(executedSql.some((sql) => sql.includes('SET is_active = false'))).toBe(false);
@@ -137,6 +140,7 @@ describe('installation sync', () => {
 
     installationsDb.reconcileUserInstallations.mockResolvedValue({});
     installationsDb.deleteUnreferencedInstallations.mockResolvedValue({});
+    repositoriesDb.queueTopReposForProfiling.mockResolvedValue([]);
 
     axios.get.mockResolvedValueOnce({
       data: {
@@ -152,6 +156,7 @@ describe('installation sync', () => {
     expect(response.body.success).toBe(true);
     expect(response.body.synced_installations).toBe(0);
     expect(response.body.synced_repositories).toBe(0);
+    expect(repositoriesDb.queueTopReposForProfiling).toHaveBeenCalledWith([], 10);
     expect(installationsDb.reconcileUserInstallations).toHaveBeenCalledWith(pool, 'user-1', []);
     expect(installationsDb.deleteUnreferencedInstallations).toHaveBeenCalledWith(pool);
   });
@@ -164,6 +169,7 @@ describe('installation sync', () => {
     installationsDb.removeSameAccountStaleLinks.mockResolvedValue({});
     installationsDb.reconcileUserInstallations.mockResolvedValue({});
     installationsDb.deleteUnreferencedInstallations.mockResolvedValue({});
+    repositoriesDb.queueTopReposForProfiling.mockResolvedValue([]);
 
     axios.get.mockResolvedValueOnce({
       data: {
@@ -196,6 +202,7 @@ describe('installation sync', () => {
     expect(response.body.success).toBe(true);
     expect(response.body.synced_installations).toBe(0);
     expect(response.body.synced_repositories).toBe(0);
+    expect(repositoriesDb.queueTopReposForProfiling).toHaveBeenCalledWith([], 10);
     expect(installationsDb.upsertInstallation).not.toHaveBeenCalled();
     expect(installationsDb.linkUserInstallation).not.toHaveBeenCalled();
     expect(installationsDb.reconcileUserInstallations).toHaveBeenCalledWith(pool, 'user-1', []);
@@ -211,6 +218,7 @@ describe('installation sync', () => {
         refreshed: false,
       })
       .mockRejectedValueOnce(Object.assign(new Error('refresh unavailable'), { code: 'GITHUB_REFRESH_UNAVAILABLE' }));
+    repositoriesDb.queueTopReposForProfiling.mockResolvedValue([]);
 
     axios.get.mockRejectedValueOnce({
       response: {

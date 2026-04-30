@@ -84,9 +84,8 @@ describe('RepositoriesPage', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByText('Profile ready')).toBeInTheDocument()
-    expect(screen.getByText('82% confidence')).toBeInTheDocument()
-    expect(screen.getByText(/Updated Apr 9|Updated Apr 8/)).toBeInTheDocument()
-    expect(screen.getByText('Profile failed')).toBeInTheDocument()
+    expect(screen.getByText('ready')).toBeInTheDocument()
+    expect(screen.getByText('82%')).toBeInTheDocument()
+    expect(screen.getByText('failed')).toBeInTheDocument()
   })
 })

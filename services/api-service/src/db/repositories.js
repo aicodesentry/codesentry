@@ -27,7 +27,7 @@ async function list(userId) {
      LEFT JOIN pull_requests pr ON pr.repository_id = r.id
      LEFT JOIN findings f ON f.repository_id = r.id
      GROUP BY r.id
-     ORDER BY r.is_active DESC, r.updated_at DESC`,
+     ORDER BY r.is_active DESC, COUNT(DISTINCT pr.id) DESC, r.updated_at DESC`,
     [userId]
   );
   return rows.rows;
@@ -183,6 +183,51 @@ async function queueForProfiling(repoId, priority = 0) {
   );
 }
 
+async function queueTopReposForProfiling(repoIds, limit = 10) {
+  const uniqueRepoIds = [...new Set((repoIds || []).filter(Boolean))];
+  if (uniqueRepoIds.length === 0) return [];
+
+  const result = await pool.query(
+    `WITH ranked AS (
+       SELECT
+         r.id,
+         ROW_NUMBER() OVER (
+           ORDER BY
+             r.is_active DESC,
+             COALESCE(pr_counts.pull_request_count, 0) DESC,
+             r.updated_at DESC
+         ) AS rank
+       FROM repositories r
+       LEFT JOIN (
+         SELECT repository_id, COUNT(*) AS pull_request_count
+         FROM pull_requests
+         GROUP BY repository_id
+       ) pr_counts ON pr_counts.repository_id = r.id
+       WHERE r.id = ANY($1::uuid[])
+     )
+     UPDATE repositories r
+     SET profile_status = CASE
+           WHEN r.profile_status IN ('ready', 'profiling', 'stale', 'urgent') THEN r.profile_status
+           ELSE 'queued'
+         END,
+         profile_priority = CASE
+           WHEN ranked.rank <= $2 THEN GREATEST(r.profile_priority, 0)
+           ELSE r.profile_priority
+         END,
+         profile_queued_at = CASE
+           WHEN ranked.rank <= $2 THEN COALESCE(r.profile_queued_at, NOW())
+           ELSE r.profile_queued_at
+         END
+     FROM ranked
+     WHERE r.id = ranked.id
+       AND ranked.rank <= $2
+     RETURNING r.id`,
+    [uniqueRepoIds, limit]
+  );
+
+  return result.rows.map((row) => row.id);
+}
+
 async function queueUrgentProfiling(repoId, pendingRetriage) {
   await pool.query(
     `UPDATE repositories
@@ -281,6 +326,10 @@ async function getProfile(repoId) {
 
 module.exports = {
   list, getById, updateBaseline, connect, disconnect, revokeMissingAccessForInstallation,
+<<<<<<< HEAD
   queueManualReprofile, queueForProfiling, queueUrgentProfiling, markProfileStale, recoverStaleProfilingJobs,
+=======
+  queueForProfiling, queueTopReposForProfiling, queueUrgentProfiling, markProfileStale,
+>>>>>>> origin/main
   claimNextProfileJob, saveProfile, markProfileFailed, getProfile,
 };

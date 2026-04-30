@@ -2,7 +2,17 @@ rules:
   # ── Injection ──────────────────────────────────────────────────────────
 
   - id: cwe-79.xss-innerhtml
-    patterns:
+    mode: taint
+    pattern-sources:
+      - pattern-either:
+        - pattern: req.params.$INPUT
+        - pattern: req.query.$INPUT
+        - pattern: req.body.$INPUT
+    pattern-sanitizers:
+      - pattern-either:
+        - pattern: DOMPurify.sanitize(...)
+        - pattern: escapeHtml(...)
+    pattern-sinks:
       - pattern-either:
         - pattern: $EL.innerHTML = $INPUT
         - pattern: document.write($INPUT)
@@ -15,6 +25,12 @@ rules:
       owasp: "A03:2021"
       category: "XSS"
       confidence: "0.88"
+      analysis_scope: "taint-intraprocedural"
+      source_description: "request-controlled input"
+      sink_description: "unsafe DOM HTML sink"
+      source_var: "$INPUT"
+      sink_var: "$INPUT"
+      trace_summary: "Taint-tracked flow from request-controlled input to an unsafe HTML rendering sink."
 
   - id: cwe-79.react-dangerously
     pattern: "dangerouslySetInnerHTML={...}"
@@ -43,12 +59,26 @@ rules:
       confidence: "0.90"
 
   - id: cwe-78.child-process-exec
-    patterns:
+    mode: taint
+    pattern-sources:
+      - pattern-either:
+        - pattern: req.params.$INPUT
+        - pattern: req.query.$INPUT
+        - pattern: req.body.$INPUT
+    pattern-sinks:
       - pattern-either:
         - pattern: child_process.exec($CMD)
         - pattern: child_process.exec($CMD, ...)
+        - pattern: child_process.execSync($CMD)
+        - pattern: child_process.execSync($CMD, ...)
         - pattern: require("child_process").exec($CMD)
+        - pattern: require("child_process").exec($CMD, ...)
+        - pattern: require("child_process").execSync($CMD)
+        - pattern: require("child_process").execSync($CMD, ...)
         - pattern: exec($CMD)
+        - pattern: exec($CMD, ...)
+        - pattern: execSync($CMD)
+        - pattern: execSync($CMD, ...)
     message: "child_process.exec runs commands in a shell — use execFile with argument array"
     severity: ERROR
     languages: [javascript, typescript]
@@ -57,6 +87,12 @@ rules:
       owasp: "A03:2021"
       category: "command injection"
       confidence: "0.88"
+      analysis_scope: "taint-intraprocedural"
+      source_description: "request-controlled input"
+      sink_description: "shell command execution"
+      source_var: "$INPUT"
+      sink_var: "$CMD"
+      trace_summary: "Taint-tracked flow from request-controlled input into shell command execution."
 
   - id: cwe-943.nosql-injection
     patterns:
@@ -146,13 +182,22 @@ rules:
   # ── SSRF ───────────────────────────────────────────────────────────────
 
   - id: cwe-918.ssrf-axios
-    patterns:
+    mode: taint
+    pattern-sources:
       - pattern-either:
-        - pattern: axios.get(req.body.$URL)
-        - pattern: axios.get(req.query.$URL)
-        - pattern: axios.post(req.body.$URL, ...)
-        - pattern: fetch(req.body.$URL)
-        - pattern: fetch(req.query.$URL)
+        - pattern: req.params.$URL
+        - pattern: req.query.$URL
+        - pattern: req.body.$URL
+    pattern-sanitizers:
+      - pattern-either:
+        - pattern: allowlistedUrl(...)
+        - pattern: validateInternalUrl(...)
+    pattern-sinks:
+      - pattern-either:
+        - pattern: axios.get($URL)
+        - pattern: axios.post($URL, ...)
+        - pattern: axios.request({ ..., url: $URL, ... })
+        - pattern: fetch($URL)
     message: "HTTP request with user-controlled URL — validate against allowlist"
     severity: WARNING
     languages: [javascript, typescript]
@@ -161,18 +206,37 @@ rules:
       owasp: "A10:2021"
       category: "SSRF"
       confidence: "0.82"
+      analysis_scope: "taint-intraprocedural"
+      source_description: "request-controlled URL or host"
+      sink_description: "outbound HTTP request"
+      source_var: "$URL"
+      sink_var: "$URL"
+      trace_summary: "Taint-tracked flow from request-controlled URL input into an outbound network request."
 
   # ── Path Traversal ────────────────────────────────────────────────────
 
   - id: cwe-22.path-traversal-fs
-    patterns:
+    mode: taint
+    pattern-sources:
       - pattern-either:
-        - pattern: fs.readFileSync(... + $INPUT)
-        - pattern: fs.readFileSync(`...${$INPUT}...`)
-        - pattern: fs.readFile(... + $INPUT, ...)
-        - pattern: fs.readFile(`...${$INPUT}...`, ...)
-        - pattern: res.sendFile(... + $INPUT)
-        - pattern: res.sendFile(`...${$INPUT}...`)
+        - pattern: req.params.$INPUT
+        - pattern: req.query.$INPUT
+        - pattern: req.body.$INPUT
+    pattern-sanitizers:
+      - pattern-either:
+        - pattern: path.basename(...)
+        - pattern: path.posix.basename(...)
+        - pattern: path.win32.basename(...)
+    pattern-sinks:
+      - pattern-either:
+        - pattern: fs.readFileSync($PATH)
+        - pattern: fs.readFileSync($PATH, ...)
+        - pattern: fs.readFile($PATH, ...)
+        - pattern: fs.createReadStream($PATH, ...)
+        - pattern: res.sendFile($PATH)
+        - pattern: res.sendFile($PATH, ...)
+        - pattern: res.download($PATH)
+        - pattern: res.download($PATH, ...)
     message: "File system access with user-controlled path — normalize and validate paths"
     severity: WARNING
     languages: [javascript, typescript]
@@ -181,6 +245,12 @@ rules:
       owasp: "A01:2021"
       category: "path traversal"
       confidence: "0.85"
+      analysis_scope: "taint-intraprocedural"
+      source_description: "request-controlled file path"
+      sink_description: "filesystem access"
+      source_var: "$INPUT"
+      sink_var: "$PATH"
+      trace_summary: "Taint-tracked flow from request-controlled path input into a filesystem access sink."
 
   # ── Eval ───────────────────────────────────────────────────────────────
 
@@ -206,11 +276,18 @@ rules:
   # ── Open Redirect ─────────────────────────────────────────────────────
 
   - id: cwe-601.open-redirect
-    patterns:
+    mode: taint
+    pattern-sources:
       - pattern-either:
-        - pattern: res.redirect(req.query.$URL)
-        - pattern: res.redirect(req.body.$URL)
-        - pattern: res.redirect(req.params.$URL)
+        - pattern: req.params.$URL
+        - pattern: req.query.$URL
+        - pattern: req.body.$URL
+    pattern-sanitizers:
+      - pattern-either:
+        - pattern: ensureRelativeRedirect(...)
+        - pattern: allowlistedRedirect(...)
+    pattern-sinks:
+      - pattern: res.redirect($URL)
     message: "Redirect destination from user input — validate against trusted domains"
     severity: WARNING
     languages: [javascript, typescript]
@@ -219,3 +296,9 @@ rules:
       owasp: "A01:2021"
       category: "open redirect"
       confidence: "0.85"
+      analysis_scope: "taint-intraprocedural"
+      source_description: "request-controlled redirect target"
+      sink_description: "HTTP redirect"
+      source_var: "$URL"
+      sink_var: "$URL"
+      trace_summary: "Taint-tracked flow from request-controlled redirect input into an HTTP redirect sink."

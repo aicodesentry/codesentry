@@ -16,13 +16,23 @@ rules:
       confidence: "0.90"
 
   - id: cwe-78.go-exec-command
-    patterns:
+    mode: taint
+    pattern-sources:
       - pattern-either:
-        - pattern: exec.Command($CMD, ...)
-        - pattern: exec.CommandContext($CTX, $CMD, ...)
-      - metavariable-regex:
-          metavariable: $CMD
-          regex: .*(req\.|r\.|input|param|arg).*
+        - pattern: r.URL.Query().Get(...)
+        - pattern: req.URL.Query().Get(...)
+        - pattern: r.FormValue(...)
+        - pattern: req.FormValue(...)
+    pattern-sinks:
+      - pattern-either:
+        - pattern: exec.Command("sh", "-c", $CMD)
+        - pattern: exec.Command("/bin/sh", "-c", $CMD)
+        - pattern: exec.Command("bash", "-c", $CMD)
+        - pattern: exec.Command("cmd", "/c", $CMD)
+        - pattern: exec.CommandContext($CTX, "sh", "-c", $CMD)
+        - pattern: exec.CommandContext($CTX, "/bin/sh", "-c", $CMD)
+        - pattern: exec.CommandContext($CTX, "bash", "-c", $CMD)
+        - pattern: exec.CommandContext($CTX, "cmd", "/c", $CMD)
     message: "Command execution with user input — validate and sanitize arguments"
     severity: ERROR
     languages: [go]
@@ -31,14 +41,32 @@ rules:
       owasp: "A03:2021"
       category: "command injection"
       confidence: "0.85"
+      analysis_scope: "taint-intraprocedural"
+      source_description: "request-controlled input"
+      sink_description: "shell command execution"
+      source_var: "$INPUT"
+      sink_var: "$CMD"
+      trace_summary: "Taint-tracked flow from request-controlled input into shell command execution."
 
   - id: cwe-22.go-path-traversal
-    patterns:
+    mode: taint
+    pattern-sources:
       - pattern-either:
-        - pattern: os.Open(... + $INPUT)
-        - pattern: os.ReadFile(... + $INPUT)
-        - pattern: http.ServeFile($W, $R, ... + $INPUT)
-        - pattern: filepath.Join(..., $INPUT)
+        - pattern: r.URL.Query().Get(...)
+        - pattern: req.URL.Query().Get(...)
+        - pattern: r.FormValue(...)
+        - pattern: req.FormValue(...)
+    pattern-sanitizers:
+      - pattern-either:
+        - pattern: filepath.Base(...)
+        - pattern: path.Base(...)
+    pattern-sinks:
+      - pattern-either:
+        - pattern: os.Open($PATH)
+        - pattern: os.OpenFile($PATH, ..., ...)
+        - pattern: os.ReadFile($PATH)
+        - pattern: ioutil.ReadFile($PATH)
+        - pattern: http.ServeFile($W, $R, $PATH)
     message: "File path with user input — use filepath.Clean and validate against base directory"
     severity: WARNING
     languages: [go]
@@ -47,6 +75,12 @@ rules:
       owasp: "A01:2021"
       category: "path traversal"
       confidence: "0.82"
+      analysis_scope: "taint-intraprocedural"
+      source_description: "request-controlled file path"
+      sink_description: "filesystem access"
+      source_var: "$INPUT"
+      sink_var: "$PATH"
+      trace_summary: "Taint-tracked flow from request-controlled path input into a filesystem access sink."
 
   - id: cwe-295.go-tls-insecure
     pattern: "tls.Config{..., InsecureSkipVerify: true, ...}"
@@ -78,7 +112,18 @@ rules:
       confidence: "0.85"
 
   - id: cwe-79.go-template-html
-    patterns:
+    mode: taint
+    pattern-sources:
+      - pattern-either:
+        - pattern: r.URL.Query().Get(...)
+        - pattern: req.URL.Query().Get(...)
+        - pattern: r.FormValue(...)
+        - pattern: req.FormValue(...)
+    pattern-sanitizers:
+      - pattern-either:
+        - pattern: html.EscapeString(...)
+        - pattern: template.HTMLEscapeString(...)
+    pattern-sinks:
       - pattern-either:
         - pattern: fmt.Fprintf($W, "...", $INPUT)
         - pattern: $W.Write([]byte($INPUT))
@@ -90,6 +135,12 @@ rules:
       owasp: "A03:2021"
       category: "XSS"
       confidence: "0.75"
+      analysis_scope: "taint-intraprocedural"
+      source_description: "request-controlled input"
+      sink_description: "HTTP response write"
+      source_var: "$INPUT"
+      sink_var: "$INPUT"
+      trace_summary: "Taint-tracked flow from request-controlled input into an HTTP response sink."
 
   - id: cwe-327.go-weak-crypto
     patterns:

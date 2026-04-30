@@ -41,7 +41,8 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     await authAPI.logout()
     setUser(null)
-    navigate('/')
+    setGithubAppInstallUrl(null)
+    navigate('/', { replace: true })
   }
 
   return (

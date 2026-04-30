@@ -1,9 +1,15 @@
 const axios = require('axios');
 const logger = require('../utils/logger');
 const { calculateFingerprint, normalizeFinding } = require('./findingUtils');
+const { validateSuggestedFix, __private: validatorPrivate } = require('./suggestedFixValidator');
 const findingsDb = require('../db/findings');
 const analysisRunsDb = require('../db/analysisRuns');
 const repositoriesDb = require('../db/repositories');
+
+const TIER2_SUPPORTED_EXTENSIONS = new Set([
+  '.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.go', '.rb', '.php',
+  '.cs', '.c', '.cpp', '.h', '.hpp', '.rs', '.swift', '.kt',
+]);
 
 function markdownEscape(text) {
   return String(text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -21,6 +27,82 @@ function summarizeFindings(findings) {
 
 function severityIcon(severity) {
   return { critical: '🔴', high: '🟠', medium: '🟡', low: '🔵' }[severity] || '⚪';
+}
+
+const normalizeSuggestionPatch = validatorPrivate.normalizePatch;
+const looksLikeUnifiedDiff = validatorPrivate.looksLikeUnifiedDiff;
+const buildRepoAwareRemediation = validatorPrivate.buildRepoAwareRemediation;
+
+function shouldRenderSuggestion(finding, suggestionPatch) {
+  if (!suggestionPatch) return false;
+  if (suggestionPatch.includes('```')) return false;
+
+  const lineStart = Number(finding.line_start || 0);
+  if (!lineStart) return false;
+  const lineEnd = Number(finding.line_end || lineStart);
+  const anchorSpan = Math.max(1, lineEnd - lineStart + 1);
+
+  const patchLines = suggestionPatch.split('\n').length;
+  if (patchLines > 8) return false;
+
+  if (patchLines < anchorSpan) return false;
+  if (patchLines > anchorSpan + 3) return false;
+
+  return true;
+}
+
+function inferCodeFenceLanguage(filePath) {
+  const path = String(filePath || '').toLowerCase();
+  if (path.endsWith('.py')) return 'python';
+  if (path.endsWith('.ts') || path.endsWith('.tsx')) return 'ts';
+  if (path.endsWith('.js') || path.endsWith('.jsx')) return 'javascript';
+  if (path.endsWith('.go')) return 'go';
+  if (path.endsWith('.java')) return 'java';
+  if (path.endsWith('.rb')) return 'ruby';
+  if (path.endsWith('.cs')) return 'csharp';
+  if (path.endsWith('.php')) return 'php';
+  return '';
+}
+
+function shouldRenderFixCodeBlock(suggestionPatch) {
+  if (!suggestionPatch) return false;
+  if (suggestionPatch.includes('```')) return false;
+  if (looksLikeUnifiedDiff(suggestionPatch)) return false;
+  if (suggestionPatch.split('\n').length > 20) return false;
+  return true;
+}
+
+function findingUpdateSignature(finding) {
+  return JSON.stringify({
+    fingerprint: finding?.fingerprint || '',
+    severity: finding?.severity || '',
+    confidence: Number(finding?.confidence || 0),
+    title: finding?.title || '',
+    evidence: finding?.evidence || '',
+    remediation: finding?.remediation || '',
+    remediation_patch: finding?.remediation_patch || '',
+    line_start: Number(finding?.line_start || 0),
+    line_end: Number(finding?.line_end || 0),
+  });
+}
+
+function didTier3MeaningfullyChangeFindings(previousFindings, nextFindings) {
+  const previous = Array.isArray(previousFindings) ? previousFindings : [];
+  const next = Array.isArray(nextFindings) ? nextFindings : [];
+
+  if (previous.length !== next.length) return true;
+
+  const previousByFingerprint = new Map(
+    previous.map((finding) => [finding?.fingerprint || '', findingUpdateSignature(finding)])
+  );
+
+  for (const finding of next) {
+    const fingerprint = finding?.fingerprint || '';
+    if (!previousByFingerprint.has(fingerprint)) return true;
+    if (previousByFingerprint.get(fingerprint) !== findingUpdateSignature(finding)) return true;
+  }
+
+  return false;
 }
 
 function buildReviewBody(findings, runId) {
@@ -49,11 +131,24 @@ function buildReviewBody(findings, runId) {
     '|---|---|---|---|',
     `| **${counts.critical || 0}** | **${counts.high || 0}** | **${counts.medium || 0}** | **${counts.low || 0}** |`,
     '',
+    'Detailed findings are annotated inline on the affected lines below.',
+    '',
     `<sub>Analyzed by <strong>Mitig8it</strong> · Run \`${runId.slice(0, 8)}\` · Findings are annotated on the affected lines below</sub>`,
   ].join('\n');
 }
 
-function buildReviewComment(finding) {
+function buildReviewComment(finding, options = {}) {
+  const suggestionPatch = normalizeSuggestionPatch(finding.remediation_patch);
+  const suggestionValidation = validateSuggestedFix({
+    finding,
+    filePatch: options.filePatch || '',
+    tierLabel: options.tierLabel || 'manual',
+    repoProfile: options.repoProfile || null,
+  });
+  const repoAwareRemediation =
+    buildRepoAwareRemediation(finding, options.repoProfile || null)
+    || finding.remediation
+    || 'Apply input validation and secure handling.';
   const lines = [
     `${severityIcon(finding.severity)} **${finding.severity.toUpperCase()}** — ${markdownEscape(finding.title)}`,
     '',
@@ -63,41 +158,117 @@ function buildReviewComment(finding) {
     `**Confidence:** ${Math.round(Number(finding.confidence) * 100)}%`,
   ];
 
-  if (finding.remediation_patch) {
-    lines.push('', '```suggestion', finding.remediation_patch, '```');
+  const showSuggestion = shouldRenderSuggestion(finding, suggestionPatch) && suggestionValidation.ok;
+  const showFixCodeBlock = !showSuggestion && shouldRenderFixCodeBlock(suggestionPatch);
+  const codeFenceLanguage = inferCodeFenceLanguage(finding.file_path);
+
+  if (showSuggestion) {
+    lines.push('', '```suggestion', suggestionPatch, '```');
   } else {
-    lines.push('', `**Fix:** ${markdownEscape(finding.remediation || 'Apply input validation and secure handling.')}`);
+    lines.push('', `**Fix:** ${markdownEscape(repoAwareRemediation)}`);
+    if (showFixCodeBlock) {
+      lines.push('', `\`\`\`${codeFenceLanguage}`, suggestionPatch, '```');
+    }
   }
 
   return lines.filter(Boolean).join('\n');
 }
 
-function extractReviewableLines(patch) {
-  const reviewable = new Set();
-  if (!patch) return reviewable;
+const extractReviewableLines = validatorPrivate.extractReviewableLines;
+const extractReviewableLineSpans = validatorPrivate.extractReviewableLineSpans;
 
-  let newLine = 0;
-  for (const rawLine of String(patch).split('\n')) {
-    if (rawLine.startsWith('@@')) {
-      const match = rawLine.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
-      if (match) newLine = Number(match[1]);
-      continue;
+function fileExtension(path) {
+  const match = String(path || '').toLowerCase().match(/(\.[^.\/]+)$/);
+  return match ? match[1] : '';
+}
+
+function shouldFetchFullFileContent(file) {
+  const path = String(file?.path || '');
+  const ext = fileExtension(path);
+  if (!TIER2_SUPPORTED_EXTENSIONS.has(ext)) return false;
+  if (path.startsWith('dist/') || path.includes('node_modules/')) return false;
+  if (path.endsWith('.min.js') || path.endsWith('.min.css')) return false;
+  return true;
+}
+
+function buildTier2FilePayload(file, contentByPath = new Map()) {
+  const content = contentByPath.get(file.path);
+  return {
+    ...file,
+    content: typeof content === 'string' ? content : '',
+    reviewable_line_spans: extractReviewableLineSpans(file.patch),
+  };
+}
+
+async function enrichFilesForTier2({ files, repositoryFullName, installationId, commitSha }) {
+  const sourceFiles = Array.isArray(files) ? files : [];
+  const candidates = sourceFiles.filter(shouldFetchFullFileContent);
+  const contentByPath = new Map();
+
+  if (candidates.length > 0) {
+    try {
+      const response = await githubServiceRequest('/internal/github/files/content', {
+        repository_full_name: repositoryFullName,
+        installation_id: installationId,
+        ref: commitSha,
+        paths: candidates.map((file) => file.path),
+      });
+
+      for (const file of response.files || []) {
+        if (!file?.path || typeof file.content !== 'string') continue;
+        contentByPath.set(file.path, file.content);
+      }
+    } catch (error) {
+      logger.warn('Failed to enrich Tier 2 files with full content', {
+        repositoryFullName,
+        commitSha,
+        error: error.message,
+      });
     }
-    if (rawLine.startsWith('+++ ') || rawLine.startsWith('--- ')) {
-      continue;
-    }
-    if (rawLine.startsWith('+')) {
-      reviewable.add(newLine || 1);
-      newLine += 1;
-      continue;
-    }
-    if (rawLine.startsWith('-')) {
-      continue;
-    }
-    newLine += 1;
   }
 
-  return reviewable;
+  return sourceFiles.map((file) => buildTier2FilePayload(file, contentByPath));
+}
+
+function severityRank(severity) {
+  return { critical: 4, high: 3, medium: 2, low: 1 }[String(severity || '').toLowerCase()] || 0;
+}
+
+function compareReviewComments(a, b) {
+  const pathCompare = String(a.path || '').localeCompare(String(b.path || ''));
+  if (pathCompare !== 0) return pathCompare;
+
+  if (Boolean(a.hasSuggestion) !== Boolean(b.hasSuggestion)) {
+    return a.hasSuggestion ? -1 : 1;
+  }
+
+  const lineDiff = Number(a.line || 0) - Number(b.line || 0);
+  if (lineDiff !== 0) return lineDiff;
+
+  const severityDiff = severityRank(b.severity) - severityRank(a.severity);
+  if (severityDiff !== 0) return severityDiff;
+
+  return String(a.body || '').localeCompare(String(b.body || ''));
+}
+
+function prioritizeReviewComments(reviewComments) {
+  return [...(reviewComments || [])].sort(compareReviewComments);
+}
+
+function hasTier3RenderableSuggestions(findings, files, repoProfile) {
+  const filePatchByPath = new Map((files || []).map((f) => [f.path, f.patch || '']));
+  return (findings || []).some((finding) => {
+    const suggestionPatch = normalizeSuggestionPatch(finding.remediation_patch);
+    if (!shouldRenderSuggestion(finding, suggestionPatch)) return false;
+
+    const validation = validateSuggestedFix({
+      finding,
+      filePatch: filePatchByPath.get(finding.file_path) || '',
+      tierLabel: 'Tier 3',
+      repoProfile,
+    });
+    return validation.ok;
+  });
 }
 
 async function githubServiceRequest(path, payload) {
@@ -155,7 +326,7 @@ async function postInlineCommentsIndividually({
   reviewComments,
   runId,
 }) {
-  const dedupedComments = dedupeInlineComments(reviewComments).slice(0, 40);
+  const dedupedComments = dedupeInlineComments(prioritizeReviewComments(reviewComments)).slice(0, 40);
   let posted = 0;
 
   for (const comment of dedupedComments) {
@@ -233,6 +404,8 @@ async function upsertFinding({ finding, runId, pullRequestId, repositoryId, inst
     lineStart: normalized.line_start || null,
     lineEnd: normalized.line_end || null,
     codeSnippet: normalized.code_snippet || null,
+    analysisScope: normalized.analysis_scope || 'pattern',
+    evidenceDetails: normalized.evidence_details || {},
     evidence: normalized.evidence || null,
     exploitScenario: normalized.exploit_scenario || null,
     remediation: normalized.remediation || null,
@@ -289,7 +462,7 @@ async function persistAndFilter({ findings, runId, pullRequestId, repositoryId, 
   return { actionable, shouldMarkBaselineSet };
 }
 
-async function postReviewToGitHub({ actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel }) {
+async function postReviewToGitHub({ actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel, repoProfile }) {
   const counts = summarizeFindings(actionable).counts;
   const highOrCritical = (counts.critical || 0) + (counts.high || 0);
 
@@ -297,10 +470,58 @@ async function postReviewToGitHub({ actionable, files, owner, repo, prNumber, in
   try {
     const reviewBody = buildReviewBody(actionable, runId);
     const reviewableLinesByFile = new Map(files.map((f) => [f.path, extractReviewableLines(f.patch)]));
+    const filePatchByPath = new Map(files.map((f) => [f.path, f.patch || '']));
+    const suggestionStats = { rendered: 0, noPatch: 0, gateRejected: 0, validatorRejected: 0 };
+    const rejectionReasons = {};
     const reviewComments = actionable
       .filter((f) => Number(f.confidence) >= 0.7 && reviewableLinesByFile.has(f.file_path))
       .filter((f) => reviewableLinesByFile.get(f.file_path)?.has(f.line_start || 1))
-      .map((f) => ({ path: f.file_path, line: f.line_start || 1, body: buildReviewComment(f) }));
+      .map((f) => {
+        const filePatch = filePatchByPath.get(f.file_path) || '';
+        const suggestionPatch = normalizeSuggestionPatch(f.remediation_patch);
+        const suggestionValidation = validateSuggestedFix({
+          finding: f,
+          filePatch,
+          tierLabel,
+          repoProfile,
+        });
+        const gatePassed = shouldRenderSuggestion(f, suggestionPatch);
+        const hasSuggestion = gatePassed && suggestionValidation.ok;
+
+        if (hasSuggestion) {
+          suggestionStats.rendered += 1;
+        } else if (!suggestionPatch) {
+          suggestionStats.noPatch += 1;
+        } else if (!gatePassed) {
+          suggestionStats.gateRejected += 1;
+        } else {
+          suggestionStats.validatorRejected += 1;
+          const reason = suggestionValidation.reason || 'unknown';
+          rejectionReasons[reason] = (rejectionReasons[reason] || 0) + 1;
+        }
+
+        return {
+          path: f.file_path,
+          line: f.line_start || 1,
+          severity: f.severity,
+          hasSuggestion,
+          body: buildReviewComment(f, {
+            filePatch,
+            tierLabel,
+            repoProfile,
+          }),
+        };
+      });
+
+    if (reviewComments.length > 0) {
+      logger.info(`${tierLabel}: suggestion render outcomes`, {
+        runId,
+        prNumber,
+        total: reviewComments.length,
+        ...suggestionStats,
+        validatorReasons: rejectionReasons,
+      });
+    }
 
     reviewResp = await submitReviewWithFallback({
       owner, repo, prNumber, installationId, commitSha,
@@ -340,6 +561,7 @@ async function runAnalysisJob(payload) {
 
   let allFindings = [];
   let files = [];
+  let tier2Files = [];
   let lastCounts = {};
   let lastHighOrCritical = 0;
   let reviewResp = {};
@@ -354,6 +576,12 @@ async function runAnalysisJob(payload) {
       installation_id: installationId,
     });
     files = filesResp.files || [];
+    tier2Files = await enrichFilesForTier2({
+      files,
+      repositoryFullName,
+      installationId,
+      commitSha,
+    });
 
     // ── Tier 1: Regex (<100ms) — post initial review immediately ─────
     try {
@@ -367,7 +595,7 @@ async function runAnalysisJob(payload) {
         shouldMarkBaselineSet = sbs;
 
         const result = await postReviewToGitHub({
-          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 1',
+          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 1', repoProfile: null,
         });
         reviewResp = result.reviewResp;
         lastCounts = result.counts;
@@ -379,7 +607,7 @@ async function runAnalysisJob(payload) {
 
     // ── Tier 2: OpenGrep (2-5s) — update review with AST findings ────
     try {
-      const tier2 = await callAnalysisTier('/analyze/pr/tier2', { ...analysisPayload, files }, 60000);
+      const tier2 = await callAnalysisTier('/analyze/pr/tier2', { ...analysisPayload, files: tier2Files }, 60000);
       const tier2Findings = tier2.findings || [];
 
       if (tier2Findings.length > 0) {
@@ -391,7 +619,7 @@ async function runAnalysisJob(payload) {
         shouldMarkBaselineSet = shouldMarkBaselineSet || sbs;
 
         const result = await postReviewToGitHub({
-          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 2',
+          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 2', repoProfile: null,
         });
         reviewResp = result.reviewResp;
         lastCounts = result.counts;
@@ -430,7 +658,11 @@ async function runAnalysisJob(payload) {
       const triaged = tier3.findings || [];
       const filteredCount = tier3.filtered_count || 0;
 
-      if (filteredCount > 0 || triaged.length !== allFindings.length) {
+      if (
+        filteredCount > 0
+        || didTier3MeaningfullyChangeFindings(allFindings, triaged)
+        || hasTier3RenderableSuggestions(triaged, files, repoProfile)
+      ) {
         allFindings = triaged;
 
         const { actionable, shouldMarkBaselineSet: sbs } = await persistAndFilter({
@@ -439,7 +671,7 @@ async function runAnalysisJob(payload) {
         shouldMarkBaselineSet = shouldMarkBaselineSet || sbs;
 
         const result = await postReviewToGitHub({
-          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 3',
+          actionable, files, owner, repo, prNumber, installationId, commitSha, runId, tierLabel: 'Tier 3', repoProfile,
         });
         reviewResp = result.reviewResp;
         lastCounts = result.counts;
@@ -491,4 +723,21 @@ function triggerAnalysisJob(payload) {
   });
 }
 
-module.exports = { triggerAnalysisJob };
+module.exports = {
+  triggerAnalysisJob,
+  __private: {
+    buildReviewBody,
+    buildReviewComment,
+    buildTier2FilePayload,
+    compareReviewComments,
+    didTier3MeaningfullyChangeFindings,
+    enrichFilesForTier2,
+    fileExtension,
+    hasTier3RenderableSuggestions,
+    normalizeSuggestionPatch,
+    prioritizeReviewComments,
+    shouldFetchFullFileContent,
+    shouldRenderSuggestion,
+    validateSuggestedFix,
+  },
+};
