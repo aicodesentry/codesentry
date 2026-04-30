@@ -44,6 +44,7 @@ function shouldRetriggerProfile(changedFilePaths) {
 }
 
 async function processNextProfileJob() {
+  await repositoriesDb.recoverStaleProfilingJobs();
   const repo = await repositoriesDb.claimNextProfileJob();
   if (!repo) return { processed: false };
 

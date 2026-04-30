@@ -110,7 +110,7 @@ async function connect(repoId, userId) {
          END,
          profile_priority = CASE
            WHEN profile_status IN ('ready', 'profiling') THEN profile_priority
-           ELSE GREATEST(profile_priority, 2)
+           ELSE GREATEST(COALESCE(profile_priority, 0), 2)
          END,
          profile_queued_at = CASE
            WHEN profile_status IN ('ready', 'profiling') THEN profile_queued_at
@@ -142,6 +142,29 @@ async function disconnect(repoId, userId) {
     [repoId, userId]
   );
   return updated.rowCount > 0 ? updated.rows[0] : null;
+}
+
+async function queueManualReprofile(repoId, userId) {
+  const result = await pool.query(
+    `UPDATE repositories
+     SET profile_status = CASE
+           WHEN profile_status = 'profiling' THEN profile_status
+           ELSE 'urgent'
+         END,
+         profile_priority = GREATEST(COALESCE(profile_priority, 0), 2),
+         profile_queued_at = NOW(),
+         settings = settings - 'profile_error',
+         updated_at = NOW()
+     WHERE id = $1
+       AND EXISTS (
+         SELECT 1 FROM repository_access ra
+         WHERE ra.repository_id = repositories.id AND ra.user_id = $2
+       )
+     RETURNING id, full_name, profile_status, profile_confidence, profile_updated_at`,
+    [repoId, userId]
+  );
+
+  return result.rowCount > 0 ? result.rows[0] : null;
 }
 
 // ── Repo profiling ──────────────────────────────────────────────────────
@@ -234,6 +257,22 @@ async function markProfileStale(repoId) {
   );
 }
 
+async function recoverStaleProfilingJobs(maxAgeMinutes = 30) {
+  const result = await pool.query(
+    `UPDATE repositories
+     SET profile_status = 'urgent',
+         profile_priority = GREATEST(COALESCE(profile_priority, 0), 2),
+         profile_queued_at = NOW(),
+         settings = settings || $2::jsonb
+     WHERE profile_status = 'profiling'
+       AND profile_queued_at IS NOT NULL
+       AND profile_queued_at < NOW() - ($1 || ' minutes')::interval
+     RETURNING id`,
+    [String(maxAgeMinutes), JSON.stringify({ profile_error: `Profiling job exceeded ${maxAgeMinutes} minutes and was re-queued` })]
+  );
+  return result.rowCount;
+}
+
 async function claimNextProfileJob() {
   const result = await pool.query(
     `UPDATE repositories
@@ -241,6 +280,7 @@ async function claimNextProfileJob() {
      WHERE id = (
        SELECT id FROM repositories
        WHERE profile_status IN ('queued', 'stale', 'urgent')
+         AND installation_id IS NOT NULL
        ORDER BY profile_priority DESC, profile_queued_at ASC
        LIMIT 1
        FOR UPDATE SKIP LOCKED
@@ -258,7 +298,7 @@ async function saveProfile(repoId, profileData, confidence) {
          profile_confidence = $3,
          profile_priority = 0,
          profile_updated_at = NOW(),
-         settings = settings - 'pending_retriage'
+         settings = settings - 'pending_retriage' - 'profile_error'
      WHERE id = $1`,
     [repoId, JSON.stringify(profileData), confidence]
   );
@@ -286,6 +326,10 @@ async function getProfile(repoId) {
 
 module.exports = {
   list, getById, updateBaseline, connect, disconnect, revokeMissingAccessForInstallation,
+<<<<<<< HEAD
   queueForProfiling, queueTopReposForProfiling, queueUrgentProfiling, markProfileStale,
+=======
+  queueManualReprofile, queueForProfiling, queueUrgentProfiling, markProfileStale, recoverStaleProfilingJobs,
+>>>>>>> 33ad36c (Fix: harden repository profiling pipeline)
   claimNextProfileJob, saveProfile, markProfileFailed, getProfile,
 };

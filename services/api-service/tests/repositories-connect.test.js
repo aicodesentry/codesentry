@@ -62,6 +62,29 @@ describe('repository connect/disconnect', () => {
     expect(response.body.repository.is_active).toBe(false);
   });
 
+  test('POST /:id/reprofile queues repository profiling', async () => {
+    const app = createApp();
+
+    pool.query.mockResolvedValueOnce({
+      rowCount: 1,
+      rows: [{
+        id: 'repo-1',
+        full_name: 'acme/service',
+        profile_status: 'urgent',
+        profile_confidence: 0.82,
+        profile_updated_at: '2026-04-12T10:00:00Z',
+      }],
+    });
+
+    const response = await request(app)
+      .post('/api/repositories/repo-1/reprofile')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.queued).toBe(true);
+    expect(response.body.repository.profile_status).toBe('urgent');
+  });
+
   test('connect returns 404 for unknown repo', async () => {
     const app = createApp();
 
@@ -81,6 +104,18 @@ describe('repository connect/disconnect', () => {
 
     const response = await request(app)
       .post('/api/repositories/unknown-id/disconnect')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(404);
+  });
+
+  test('reprofile returns 404 for unknown repo', async () => {
+    const app = createApp();
+
+    pool.query.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+    const response = await request(app)
+      .post('/api/repositories/unknown-id/reprofile')
       .set('Authorization', `Bearer ${token}`);
 
     expect(response.status).toBe(404);
