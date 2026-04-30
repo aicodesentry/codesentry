@@ -80,6 +80,16 @@ class TestExtractFileContent:
         }
         assert _extract_scan_content(file_info) == "const value = req.body.code;\neval(value);\n"
 
+    def test_wraps_patch_only_go_fragments_into_parseable_file(self):
+        file_info = {
+            "path": "download.go",
+            "patch": '+data, _ := os.ReadFile(filepath.Join(baseDir, r.URL.Query().Get("file")))',
+        }
+        content = _extract_scan_content(file_info)
+        assert content.startswith("package main")
+        assert 'func _generated(r *http.Request)' in content
+        assert 'os.ReadFile(filepath.Join(baseDir, r.URL.Query().Get("file")))' in content
+
     def test_extract_exact_lines_returns_only_target_range(self):
         content = "\n".join([
             "const a = 1;",
