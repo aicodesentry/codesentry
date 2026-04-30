@@ -326,10 +326,6 @@ async function getProfile(repoId) {
 
 module.exports = {
   list, getById, updateBaseline, connect, disconnect, revokeMissingAccessForInstallation,
-<<<<<<< HEAD
-  queueForProfiling, queueTopReposForProfiling, queueUrgentProfiling, markProfileStale,
-=======
-  queueManualReprofile, queueForProfiling, queueUrgentProfiling, markProfileStale, recoverStaleProfilingJobs,
->>>>>>> 33ad36c (Fix: harden repository profiling pipeline)
+  queueManualReprofile, queueForProfiling, queueTopReposForProfiling, queueUrgentProfiling, markProfileStale, recoverStaleProfilingJobs,
   claimNextProfileJob, saveProfile, markProfileFailed, getProfile,
 };
