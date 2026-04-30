@@ -196,7 +196,7 @@ rules:
       - pattern-either:
         - pattern: axios.get($URL)
         - pattern: axios.post($URL, ...)
-        - pattern: axios.request({ ..., url: $URL, ... })
+        - pattern: "axios.request({ ..., url: $URL, ... })"
         - pattern: fetch($URL)
     message: "HTTP request with user-controlled URL — validate against allowlist"
     severity: WARNING

@@ -49,7 +49,7 @@ const SupportPage = () => {
 
           {submitSuccess && (
             <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-500/30 dark:bg-emerald-500/10">
-              <p className="text-sm text-emerald-800 dark:text-emerald-400">Support request submitted. We'll get back to you soon.</p>
+              <p className="text-sm text-emerald-800 dark:text-emerald-400">Support request submitted. We&apos;ll get back to you soon.</p>
             </div>
           )}
 
@@ -103,7 +103,7 @@ const SupportPage = () => {
           <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-5 dark:border-neutral-700 dark:bg-neutral-800/50">
             <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">Beta feedback welcome</h3>
             <p className="mt-1 text-sm text-neutral-700 dark:text-neutral-400">
-              Found a bug or have a feature request? We're actively building — your feedback shapes the product.
+              Found a bug or have a feature request? We&apos;re actively building — your feedback shapes the product.
             </p>
           </div>
         </div>
