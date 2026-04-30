@@ -12,8 +12,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.filter.outputs.should_deploy }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - id: filter
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed_files="$(git diff-tree --no-commit-id --name-only -r -m HEAD | sort -u)"
+          printf '%s\n' "$changed_files"
+
+          if printf '%s\n' "$changed_files" | grep -Eq '^(services/analysis-service/|\.github/workflows/deploy-analysis-cloudrun\.yml$)'; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
   deploy:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    needs: changes
+    if: (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') && needs.changes.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
