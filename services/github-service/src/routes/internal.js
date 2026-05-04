@@ -61,7 +61,7 @@ router.post('/github/pulls/files', async (req, res) => {
     const files = [];
     let page = 1;
 
-    while (true) {
+    for (;;) {
       const response = await githubRequest(
         'get',
         `https://api.github.com/repos/${owner}/${repo}/pulls/${pull_request_number}/files?per_page=100&page=${page}`,

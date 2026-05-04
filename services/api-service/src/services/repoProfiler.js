@@ -288,7 +288,7 @@ function parseDependencies(fileName, content) {
   }
   if (fileName === 'go.mod') {
     for (const line of content.split('\n')) {
-      const match = line.trim().match(/^\s*([\w./\-]+)\s+v/);
+      const match = line.trim().match(/^\s*([\w./-]+)\s+v/);
       if (match) deps[match[1]] = '*';
     }
     return { deps, devDeps: [] };

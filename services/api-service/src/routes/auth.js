@@ -52,7 +52,7 @@ function cookieOptions(req) {
 }
 
 function authCookieOptions(req) {
-  const { maxAge, ...options } = cookieOptions(req);
+  const { maxAge: _omitMaxAge, ...options } = cookieOptions(req);
   return options;
 }
 

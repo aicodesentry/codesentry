@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
+    "lint": "eslint \"src/**/*.js\"",
     "test": "NODE_ENV=test jest --detectOpenHandles --forceExit",
     "db:migrate": "node src/scripts/runMigrations.js",
     "db:verify": "node src/scripts/verifyMigrations.js"
@@ -25,6 +26,7 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "eslint": "^8.57.0",
     "jest": "^29.7.0",
     "nodemon": "^3.0.2",
     "supertest": "^6.3.3"

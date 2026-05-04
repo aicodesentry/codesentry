@@ -136,7 +136,7 @@ function looksLikeUnifiedDiff(text) {
 }
 
 function looksLikeParameterizedQuery(text) {
-  return /(\$\d+|%s|\?)/.test(text) || /\.query\([^,]+,\s*[\[(]/.test(text);
+  return /(\$\d+|%s|\?)/.test(text) || /\.query\([^,]+,\s*[[(]/.test(text);
 }
 
 function evidenceDetailsForFinding(finding) {

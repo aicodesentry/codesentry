@@ -5,6 +5,12 @@ on:
   push:
     branches: [main]
 
+# Cancel duplicate runs on feature branches; do not cancel on main (avoids
+# aborting the run that deploy workflows wait on when pushes are back-to-back).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 # Least privilege: only what these jobs need. dependency-review uses the
 # default GITHUB_TOKEN to read the dependency graph and PR diff.
 permissions:
@@ -51,6 +57,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm test
       - run: npm run build
@@ -68,6 +76,9 @@ jobs:
           cache: npm
           cache-dependency-path: services/api-service/package-lock.json
       - run: npm ci
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high
+      - run: npm run lint
       - run: npm test -- --runInBand
 
   github-service-tests:
@@ -83,6 +94,9 @@ jobs:
           cache: npm
           cache-dependency-path: services/github-service/package-lock.json
       - run: npm ci
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high
+      - run: npm run lint
       - run: npm test -- --runInBand
 
   analysis-tests:
@@ -100,4 +114,28 @@ jobs:
             services/analysis-service/src/requirements.txt
             services/analysis-service/src/requirements-test.txt
       - run: pip install -r requirements-test.txt
+      - run: pip install pip-audit bandit
+      - name: pip-audit (runtime requirements)
+        run: pip-audit -r requirements.txt
+      # B608 skipped: Bandit flags LLM prompt strings as "SQL injection".
+      - name: bandit
+        run: >
+          bandit -r . -ll -q
+          -x ./tests -x ./grpc_generated -x ./grpc_server/generated
+          -s B608
       - run: pytest tests -q
+
+  docker-build:
+    name: Docker image (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-service
+          - github-service
+          - analysis-service
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker build
+        run: docker build "./services/${{ matrix.service }}"
