@@ -5,7 +5,39 @@ on:
   push:
     branches: [main]
 
+# Least privilege: only what these jobs need. dependency-review uses the
+# default GITHUB_TOKEN to read the dependency graph and PR diff.
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
+  # --- Repo-wide security (blocks deploy with the same "CI" workflow) ---
+
+  security-gitleaks:
+    name: Secret scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Compares base vs head dependency changes on PRs. Private repos need
+  # GitHub Advanced Security; public repos work out of the box.
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          # Change to critical if moderate/high noise is too high.
+          fail-on-severity: high
+
   frontend-checks:
     runs-on: ubuntu-latest
     defaults:
