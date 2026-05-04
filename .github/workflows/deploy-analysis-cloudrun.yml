@@ -15,8 +15,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  filter:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.decide.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      - name: Path filter
+        id: decide
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          BASE=$(git rev-parse HEAD^)
+          if git diff --name-only "$BASE" HEAD | grep -qE '^(services/analysis-service/|proto/|\.github/workflows/deploy-analysis-cloudrun\.yml)'; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
   deploy:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    needs: filter
+    if: needs.filter.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -44,11 +75,19 @@ jobs:
       - name: Configure Docker auth
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
+      - name: Set image tag (match checked-out commit, not GITHUB_SHA)
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEPLOY_SHA="${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}"
+          SHORT="${DEPLOY_SHA:0:12}"
+          TAG="analysis-${SHORT}"
+          IMAGE="us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/analysis:${TAG}"
+          echo "DEPLOY_SHA=$DEPLOY_SHA" >> "$GITHUB_ENV"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
       - name: Build Analysis image
         run: |
-          TAG="analysis-${GITHUB_SHA::12}"
-          IMAGE="us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/analysis:${TAG}"
-          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
           docker build -t "$IMAGE" ./services/analysis-service
           docker push "$IMAGE"
 
@@ -66,3 +105,13 @@ jobs:
               GEMINI_API_KEY=codesentry-gemini-api-key:latest" \
             --ingress all \
             --allow-unauthenticated
+
+      - name: Smoke (Cloud Run URL → /health)
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL=$(gcloud run services describe codesentry-analysis \
+            --region '${{ vars.GCP_REGION }}' \
+            --project '${{ vars.GCP_PROJECT_ID }}' \
+            --format='value(status.url)')
+          curl -sfS --connect-timeout 15 --max-time 45 "${URL}/health"
