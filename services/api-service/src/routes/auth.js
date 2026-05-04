@@ -18,23 +18,9 @@ router.use((_req, res, next) => {
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const DEFAULT_GITHUB_APP_SLUG = 'mitig8it';
-
-// In-memory store for OAuth state (short-lived)
-const pendingStates = new Map();
 const AUTH_COOKIE_NAME = '__session';
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
-// Clean expired entries every 5 minutes without keeping the process alive.
-const cleanupTimer = setInterval(() => {
-  const now = Date.now();
-  for (const [key, val] of pendingStates) {
-    if (now - val.created > 10 * 60 * 1000) pendingStates.delete(key);
-  }
-}, 5 * 60 * 1000);
-
-if (typeof cleanupTimer.unref === 'function') {
-  cleanupTimer.unref();
-}
+const STATE_TTL_MS = 10 * 60 * 1000;
 
 function resolveGithubAppSlug() {
   const raw = (process.env.GITHUB_APP_SLUG || '').trim();
@@ -65,10 +51,73 @@ function cookieOptions(req) {
   };
 }
 
+function authCookieOptions(req) {
+  const { maxAge, ...options } = cookieOptions(req);
+  return options;
+}
+
+function clearAuthCookie(res, req) {
+  res.clearCookie(AUTH_COOKIE_NAME, authCookieOptions(req));
+}
+
 function publicBaseUrl(req) {
   const forwardedProto = req.get('x-forwarded-proto');
   const protocol = forwardedProto ? forwardedProto.split(',')[0] : req.protocol;
   return process.env.FRONTEND_URL || `${protocol}://${req.get('host')}`;
+}
+
+function getStateSigningSecret() {
+  return process.env.JWT_SECRET || process.env.GITHUB_CLIENT_SECRET || null;
+}
+
+function signStatePayload(payload) {
+  const secret = getStateSigningSecret();
+  if (!secret) {
+    throw new Error('Missing state signing secret');
+  }
+
+  return crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+}
+
+function createOAuthState() {
+  const payload = Buffer.from(
+    JSON.stringify({
+      nonce: crypto.randomBytes(20).toString('hex'),
+      ts: Date.now(),
+    })
+  ).toString('base64url');
+
+  return `${payload}.${signStatePayload(payload)}`;
+}
+
+function isValidOAuthState(state) {
+  if (!state || typeof state !== 'string') return false;
+
+  const [payload, signature] = state.split('.');
+  if (!payload || !signature) return false;
+
+  const expectedSignature = signStatePayload(payload);
+  const signatureBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expectedSignature);
+
+  if (signatureBuffer.length !== expectedBuffer.length) return false;
+  if (!crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) return false;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+  } catch (_err) {
+    return false;
+  }
+
+  if (!parsed?.nonce || !parsed?.ts) return false;
+  const issuedAt = Number(parsed.ts);
+  if (!Number.isFinite(issuedAt)) return false;
+
+  const ageMs = Date.now() - issuedAt;
+  if (ageMs < -60 * 1000) return false;
+
+  return ageMs <= STATE_TTL_MS;
 }
 
 router.get('/github', (req, res) => {
@@ -84,9 +133,9 @@ router.get('/github', (req, res) => {
     return res.status(400).json({ error: 'HTTPS required' });
   }
 
-  // Generate CSRF state parameter
-  const state = crypto.randomBytes(20).toString('hex');
-  pendingStates.set(state, { created: Date.now() });
+  // Generate a signed, time-limited CSRF state that survives cross-instance callbacks.
+  const state = createOAuthState();
+  const prompt = req.query.prompt === 'select_account' ? '&prompt=select_account' : '';
 
   const callbackUrl =
     process.env.GITHUB_CALLBACK_URL || `${publicBaseUrl(req)}/auth/github/callback`;
@@ -95,7 +144,8 @@ router.get('/github', (req, res) => {
     `https://github.com/login/oauth/authorize?client_id=${process.env.GITHUB_CLIENT_ID}` +
     `&scope=read:user,user:email` +
     `&redirect_uri=${encodeURIComponent(callbackUrl)}` +
-    `&state=${state}`;
+    `&state=${state}` +
+    prompt;
 
   res.redirect(authUrl);
 });
@@ -107,10 +157,9 @@ router.get('/github/callback', async (req, res) => {
   }
 
   // Validate state parameter (CSRF protection)
-  if (!state || !pendingStates.has(state)) {
+  if (!isValidOAuthState(state)) {
     return res.redirect(`${FRONTEND_URL}/?error=invalid_state`);
   }
-  pendingStates.delete(state);
 
   try {
     const tokenResp = await axios.post(
@@ -248,12 +297,7 @@ router.get('/me', authenticateToken, async (req, res) => {
 });
 
 router.post('/logout', (_req, res) => {
-  res.clearCookie(AUTH_COOKIE_NAME, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    path: '/',
-  });
+  clearAuthCookie(res, _req);
   res.json({ success: true });
 });
 

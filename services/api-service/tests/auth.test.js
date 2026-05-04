@@ -19,6 +19,7 @@ const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
   jest.clearAllMocks();
+  process.env = { ...ORIGINAL_ENV };
   process.env.GITHUB_CLIENT_ID = 'test-client-id';
   process.env.GITHUB_CLIENT_SECRET = 'test-client-secret';
   process.env.JWT_SECRET = 'test-jwt-secret';
@@ -72,6 +73,14 @@ describe('GET /auth/github', () => {
       encodeURIComponent('https://api.example.com/auth/github/callback')
     );
   });
+
+  test('forwards prompt=select_account to GitHub when requested', async () => {
+    const app = createApp();
+    const res = await request(app).get('/auth/github?prompt=select_account');
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toContain('prompt=select_account');
+  });
 });
 
 describe('GET /auth/github/callback', () => {
@@ -108,8 +117,8 @@ describe('GET /auth/github/callback', () => {
   async function getValidState(app) {
     const res = await request(app).get('/auth/github');
     const location = res.headers.location || '';
-    const match = location.match(/state=([a-f0-9]+)/);
-    return match ? match[1] : null;
+    const redirectUrl = new URL(location);
+    return redirectUrl.searchParams.get('state');
   }
 
   test('redirects with error if no code provided', async () => {
@@ -123,6 +132,16 @@ describe('GET /auth/github/callback', () => {
   test('rejects callback with missing state', async () => {
     const app = createApp();
     const res = await request(app).get('/auth/github/callback?code=test-code');
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toContain('error=invalid_state');
+  });
+
+  test('rejects callback with tampered state', async () => {
+    const app = createApp();
+    const state = await getValidState(app);
+    const tamperedState = `${state}tampered`;
+    const res = await request(app).get(`/auth/github/callback?code=test-code&state=${encodeURIComponent(tamperedState)}`);
 
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain('error=invalid_state');
@@ -401,5 +420,34 @@ describe('POST /auth/logout', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  test('clears the auth cookie with local-development attributes', async () => {
+    const app = createApp();
+    const res = await request(app).post('/auth/logout');
+
+    const authCookie = res.headers['set-cookie']?.find((cookie) => cookie.startsWith('__session='));
+    expect(authCookie).toBeDefined();
+    expect(authCookie).toContain('__session=;');
+    expect(authCookie).toContain('Path=/');
+    expect(authCookie).toContain('HttpOnly');
+    expect(authCookie).toContain('SameSite=Lax');
+    expect(authCookie).not.toContain('Secure');
+  });
+
+  test('clears the auth cookie with secure attributes behind HTTPS proxy', async () => {
+    process.env.NODE_ENV = 'production';
+    const app = createApp();
+    const res = await request(app)
+      .post('/auth/logout')
+      .set('X-Forwarded-Proto', 'https');
+
+    const authCookie = res.headers['set-cookie']?.find((cookie) => cookie.startsWith('__session='));
+    expect(authCookie).toBeDefined();
+    expect(authCookie).toContain('__session=;');
+    expect(authCookie).toContain('Path=/');
+    expect(authCookie).toContain('HttpOnly');
+    expect(authCookie).toContain('SameSite=None');
+    expect(authCookie).toContain('Secure');
   });
 });

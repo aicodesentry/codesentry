@@ -1,365 +1,323 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, CheckCircle2, Compass, GitFork, KeyRound, RefreshCcw, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowRight, CheckCircle2, ExternalLink, RefreshCcw } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useOnboarding } from '../contexts/OnboardingContext'
-import { EmptyPanel } from '../components/PageSection'
 
 const INSTALLATIONS_SETTINGS_URL = 'https://github.com/settings/installations'
 const GITHUB_APP_URL = 'https://github.com/apps/mitig8it'
 
-const samplePullRequest = {
-  repo: 'codesentry/demo-storefront',
-  number: 14,
-  title: 'Tighten checkout redirect handling',
-  summary: 'See how Mitig8it turns one PR into inline findings, a summary review, and taxonomy-backed remediation.',
-  findings: [
-    { label: 'Critical', count: 2, tint: 'bg-neutral-100 text-neutral-700 border-neutral-300 dark:bg-neutral-900 dark:text-neutral-200 dark:border-neutral-700' },
-    { label: 'High', count: 1, tint: 'bg-neutral-100 text-neutral-700 border-neutral-300 dark:bg-neutral-900 dark:text-neutral-200 dark:border-neutral-700' },
-    { label: 'Medium', count: 1, tint: 'bg-neutral-100 text-neutral-700 border-neutral-300 dark:bg-neutral-900 dark:text-neutral-200 dark:border-neutral-700' },
-  ],
+function getChecklist(status) {
+  return [
+    {
+      id: 'install',
+      title: 'Install GitHub App',
+      detail: status.hasInstall
+        ? `${status.installationCount} installation${status.installationCount === 1 ? '' : 's'} connected`
+        : 'Install Mitig8it on one repository or organization.',
+      done: status.hasInstall,
+      current: status.nextStep === 'install',
+    },
+    {
+      id: 'access',
+      title: 'Grant repository access',
+      detail: status.hasRepoAccess
+        ? `${status.repositoryCount} repos visible to Mitig8it`
+        : 'Grant repository access in GitHub, then sync here once.',
+      done: status.hasRepoAccess,
+      current: status.nextStep === 'grant-access',
+    },
+    {
+      id: 'activate',
+      title: 'Activate one repository',
+      detail: status.hasActiveRepo
+        ? `${status.activeRepositoryCount} repo${status.activeRepositoryCount === 1 ? '' : 's'} ready for review`
+        : 'Choose the first repository that should receive reviews.',
+      done: status.hasActiveRepo,
+      current: status.nextStep === 'connect-repo',
+    },
+    {
+      id: 'review',
+      title: 'Open a pull request',
+      detail: status.hasFirstReview
+        ? `${status.analysisCount} review${status.analysisCount === 1 ? '' : 's'} completed`
+        : status.hasFirstPullRequest
+          ? 'Pull request detected. Waiting for the first review.'
+          : 'Open or update a PR to trigger the first review.',
+      done: status.hasFirstReview,
+      current: status.nextStep === 'open-pr' || status.nextStep === 'wait-review',
+    },
+  ]
+}
+
+function getCurrentStep(status, githubAppInstallUrl) {
+  if (!status.hasInstall) {
+    return {
+      eyebrow: 'Step 1',
+      title: 'Install the GitHub App',
+      description: 'Start by connecting Mitig8it to GitHub. Install it on one repository now and broaden access later if needed.',
+      primaryLabel: 'Install GitHub App',
+      primaryHref: githubAppInstallUrl || GITHUB_APP_URL,
+      primaryExternal: true,
+      secondaryLabel: null,
+      secondaryHref: null,
+      secondaryExternal: false,
+    }
+  }
+
+  if (!status.hasRepoAccess) {
+    return {
+      eyebrow: 'Step 2',
+      title: 'Grant repository access',
+      description: 'The app is installed, but Mitig8it still cannot see a repository to review. Expand access in GitHub, then sync here.',
+      primaryLabel: 'Manage GitHub access',
+      primaryHref: INSTALLATIONS_SETTINGS_URL,
+      primaryExternal: true,
+      secondaryLabel: 'Sync GitHub',
+      secondaryHref: null,
+      secondaryExternal: false,
+    }
+  }
+
+  if (!status.hasActiveRepo) {
+    return {
+      eyebrow: 'Step 3',
+      title: 'Activate your first repository',
+      description: 'Pick one repository to turn on reviews. Keep the first pass small, then expand after the workflow is proven.',
+      primaryLabel: 'Choose repository',
+      primaryHref: '/dashboard/repositories',
+      primaryExternal: false,
+      secondaryLabel: 'Sync GitHub',
+      secondaryHref: null,
+      secondaryExternal: false,
+    }
+  }
+
+  if (!status.hasFirstReview) {
+    return {
+      eyebrow: 'Step 4',
+      title: status.hasFirstPullRequest ? 'Waiting for the first review' : 'Open a pull request',
+      description: status.hasFirstPullRequest
+        ? 'Mitig8it has enough access. The first report will appear here as soon as the pull request review completes.'
+        : 'Open or update a pull request in the active repository to trigger the first review.',
+      primaryLabel: 'Go to reports',
+      primaryHref: '/dashboard/reports',
+      primaryExternal: false,
+      secondaryLabel: status.hasFirstPullRequest ? 'Sync GitHub' : 'View repositories',
+      secondaryHref: status.hasFirstPullRequest ? null : '/dashboard/repositories',
+      secondaryExternal: false,
+    }
+  }
+
+  return {
+    eyebrow: 'Ready',
+    title: 'Your setup is complete',
+    description: 'Mitig8it is connected and the first review has landed. Continue in the dashboard.',
+    primaryLabel: 'Open dashboard',
+    primaryHref: '/dashboard/home',
+    primaryExternal: false,
+    secondaryLabel: 'View reports',
+    secondaryHref: '/dashboard/reports',
+    secondaryExternal: false,
+  }
+}
+
+function ActionButton({ action, children }) {
+  if (action.primaryExternal) {
+    return (
+      <a
+        href={action.primaryHref}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center justify-center gap-2 rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
+      >
+        {children}
+        <ExternalLink className="h-4 w-4" />
+      </a>
+    )
+  }
+
+  return (
+    <Link
+      to={action.primaryHref}
+      className="inline-flex items-center justify-center gap-2 rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
+    >
+      {children}
+      <ArrowRight className="h-4 w-4" />
+    </Link>
+  )
+}
+
+function SecondaryAction({ action, onSync, syncing }) {
+  if (!action.secondaryLabel) return null
+
+  if (action.secondaryHref) {
+    return (
+      <Link
+        to={action.secondaryHref}
+        className="inline-flex items-center gap-2 text-sm font-medium text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
+      >
+        {action.secondaryLabel}
+      </Link>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => onSync({ sync: true })}
+      className="inline-flex items-center gap-2 text-sm font-medium text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
+    >
+      <RefreshCcw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+      {syncing ? 'Syncing...' : action.secondaryLabel}
+    </button>
+  )
 }
 
 export default function OnboardingPage() {
   const { githubAppInstallUrl } = useAuth()
-  const { error, lastSyncedAt, refresh, status, syncing } = useOnboarding()
+  const { error, refresh, status, syncing } = useOnboarding()
 
-  const checklist = useMemo(
-    () => [
-      {
-        id: 'install',
-        title: 'Install the GitHub App',
-        detail: status.hasInstall
-          ? `${status.installationCount} installation${status.installationCount === 1 ? '' : 's'} detected`
-          : 'Connect Mitig8it to one repository or one organization first',
-        done: status.hasInstall,
-      },
-      {
-        id: 'access',
-        title: 'Grant repository access',
-        detail: status.hasRepoAccess
-          ? `${status.repositoryCount} repos visible to Mitig8it`
-          : 'Grant repo permissions in GitHub installation settings and sync again',
-        done: status.hasRepoAccess,
-      },
-      {
-        id: 'connect',
-        title: 'Activate one repository',
-        detail: status.hasActiveRepo
-          ? `${status.activeRepositoryCount} repo${status.activeRepositoryCount === 1 ? '' : 's'} connected to the review pipeline`
-          : 'Choose the first repo that should receive PR reviews',
-        done: status.hasActiveRepo,
-      },
-      {
-        id: 'review',
-        title: 'Open a test pull request',
-        detail: status.hasFirstReview
-          ? `${status.analysisCount} analysis run${status.analysisCount === 1 ? '' : 's'} recorded`
-          : status.hasFirstPullRequest
-            ? 'PR detected. Waiting for the first review to land.'
-            : 'Open or update a PR in the connected repo to trigger the first review',
-        done: status.hasFirstReview,
-      },
-      {
-        id: 'byok',
-        title: 'Optional: bring your own model key',
-        detail: 'Treat AI explanations as an upgrade after the core GitHub review loop is working.',
-        done: false,
-        optional: true,
-      },
-    ],
-    [status]
+  const checklist = useMemo(() => getChecklist(status), [status])
+  const currentStep = useMemo(
+    () => getCurrentStep(status, githubAppInstallUrl),
+    [githubAppInstallUrl, status]
   )
 
-  const nextAction = !status.hasInstall
-    ? {
-        label: 'Install GitHub App',
-        href: githubAppInstallUrl || GITHUB_APP_URL,
-        external: true,
-      }
-    : !status.hasRepoAccess
-      ? {
-          label: 'Fix GitHub access',
-          href: INSTALLATIONS_SETTINGS_URL,
-          external: true,
-        }
-      : !status.hasActiveRepo
-        ? {
-            label: 'Choose first repository',
-            href: '/dashboard/repositories',
-          }
-        : !status.hasFirstReview
-          ? {
-              label: 'Watch reports',
-              href: '/dashboard/reports',
-            }
-          : {
-              label: 'Open dashboard',
-              href: '/dashboard/home',
-            }
-
-  const formatSyncTime = () => {
-    if (!lastSyncedAt) return 'Not synced yet'
-    return new Date(lastSyncedAt).toLocaleString()
-  }
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-white">
-            Get from install to first security review
-          </h1>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">Connect GitHub, activate one repository, and confirm that one pull request receives a review.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => refresh({ sync: true })}
-            className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:border-neutral-400 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-100 dark:hover:border-neutral-500 dark:hover:bg-neutral-900"
-          >
-            <RefreshCcw className="h-4 w-4" />
-            {syncing ? 'Syncing...' : 'Sync GitHub'}
-          </button>
-          {nextAction.external ? (
-            <a
-              href={nextAction.href}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
-            >
-              <GitFork className="h-4 w-4" />
-              {nextAction.label}
-            </a>
-          ) : (
-            <Link
-              to={nextAction.href}
-              className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
-            >
-              <ArrowRight className="h-4 w-4" />
-              {nextAction.label}
-            </Link>
-          )}
-        </div>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div className="max-w-2xl space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500 dark:text-neutral-400">
+          Setup
+        </p>
+        <h1 className="text-3xl font-semibold text-neutral-900 dark:text-white">
+          Set up Mitig8it
+        </h1>
+        <p className="text-sm text-neutral-600 dark:text-neutral-300">
+          Connect GitHub, activate one repository, and get the first pull request review without a cluttered setup page.
+        </p>
       </div>
-
-      {/* Stats row */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800">
-              <ShieldCheck className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold text-neutral-900 dark:text-white">{status.installationCount}</p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">Installations</p>
-            </div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800">
-              <Compass className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold text-neutral-900 dark:text-white">{status.repositoryCount}</p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">Repos Visible</p>
-            </div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800">
-              <Sparkles className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold text-neutral-900 dark:text-white">{status.analysisCount}</p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">PR Reviews</p>
-            </div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800">
-              <KeyRound className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold text-neutral-900 dark:text-white">{lastSyncedAt ? 'Live' : 'Pending'}</p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">Last Sync</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {!status.hasInstall ? (
-        <div className="rounded-xl border border-yellow-300 bg-yellow-50/60 p-5 text-sm text-neutral-900 dark:border-yellow-500 dark:bg-yellow-950/50" role="region" aria-live="polite">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-semibold">Install Mitig8it to start seeing reviews</p>
-              <p className="text-xs text-neutral-600 dark:text-neutral-300">Connect your GitHub app so we can read PR data and backfill your first insights.</p>
-            </div>
-            <a
-              href={githubAppInstallUrl || GITHUB_APP_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center justify-center rounded-lg bg-yellow-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-yellow-500"
-            >
-              <GitFork className="mr-2 h-4 w-4" />
-              Connect GitHub App
-            </a>
-          </div>
-        </div>
-      ) : null}
 
       {error ? (
-        <div className="rounded-xl border border-rose-500/40 bg-rose-950/30 p-5">
+        <div className="rounded-xl border border-rose-500/40 bg-rose-950/30 p-4">
           <p className="text-sm font-medium text-rose-100">{error}</p>
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
-        {/* Launch checklist */}
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">Launch checklist</h2>
-            <a
-              href={INSTALLATIONS_SETTINGS_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
-            >
-              Manage installation
-            </a>
-          </div>
-          <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="space-y-3">
-              {checklist.map((item, index) => (
-                <div
-                  key={item.id}
-                  className={`flex items-start gap-4 rounded-xl border px-4 py-4 ${
-                    item.done
-                      ? 'border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800/50'
-                      : item.optional
-                        ? 'border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-800/30'
-                        : 'border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-800/40'
-                  }`}
-                >
-                  <div className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-full ${item.done ? 'bg-neutral-200 dark:bg-neutral-700' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
-                    {item.done ? (
-                      <CheckCircle2 className="h-5 w-5 text-neutral-900 dark:text-white" />
-                    ) : (
-                      <span className="text-sm font-semibold text-neutral-600 dark:text-neutral-300">{index + 1}</span>
-                    )}
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500 dark:text-neutral-400">
+                {currentStep.eyebrow}
+              </p>
+              <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">
+                {currentStep.title}
+              </h2>
+              <p className="max-w-2xl text-sm leading-6 text-neutral-600 dark:text-neutral-300">
+                {currentStep.description}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4">
+              <ActionButton action={currentStep}>{currentStep.primaryLabel}</ActionButton>
+              <SecondaryAction action={currentStep} onSync={refresh} syncing={syncing} />
+            </div>
+
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-950">
+              <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
+                What you get once setup is complete
+              </h3>
+              <div className="mt-3 space-y-3">
+                {[
+                  'Inline pull request comments that point to risky code and explain the fix.',
+                  'GitHub review summaries with severity and remediation context.',
+                  'Reports that become the operating view once the first review finishes.',
+                ].map((line) => (
+                  <div key={line} className="flex items-start gap-3">
+                    <div className="mt-1 h-2 w-2 rounded-full bg-neutral-900 dark:bg-white" />
+                    <p className="text-sm text-neutral-600 dark:text-neutral-300">{line}</p>
                   </div>
-                  <div className="flex-1">
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">
+                Setup checklist
+              </h2>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Follow the current step and ignore the rest for now.
+              </p>
+            </div>
+            <button
+              onClick={() => refresh({ sync: true })}
+              className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:border-neutral-400 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-100 dark:hover:border-neutral-500 dark:hover:bg-neutral-950"
+            >
+              <RefreshCcw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Syncing...' : 'Sync'}
+            </button>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {checklist.map((item, index) => (
+              <div
+                key={item.id}
+                className={`rounded-xl border px-4 py-4 ${
+                  item.done
+                    ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/60 dark:bg-emerald-950/20'
+                    : item.current
+                      ? 'border-neutral-900 bg-neutral-50 dark:border-white dark:bg-neutral-950'
+                      : 'border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
+                      item.done
+                        ? 'bg-emerald-600 text-white'
+                        : item.current
+                          ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900'
+                          : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300'
+                    }`}
+                  >
+                    {item.done ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                  </div>
+                  <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-neutral-900 dark:text-white">{item.title}</p>
-                      {item.optional ? (
-                        <span className="rounded-full border border-neutral-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
-                          Optional
+                      <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                        {item.title}
+                      </p>
+                      {item.current ? (
+                        <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white dark:bg-white dark:text-neutral-900">
+                          Current
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{item.detail}</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-300">
+                      {item.detail}
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            {status.needsPermissionFix ? (
-              <div className="mt-3 rounded-xl border border-neutral-300 bg-neutral-50 px-4 py-4 dark:border-neutral-700 dark:bg-neutral-800/50">
-                <p className="text-sm font-semibold text-neutral-900 dark:text-white">The app is installed, but GitHub access is still too narrow.</p>
-                <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-                  Expand repository access in GitHub installation settings, then sync again. Until then the rest of the product will look empty.
-                </p>
               </div>
-            ) : null}
-
-            {status.hasFirstReview ? (
-              <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-50 px-4 py-4 dark:bg-emerald-950/20">
-                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-100">The first review has landed.</p>
-                <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-200/80">
-                  The activation loop is complete. You can move into the live dashboard and reports now.
-                </p>
-                <Link
-                  to="/dashboard/home"
-                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
-                >
-                  Open workspace
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-            ) : null}
+            ))}
           </div>
-        </div>
 
-        {/* What users should expect */}
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">What users should expect</h2>
-            <Link
-              to="/examples"
-              className="text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
-            >
-              See examples
-            </Link>
-          </div>
-          <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Sample PR</p>
-                <h3 className="mt-2 text-lg font-semibold text-neutral-900 dark:text-white">
-                  #{samplePullRequest.number} {samplePullRequest.title}
-                </h3>
-                <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">{samplePullRequest.repo}</p>
-              </div>
-              <div className="rounded-full border border-neutral-300 bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                Review ready
-              </div>
+          {status.needsPermissionFix ? (
+            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+              <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                GitHub is connected, but repository access is still too narrow.
+              </p>
+              <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
+                Expand repository permissions in GitHub installation settings, then sync once here.
+              </p>
             </div>
-            <p className="mt-4 text-sm leading-6 text-neutral-700 dark:text-neutral-300">{samplePullRequest.summary}</p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              {samplePullRequest.findings.map((item) => (
-                <span
-                  key={item.label}
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${item.tint}`}
-                >
-                  {item.count} {item.label}
-                </span>
-              ))}
-            </div>
-            <div className="mt-5 space-y-3">
-              {[
-                'Inline comments point to the risky line and the recommended fix.',
-                'A GitHub check summary rolls up severity and taxonomy context.',
-                'Reports becomes the operating log once the first scan lands.',
-              ].map((line) => (
-                <div key={line} className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 dark:border-neutral-800 dark:bg-neutral-800/40">
-                  <Sparkles className="mt-0.5 h-4 w-4 text-neutral-500 dark:text-neutral-300" />
-                  <p className="text-sm text-neutral-700 dark:text-neutral-300">{line}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+          ) : null}
+        </aside>
       </div>
-
-      {!status.hasInstall ? (
-        <EmptyPanel
-          title="Mitig8it starts after the GitHub App is installed"
-          description="Install the app on one repo, then sync here. Everything else stays hidden until the first review loop is working."
-          action={
-            <a
-              href={githubAppInstallUrl || GITHUB_APP_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
-            >
-              Install Mitig8it
-            </a>
-          }
-        />
-      ) : null}
     </div>
   )
 }

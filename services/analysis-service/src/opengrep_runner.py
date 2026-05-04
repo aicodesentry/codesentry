@@ -84,7 +84,17 @@ def _extract_scan_content(file_info: Dict[str, Any]) -> str:
     content = file_info.get("content")
     if isinstance(content, str) and content:
         return content
-    return _extract_file_content(file_info.get("patch", ""))
+    extracted = _extract_file_content(file_info.get("patch", ""))
+    path = str(file_info.get("path") or "")
+    if _file_extension(path) == ".go" and extracted and "package " not in extracted:
+        # Patch-only Go snippets are often just statements, which are not parseable
+        # as standalone files. Wrap them so OpenGrep can analyze the fragment.
+        indented = "\n".join(
+            f"    {line}" if line.strip() else ""
+            for line in extracted.splitlines()
+        )
+        return f'package main\n\nimport (\n    "net/http"\n    "os"\n    "path/filepath"\n)\n\nfunc _generated(r *http.Request) {{\n{indented}\n}}\n'
+    return extracted
 
 
 def _is_runtime_scannable_path(path: str) -> bool:

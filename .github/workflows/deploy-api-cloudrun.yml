@@ -18,20 +18,18 @@ jobs:
   deploy:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: services/api-service/package-lock.json
-
       - uses: google-github-actions/auth@v2
         with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+          workload_identity_provider: '${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
+          service_account: '${{ vars.GCP_SERVICE_ACCOUNT_EMAIL }}'
 
       - uses: google-github-actions/setup-gcloud@v2
         with:
@@ -50,23 +48,26 @@ jobs:
         run: |
           echo "DATABASE_URL=$(gcloud secrets versions access latest --secret=codesentry-database-url | tr -d '\n')" >> "$GITHUB_ENV"
 
-      - name: Install API dependencies
-        working-directory: services/api-service
-        run: npm ci
-
-      - name: Run API migrations
-        working-directory: services/api-service
-        env:
-          NODE_ENV: production
-        run: npm run db:migrate
+      - name: Set release metadata
+        run: |
+          DEPLOY_SHA="${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}"
+          echo "DEPLOY_SHA=$DEPLOY_SHA" >> "$GITHUB_ENV"
+          echo "IMAGE=us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/api:api-${DEPLOY_SHA::12}" >> "$GITHUB_ENV"
 
       - name: Build API image
         run: |
-          TAG="api-${GITHUB_SHA::12}"
-          IMAGE="us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/api:${TAG}"
-          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
           docker build -t "$IMAGE" ./services/api-service
           docker push "$IMAGE"
+
+      - name: Run API migrations from release image
+        env:
+          NODE_ENV: production
+        run: |
+          docker run --rm \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e NODE_ENV="$NODE_ENV" \
+            "$IMAGE" \
+            npm run db:migrate
 
       - name: Deploy API
         run: |

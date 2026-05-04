@@ -39,6 +39,16 @@ router.post('/:id/disconnect', authenticateToken, async (req, res) => {
   res.json({ repository, connected: false });
 });
 
+router.post('/:id/reprofile', authenticateToken, async (req, res) => {
+  const repository = await repoDb.queueManualReprofile(req.params.id, req.user.user_id);
+
+  if (!repository) {
+    return res.status(404).json({ error: 'Repository not found' });
+  }
+
+  res.json({ repository, queued: true });
+});
+
 router.patch('/:id/baseline', authenticateToken, async (req, res) => {
   const { enabled = true } = req.body;
   const repository = await repoDb.updateBaseline(req.params.id, req.user.user_id, enabled);

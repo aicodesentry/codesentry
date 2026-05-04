@@ -44,6 +44,9 @@ class TestBrokenAccessControl:
     def test_path_traversal_safe(self):
         assert not _find("path.traversal.user_path").pattern.search('open("config.json")')
 
+    def test_path_traversal_does_not_match_reprofile_function_name(self):
+        assert not _find("path.traversal.user_path").pattern.search("async function queueManualReprofile(repoId, userId) {")
+
     def test_missing_authz_delete(self):
         assert _find("authz.missing_function_level").pattern.search("def delete_user(user_id):")
 
