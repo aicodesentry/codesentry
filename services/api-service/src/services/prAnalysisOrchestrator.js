@@ -178,7 +178,7 @@ const extractReviewableLines = validatorPrivate.extractReviewableLines;
 const extractReviewableLineSpans = validatorPrivate.extractReviewableLineSpans;
 
 function fileExtension(path) {
-  const match = String(path || '').toLowerCase().match(/(\.[^.\/]+)$/);
+  const match = String(path || '').toLowerCase().match(/(\.[^./]+)$/);
   return match ? match[1] : '';
 }
 

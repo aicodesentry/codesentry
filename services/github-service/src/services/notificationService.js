@@ -1,5 +1,4 @@
 const nodemailer = require('nodemailer');
-const axios = require('axios');
 
 /**
  * Email Notification Service

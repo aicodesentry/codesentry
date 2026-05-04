@@ -342,7 +342,7 @@ class CommentFormatter {
     return names[category] || category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   }
 
-  getSecurityContext(type, severity) {
+  getSecurityContext(type, _severity) {
     const contexts = {
       // Underscore format (legacy)
       'sql_injection': 'SQL injection allows attackers to manipulate database queries, potentially leading to unauthorized data access, modification, or deletion.',
