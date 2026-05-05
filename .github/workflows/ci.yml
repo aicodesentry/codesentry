@@ -24,7 +24,7 @@ jobs:
     name: Secret scan (Gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
@@ -38,7 +38,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/dependency-review-action@v4
         with:
           # Change to critical if moderate/high noise is too high.
@@ -50,7 +50,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -69,7 +69,7 @@ jobs:
       run:
         working-directory: services/api-service
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -87,7 +87,7 @@ jobs:
       run:
         working-directory: services/github-service
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -105,7 +105,7 @@ jobs:
       run:
         working-directory: services/analysis-service/src
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -136,6 +136,6 @@ jobs:
           - github-service
           - analysis-service
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: docker build
         run: docker build "./services/${{ matrix.service }}"
