@@ -4,4 +4,4 @@ pydantic==2.13.3
 prometheus-client==0.21.0
 httpx==0.28.1
 semgrep==1.117.0
-openai==1.30.0
+openai==2.34.0
