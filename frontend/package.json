@@ -18,7 +18,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "lucide-react": "^0.395.0",
-    "react": "^18.2.0",
+    "react": "^19.2.6",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.30.2",
     "tailwind-merge": "^3.6.0"
@@ -27,7 +27,7 @@
     "@eslint/js": "^9.39.4",
     "@testing-library/jest-dom": "^6.4.0",
     "@testing-library/react": "^16.3.2",
-    "@types/react": "^18.2.37",
+    "@types/react": "^19.2.15",
     "@types/react-dom": "^18.2.15",
     "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.4.16",
