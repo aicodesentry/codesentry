@@ -106,7 +106,7 @@ async function fetchInstallationRepositories({ installationId, githubToken }) {
     }
 
     return repositories;
-  } catch (appTokenError) {
+  } catch (_appTokenError) {
     // Fall back to user-scoped endpoint when app credentials are unavailable.
   }
 
