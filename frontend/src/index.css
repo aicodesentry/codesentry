@@ -15,11 +15,15 @@
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    background-color: #f8fafc;
+    color: #0f172a;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   .dark body {
-    @apply bg-slate-950 text-slate-100;
+    background-color: #020617;
+    color: #f1f5f9;
   }
 
   h1,
