@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Bell, Bot, Github, ShieldAlert, UserRound } from 'lucide-react'
+import { Bell, Bot, ExternalLink, ShieldAlert, UserRound } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { PageHeader, PageStats } from '../components/PageSection'
 
@@ -61,7 +61,7 @@ const ProfilePage = () => {
           {
             label: 'GitHub login',
             value: user?.github_username || 'unknown',
-            icon: <Github className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />,
+            icon: <ExternalLink className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />,
           },
           {
             label: 'Active toggles',
