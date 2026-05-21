@@ -216,7 +216,7 @@ export const analysisAPI = {
       return data
     } catch (error) {
       if (error?.response?.status === 404) {
-        throw new Error('Interactive analysis endpoint is not available')
+        throw new Error('Interactive analysis endpoint is not available', { cause: error })
       }
       throw error
     }
