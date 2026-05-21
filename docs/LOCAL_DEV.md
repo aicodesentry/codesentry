@@ -31,3 +31,5 @@
   - `cd services/analysis-service/src && python -m unittest test_pipeline.py`
 - E2E smoke:
   - `./scripts/e2e-happy-path.sh`
+- Live GitHub suggestion validation:
+  - `TARGET_REPO=owner/repo ./scripts/live-suggestion-validation.sh`
