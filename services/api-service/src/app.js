@@ -4,7 +4,7 @@ const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const client = require('prom-client');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 
 const authRoutes = require('./routes/auth');
 const installationRoutes = require('./routes/installations');
@@ -81,7 +81,7 @@ function createApp() {
   );
 
   app.use((req, res, next) => {
-    const correlationId = req.headers['x-correlation-id'] || uuidv4();
+    const correlationId = req.headers['x-correlation-id'] || randomUUID();
     req.correlationId = correlationId;
     res.setHeader('X-Correlation-ID', correlationId);
     next();
