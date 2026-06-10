@@ -18,7 +18,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.1.0",
-    "helmet": "^8.1.0",
+    "helmet": "^8.2.0",
     "nodemailer": "^8.0.4",
     "pg": "^8.21.0",
     "prom-client": "^15.1.3"
