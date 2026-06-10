@@ -91,4 +91,4 @@ Core behaviors:
 - Production model: independently deployed containers/services with the same env contract, managed Postgres/Redis, and separately hosted frontend.
 
 ## Repo Note: Legacy/Parallel Components
-The repository still contains older gRPC/MCP artifacts and an older production compose path that are not part of the current primary runtime.
+The repository still contains an older production compose path that is not part of the current primary runtime.

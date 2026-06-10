@@ -16,7 +16,7 @@ Deployments are performed by GitHub Actions only:
 - `.github/workflows/deploy-frontend-firebase.yml`
 
 Cloud Run deploy workflows are serialized with a shared `concurrency` group to avoid quota spikes and race conditions.
-The API deploy workflow now runs database migrations before deploying the new revision.
+The API deploy workflow now runs database migrations before deploying the new revision and keeps one warm instance to avoid cold-start `429` responses on first hit.
 
 ## Required GitHub Configuration
 ### Repository secrets

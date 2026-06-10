@@ -90,7 +90,7 @@ jobs:
 
       - name: Build API image
         run: |
-          docker build -t "$IMAGE" ./services/api-service
+          docker build -f Dockerfile.prod -t "$IMAGE" ./services/api-service
           docker push "$IMAGE"
 
       - name: Run API migrations from release image
@@ -110,6 +110,7 @@ jobs:
             --region '${{ vars.GCP_REGION }}' \
             --project '${{ vars.GCP_PROJECT_ID }}' \
             --platform managed \
+            --min-instances 1 \
             --update-env-vars "\
               NODE_ENV=production,\
               FRONTEND_URL=${{ vars.CODESENTRY_FRONTEND_URL }},\

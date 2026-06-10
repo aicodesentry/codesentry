@@ -11,7 +11,7 @@
 - Full stack with containers: `docker-compose up --build` (start) and `docker-compose down` (stop/clean). Wait for health before UI work.
 - API service: `cd services/api-service && npm install && npm run dev`; run `npm test` for Jest + Supertest suite.
 - GitHub service: `cd services/github-service && npm install && npm run dev` (no automated tests yet).
-- Analysis service: `cd services/analysis-service && pip install -r src/requirements.txt && uvicorn src.main:app --reload --port 8001`; for gRPC only, run `python src/grpc_server/analysis_server.py`.
+- Analysis service: `cd services/analysis-service && pip install -r src/requirements.txt && uvicorn src.main:app --reload --port 8001`.
 - Frontend: `cd frontend && npm install && npm run dev`; production build with `npm run build`; lint with `npm run lint`.
 
 ## Coding Style & Naming Conventions
