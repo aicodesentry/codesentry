@@ -1,6 +1,6 @@
 # Scripts
 
-This directory is intentionally kept in Git. It contains operational helpers, verification queries, and one-off maintenance tools.
+The `scripts/` directory is intentionally kept in Git. It contains operational helpers, verification queries, and one-off maintenance tools.
 
 ## Safety levels
 

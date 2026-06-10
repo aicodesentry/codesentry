@@ -1,12 +1,11 @@
-# CodeSentry Model Benchmarks
+# Mitig8it Model Benchmarks
 
-Benchmark dataset for evaluating LLM models on security vulnerability detection. Used to compare candidate models before integrating them into the CodeSentry analysis pipeline.
+Benchmark dataset for evaluating LLM models on security vulnerability detection. Use it to compare candidate models before integrating them into the Mitig8it analysis pipeline.
 
 ## Structure
 
 ```
 benchmarks/
-├── README.md
 ├── dataset/
 │   ├── true_positives/    # Code with known vulnerabilities
 │   │   ├── python.json
@@ -27,22 +26,32 @@ benchmarks/
 - **24 true positives** — code with confirmed vulnerabilities, labeled with CWE and severity
 - **15 true negatives** — safe code that naive scanners might flag (parameterized queries, safe loaders, etc.)
 - Covers: Python, JavaScript/TypeScript, Java, Go
-- Derived from CodeSentry's existing regex and OpenGrep rule sets
+- Derived from Mitig8it's existing regex and OpenGrep rule sets
 
 ## Running
 
 ```bash
 # Install dependency
-pip install anthropic
+pip install anthropic openai
 
-# Run against a model
+# Run against an Anthropic model
 export ANTHROPIC_API_KEY=sk-...
-python benchmarks/eval.py --model claude-sonnet-4-6
-python benchmarks/eval.py --model claude-haiku-4-5-20251001
-python benchmarks/eval.py --model claude-opus-4-6
+python benchmarks/eval.py --provider anthropic --model claude-sonnet-4-6
+python benchmarks/eval.py --provider anthropic --model claude-haiku-4-5-20251001
+python benchmarks/eval.py --provider anthropic --model claude-opus-4-6
+
+# Run against an OpenAI model
+export OPENAI_API_KEY=sk-...
+python benchmarks/eval.py --provider openai --model gpt-4o-mini
+
+# Run multiple OpenAI models
+python benchmarks/eval.py --provider openai --models gpt-4o-mini,gpt-4o,gpt-5
+
+# Run all supported models
+python benchmarks/eval.py --all
 
 # Limit samples for quick test
-python benchmarks/eval.py --model claude-sonnet-4-6 --samples 5
+python benchmarks/eval.py --provider openai --model gpt-4o-mini --samples 5
 ```
 
 ## Metrics
@@ -56,7 +65,7 @@ The eval script measures:
 
 ## Adding samples
 
-Add entries to the relevant JSON file in `dataset/true_positives/` or `dataset/true_negatives/`. Each entry needs:
+Add entries to the relevant JSON file under `benchmarks/dataset/true_positives/` or `benchmarks/dataset/true_negatives/`. Each entry needs:
 
 ```json
 {

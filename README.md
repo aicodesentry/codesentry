@@ -1,145 +1,151 @@
 # Mitig8it
 
-A platform to plug into GitHub, analyze every pull request, and deliver actionable security reviews with a 3-tier detection pipeline (regex, OpenGrep AST analysis, LLM-powered triage) plus dependency checks.
+Mitig8it is a GitHub-native security reviewer for pull requests. It receives GitHub App webhooks, analyzes changed PR files with a three-tier detection pipeline, stores results in PostgreSQL, and posts review feedback back to GitHub.
 
-## How It Works
+The repository is still named `codesentry` and some environment variables, package names, metrics, and Cloud Run resources still use the CodeSentry name. Treat Mitig8it as the product name and CodeSentry as the current infrastructure/code namespace.
 
-1. Developer opens a PR
-2. Mitig8it receives the webhook, analyzes changed files
-3. Posts a PR review: `CHANGES_REQUESTED` if critical/high findings, `COMMENT` otherwise
-4. Each finding is annotated on the exact line with severity, evidence, and remediation
+## Runtime Components
 
-No CI config. No manual scans. Just install, invite the Mitig8it App, and merge with confidence.
+- `frontend/` - React 18 + Vite dashboard served locally on port `5173`.
+- `services/api-service/` - Node.js/Express control plane on port `3000`; handles auth, webhooks, repository/PR/finding APIs, orchestration, and migrations.
+- `services/github-service/` - Node.js/Express GitHub adapter on port `3002`; fetches PR files and posts comments/check runs through the GitHub App.
+- `services/analysis-service/` - FastAPI analysis engine on port `8001`; runs regex rules, dependency checks, OpenGrep rules, and optional LLM triage.
+- `postgres` - PostgreSQL 15 system of record.
+- `prometheus` - Local metrics scrape target on port `9090`.
 
-## Highlights
+Primary local wiring lives in [docker-compose.yml](/Users/nehachaudhari/Developer/codesentry/docker-compose.yml:1). Production deployment wiring lives in `.github/workflows/`.
 
-- **Multi-taxonomy findings** – every issue carries internal typing plus CWE, OWASP, ATT&CK, and CAPEC mappings so compliance reports stay consistent.
-- **Clusters, not noise** – Tier 1 regex hits, dependency detectors, and OpenGrep runs dedupe/cluster into single reviewer-facing findings with stronger evidence snippets.
-- **LLM-powered triage** – Tier 3 LLM analysis filters false positives and enriches findings with context, keeping signal-to-noise ratio high.
-- **Guided onboarding** – empty states and first-run checklist explain how to connect GitHub, trigger the first analysis, and view the review summary.
+## How PR Analysis Flows
 
-## Detection Engine
+1. GitHub sends `pull_request`, `installation`, or `installation_repositories` events to `POST /webhooks/github` on the API service.
+2. The API verifies the webhook signature with `GITHUB_WEBHOOK_SECRET` and deduplicates deliveries by `webhook_deliveries.delivery_id`.
+3. For PR events, the API persists repository/PR state, creates an `analysis_runs` row, and starts orchestration.
+4. The API calls the GitHub service with `GITHUB_SERVICE_INTERNAL_SECRET` to fetch changed files and publish GitHub feedback.
+5. The API calls the analysis service with an internal secret to analyze changed files.
+6. Findings are normalized, clustered, fingerprinted, stored in PostgreSQL, filtered by suppressions/baseline state, and surfaced in the dashboard.
+7. High-confidence findings can be posted inline; summaries/check runs are posted through the GitHub service.
 
-Three-tier analysis pipeline:
+## Detection Pipeline
 
-**Tier 1 — Regex Pattern Matching** (< 100ms, 35 rules)
-Fast deterministic detection covering CWE Top 25 and OWASP Top 10.
+- Tier 1: deterministic regex and dependency-risk checks in `services/analysis-service/src/security_rules.py`.
+- Tier 2: OpenGrep AST rules in `services/analysis-service/src/opengrep_rules/`.
+- Tier 3: optional LLM triage through `GEMINI_API_KEY`; failures are non-blocking.
 
-**Tier 2 — OpenGrep AST Analysis** (2-5s, 25 rules)
-Language-aware analysis with taint tracking and data flow across Python, JavaScript, TypeScript, Java, Go, Ruby, PHP, and C#.
-
-**Tier 3 — LLM Triage** (10-30s)
-AI-powered review of Tier 1+2 findings to filter false positives, validate exploitability, and adjust severity based on code context.
-
-### Coverage (35 CWEs)
-
-| Category | CWEs |
-|----------|------|
-| Injection | SQL (89), Command (78), Code (95), NoSQL (943), LDAP (90), Template (1336) |
-| XSS | DOM-based, innerHTML, dangerouslySetInnerHTML (79) |
-| Broken Access Control | Missing auth (862, 306), Path traversal (22), CORS (942), CSRF (352), Open redirect (601) |
-| Cryptographic Failures | Weak hash (327), Weak password hash (916), Weak random (330), Hardcoded IV (329) |
-| Secrets | Hardcoded credentials (798) |
-| Deserialization | pickle, yaml.load, marshal, ObjectInputStream (502) |
-| SSRF | Untrusted URL fetch (918) |
-| Security Misconfiguration | Debug mode (489), TLS disabled (295), Verbose errors (209), Unsafe upload (434) |
-| Memory Safety | Buffer overflow (120), Format string (134) |
-| Other | XXE (611), Integer overflow (190), Race conditions (362, 367), Sensitive logs (532), Rate limiting (770) |
-
-Plus 11 dependency risk patterns for known vulnerable package versions.
-
-## Architecture
-
-```
-GitHub PR webhook
-    |
-    v
-API Service (Node.js) ── orchestrates analysis, persists findings
-    |
-    +── Analysis Service (Python/FastAPI) ── Tier 1 regex + Tier 2 OpenGrep + Tier 3 LLM triage
-    |
-    +── GitHub Service (Node.js) ── posts PR reviews, check runs
-    |
-    v
-PostgreSQL ── findings, analysis runs, repositories, users
-```
-
-**Services:**
-- **Frontend** — React + Vite dashboard. OAuth login, repo management, analysis reports.
-- **API Service** — Webhook ingestion, analysis orchestration, REST APIs.
-- **GitHub Service** — GitHub App auth, PR file fetching, review posting.
-- **Analysis Service** — Security rule engine (regex + OpenGrep + LLM triage).
-
-**Infrastructure:**
-- PostgreSQL (sole data store)
-- Redis (ephemeral cache)
-- Google Cloud Run (services)
-- Firebase Hosting (frontend)
+The combined production path is `POST /analyze/pr`. Tier-specific endpoints also exist for focused testing: `/analyze/pr/tier1`, `/analyze/pr/tier2`, and `/analyze/pr/tier3`.
 
 ## Quick Start
 
 ```bash
-# 1. Bootstrap local env and local-only secrets
 ./scripts/setup-local-dev.sh
-
-# 2. Fill in GitHub credentials in .env
-#    GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_APP_ID,
-#    GITHUB_APP_PRIVATE_KEY
-
-# 3. Install the git hook that blocks direct pushes to main/master
 ./scripts/install-git-hooks.sh
+```
 
-# 4. Validate
+Then fill in real GitHub values in `.env`:
+
+- `GITHUB_CLIENT_ID`
+- `GITHUB_CLIENT_SECRET`
+- `GITHUB_APP_ID`
+- `GITHUB_APP_PRIVATE_KEY`
+- `GITHUB_WEBHOOK_SECRET` if you do not want the generated local value
+
+Validate and start:
+
+```bash
 ./scripts/validate-env.sh
-
-# 5. Start
 docker-compose up --build
 ```
 
-- Frontend: http://localhost:5173
-- API: http://localhost:3000
-- Analysis: http://localhost:8001
-- Prometheus: http://localhost:9090
+Local URLs:
 
-Single root `.env` feeds all services via `docker-compose env_file:`. No per-service env files needed.
+- Frontend: `http://localhost:5173`
+- API: `http://localhost:3000`
+- GitHub service: internal Docker service on `github-service:3002`; expose manually for standalone development
+- Analysis: internal Docker service on `analysis-service:8001`; expose manually for direct local calls
+- Prometheus: `http://localhost:9090`
 
-## Local Development
-
-- `./scripts/setup-local-dev.sh` creates a root `.env` from `.env.example` and generates local-only app secrets when placeholders are still present.
-- `./scripts/install-git-hooks.sh` configures `.githooks/pre-push`, which blocks direct pushes to `main` and `master`.
-- `docker-compose up --build` runs the full stack locally.
-- Local Prometheus scrapes `api-service`, `github-service`, and `analysis-service` on `http://localhost:9090`.
-- If Docker is not running, the app stack will not start and the API/database-backed counts will be unavailable.
-
-Recommended workflow:
+## Standalone Development
 
 ```bash
-git checkout -b feat/my-change
-./scripts/setup-local-dev.sh
-./scripts/install-git-hooks.sh
-docker-compose up --build
+# API
+cd services/api-service
+npm install
+npm run dev
+
+# GitHub service
+cd services/github-service
+npm install
+npm run dev
+
+# Analysis service
+cd services/analysis-service
+pip install -r src/requirements.txt
+uvicorn src.main:app --reload --port 8001
+
+# Frontend
+cd frontend
+npm install
+npm run dev
 ```
 
-## Testing
+The Node services load the root `.env` automatically as a fallback. For standalone Python runs, export the needed values from the root `.env` before starting Uvicorn.
+
+## Test and Verification
 
 ```bash
-# Security rule tests (94 tests)
-cd services/analysis-service/src && python -m pytest tests/ -v
+# Frontend lint, tests, and build
+cd frontend
+npm run lint
+npm test
+npm run build
 
 # API tests
-cd services/api-service && npm test
+cd services/api-service
+npm test
 
-# Env validation
+# GitHub service tests
+cd services/github-service
+npm test
+
+# Analysis tests
+cd services/analysis-service/src
+pytest tests -q
+
+# Environment validation
 ./scripts/validate-env.sh
 ```
+
+CI also runs Gitleaks, dependency review on PRs, npm audits, Python `pip-audit`, Bandit, and Docker image builds for the backend services.
 
 ## Deployment
 
-Services deploy independently to Google Cloud Run via GitHub Actions on push to `main`. Secrets are managed through GCP Secret Manager. See `docs/DEPLOYMENT.md`.
+Deployments are performed by GitHub Actions after the `CI` workflow succeeds on `main`, or manually via `workflow_dispatch`.
 
-## Docs
+- Frontend deploys to Firebase Hosting.
+- API, GitHub service, and analysis service deploy to Cloud Run.
+- Images are pushed to Google Artifact Registry.
+- API migrations run from the release image before the API Cloud Run revision is deployed.
+- Secrets are read from GCP Secret Manager and GitHub Actions secrets/variables.
 
-- [Environment Setup](ENV_SETUP.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [GitHub App Setup](docs/GITHUB_APP_SETUP.md)
-- [Deployment](docs/DEPLOYMENT.md)
+See [cloud-run-firebase.md](/Users/nehachaudhari/Developer/codesentry/docs/deployment/cloud-run-firebase.md:1).
+
+## Documentation
+
+All project documentation lives under [docs/](/Users/nehachaudhari/Developer/codesentry/docs/README.md:1), organized by workflow:
+
+```text
+docs/
+  getting-started/   local setup, environment variables, GitHub App setup
+  architecture/      system overview, guardrails, known limitations
+  deployment/        CI/CD, Cloud Run/Firebase deployment, rollout notes
+  services/          frontend, API, GitHub service, analysis service
+  operations/        scripts, benchmarks, observability
+  contributors/      contributor guidelines
+```
+
+Start with the [Documentation Index](/Users/nehachaudhari/Developer/codesentry/docs/README.md:1). Common entry points:
+
+- [Local Development](/Users/nehachaudhari/Developer/codesentry/docs/getting-started/local-dev.md:1)
+- [Environment Setup](/Users/nehachaudhari/Developer/codesentry/docs/getting-started/environment.md:1)
+- [Architecture Overview](/Users/nehachaudhari/Developer/codesentry/docs/architecture/overview.md:1)
+- [CI/CD Pipeline](/Users/nehachaudhari/Developer/codesentry/docs/deployment/ci-cd-pipeline.md:1)
+- [Cloud Run and Firebase Deployment](/Users/nehachaudhari/Developer/codesentry/docs/deployment/cloud-run-firebase.md:1)
