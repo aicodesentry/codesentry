@@ -63,4 +63,4 @@ npm run db:verify
 - `ANALYSIS_SERVICE_URL`
 - `FRONTEND_URL`
 
-For the full env contract, see [environment.md](/Users/nehachaudhari/Developer/codesentry/docs/getting-started/environment.md:1).
+For the full env contract, see [environment.md](../getting-started/environment.md).

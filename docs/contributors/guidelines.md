@@ -15,10 +15,10 @@ Use this as the short contributor guide. Detailed setup and operations live in t
 
 ## Primary Docs
 
-- Local setup: [local-dev.md](/Users/nehachaudhari/Developer/codesentry/docs/getting-started/local-dev.md:1)
-- Environment contract: [environment.md](/Users/nehachaudhari/Developer/codesentry/docs/getting-started/environment.md:1)
-- Architecture: [overview.md](/Users/nehachaudhari/Developer/codesentry/docs/architecture/overview.md:1)
-- Deployment: [cloud-run-firebase.md](/Users/nehachaudhari/Developer/codesentry/docs/deployment/cloud-run-firebase.md:1)
+- Local setup: [local-dev.md](../getting-started/local-dev.md)
+- Environment contract: [environment.md](../getting-started/environment.md)
+- Architecture: [overview.md](../architecture/overview.md)
+- Deployment: [cloud-run-firebase.md](../deployment/cloud-run-firebase.md)
 
 ## Development Rules
 
