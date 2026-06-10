@@ -13,7 +13,7 @@ The repository is still named `codesentry` and some environment variables, packa
 - `postgres` - PostgreSQL 15 system of record.
 - `prometheus` - Local metrics scrape target on port `9090`.
 
-Primary local wiring lives in [docker-compose.yml](/Users/nehachaudhari/Developer/codesentry/docker-compose.yml:1). Production deployment wiring lives in `.github/workflows/`.
+Primary local wiring lives in [docker-compose.yml](docker-compose.yml). Production deployment wiring lives in `.github/workflows/`.
 
 ## How PR Analysis Flows
 
@@ -126,11 +126,11 @@ Deployments are performed by GitHub Actions after the `CI` workflow succeeds on 
 - API migrations run from the release image before the API Cloud Run revision is deployed.
 - Secrets are read from GCP Secret Manager and GitHub Actions secrets/variables.
 
-See [cloud-run-firebase.md](/Users/nehachaudhari/Developer/codesentry/docs/deployment/cloud-run-firebase.md:1).
+See [cloud-run-firebase.md](docs/deployment/cloud-run-firebase.md).
 
 ## Documentation
 
-All project documentation lives under [docs/](/Users/nehachaudhari/Developer/codesentry/docs/README.md:1), organized by workflow:
+All project documentation lives under [docs/](docs/README.md), organized by workflow:
 
 ```text
 docs/
@@ -142,10 +142,10 @@ docs/
   contributors/      contributor guidelines
 ```
 
-Start with the [Documentation Index](/Users/nehachaudhari/Developer/codesentry/docs/README.md:1). Common entry points:
+Start with the [Documentation Index](docs/README.md). Common entry points:
 
-- [Local Development](/Users/nehachaudhari/Developer/codesentry/docs/getting-started/local-dev.md:1)
-- [Environment Setup](/Users/nehachaudhari/Developer/codesentry/docs/getting-started/environment.md:1)
-- [Architecture Overview](/Users/nehachaudhari/Developer/codesentry/docs/architecture/overview.md:1)
-- [CI/CD Pipeline](/Users/nehachaudhari/Developer/codesentry/docs/deployment/ci-cd-pipeline.md:1)
-- [Cloud Run and Firebase Deployment](/Users/nehachaudhari/Developer/codesentry/docs/deployment/cloud-run-firebase.md:1)
+- [Local Development](docs/getting-started/local-dev.md)
+- [Environment Setup](docs/getting-started/environment.md)
+- [Architecture Overview](docs/architecture/overview.md)
+- [CI/CD Pipeline](docs/deployment/ci-cd-pipeline.md)
+- [Cloud Run and Firebase Deployment](docs/deployment/cloud-run-firebase.md)
