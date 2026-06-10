@@ -1,39 +1,39 @@
 # Documentation
 
-All project Markdown documentation, except the root [README](/Users/nehachaudhari/Developer/codesentry/README.md:1), lives under this directory.
+All project Markdown documentation, except the root [README](../README.md), lives under this directory.
 
 ## Getting Started
 
-- [Local Development](/Users/nehachaudhari/Developer/codesentry/docs/getting-started/local-dev.md:1)
-- [Environment Variables](/Users/nehachaudhari/Developer/codesentry/docs/getting-started/environment.md:1)
-- [GitHub App Setup](/Users/nehachaudhari/Developer/codesentry/docs/getting-started/github-app.md:1)
+- [Local Development](getting-started/local-dev.md)
+- [Environment Variables](getting-started/environment.md)
+- [GitHub App Setup](getting-started/github-app.md)
 
 ## Architecture
 
-- [Architecture Overview](/Users/nehachaudhari/Developer/codesentry/docs/architecture/overview.md:1)
-- [Security Guardrails](/Users/nehachaudhari/Developer/codesentry/docs/architecture/security-guardrails.md:1)
-- [Known Limitations](/Users/nehachaudhari/Developer/codesentry/docs/architecture/limitations.md:1)
+- [Architecture Overview](architecture/overview.md)
+- [Security Guardrails](architecture/security-guardrails.md)
+- [Known Limitations](architecture/limitations.md)
 
 ## Deployment
 
-- [CI/CD Pipeline](/Users/nehachaudhari/Developer/codesentry/docs/deployment/ci-cd-pipeline.md:1)
-- [Cloud Run and Firebase](/Users/nehachaudhari/Developer/codesentry/docs/deployment/cloud-run-firebase.md:1)
-- [P0 Rollout](/Users/nehachaudhari/Developer/codesentry/docs/deployment/p0-rollout.md:1)
-- [P1 Rollout](/Users/nehachaudhari/Developer/codesentry/docs/deployment/p1-rollout.md:1)
+- [CI/CD Pipeline](deployment/ci-cd-pipeline.md)
+- [Cloud Run and Firebase](deployment/cloud-run-firebase.md)
+- [P0 Rollout](deployment/p0-rollout.md)
+- [P1 Rollout](deployment/p1-rollout.md)
 
 ## Services
 
-- [Frontend](/Users/nehachaudhari/Developer/codesentry/docs/services/frontend.md:1)
-- [API Service](/Users/nehachaudhari/Developer/codesentry/docs/services/api-service.md:1)
-- [GitHub Service](/Users/nehachaudhari/Developer/codesentry/docs/services/github-service.md:1)
-- [Analysis Service](/Users/nehachaudhari/Developer/codesentry/docs/services/analysis-service.md:1)
+- [Frontend](services/frontend.md)
+- [API Service](services/api-service.md)
+- [GitHub Service](services/github-service.md)
+- [Analysis Service](services/analysis-service.md)
 
 ## Operations
 
-- [Scripts](/Users/nehachaudhari/Developer/codesentry/docs/operations/scripts.md:1)
-- [Benchmarks](/Users/nehachaudhari/Developer/codesentry/docs/operations/benchmarks.md:1)
-- [Observability](/Users/nehachaudhari/Developer/codesentry/docs/operations/observability.md:1)
+- [Scripts](operations/scripts.md)
+- [Benchmarks](operations/benchmarks.md)
+- [Observability](operations/observability.md)
 
 ## Contributors
 
-- [Contributor Guidelines](/Users/nehachaudhari/Developer/codesentry/docs/contributors/guidelines.md:1)
+- [Contributor Guidelines](contributors/guidelines.md)
