@@ -3,5 +3,5 @@ uvicorn[standard]==0.46.0
 pydantic==2.13.4
 prometheus-client==0.25.0
 httpx==0.28.1
-semgrep==1.163.0
+semgrep==1.136.0
 openai==2.36.0
