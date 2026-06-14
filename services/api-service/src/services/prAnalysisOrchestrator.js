@@ -1,5 +1,7 @@
 const axios = require('axios');
 const logger = require('../utils/logger');
+const { AnalysisGrpcClient } = require('../clients/analysisGrpcClient');
+const { GitHubGrpcClient } = require('../clients/githubGrpcClient');
 const { calculateFingerprint, normalizeFinding } = require('./findingUtils');
 const { validateSuggestedFix, __private: validatorPrivate } = require('./suggestedFixValidator');
 const findingsDb = require('../db/findings');
@@ -32,6 +34,26 @@ function severityIcon(severity) {
 const normalizeSuggestionPatch = validatorPrivate.normalizePatch;
 const looksLikeUnifiedDiff = validatorPrivate.looksLikeUnifiedDiff;
 const buildRepoAwareRemediation = validatorPrivate.buildRepoAwareRemediation;
+let analysisGrpcClient = null;
+let githubGrpcClient = null;
+
+function useGrpcTransport() {
+  return String(process.env.INTERNAL_SERVICE_TRANSPORT || '').toLowerCase() === 'grpc';
+}
+
+function getAnalysisGrpcClient() {
+  if (!analysisGrpcClient) {
+    analysisGrpcClient = new AnalysisGrpcClient();
+  }
+  return analysisGrpcClient;
+}
+
+function getGitHubGrpcClient() {
+  if (!githubGrpcClient) {
+    githubGrpcClient = new GitHubGrpcClient();
+  }
+  return githubGrpcClient;
+}
 
 function shouldRenderSuggestion(finding, suggestionPatch) {
   if (!suggestionPatch) return false;
@@ -272,6 +294,22 @@ function hasTier3RenderableSuggestions(findings, files, repoProfile) {
 }
 
 async function githubServiceRequest(path, payload) {
+  if (useGrpcTransport()) {
+    const client = getGitHubGrpcClient();
+    const methods = {
+      '/internal/github/pulls/files': () => client.fetchPullRequestFiles(payload),
+      '/internal/github/files/content': () => client.fetchFileContents(payload),
+      '/internal/github/reviews/submit': () => client.submitPullRequestReview(payload),
+      '/internal/github/comments/inline': () => client.postInlineComment(payload),
+      '/internal/github/check-runs': () => client.createCheckRun(payload),
+    };
+
+    if (!methods[path]) {
+      throw new Error(`Unsupported GitHub gRPC operation for ${path}`);
+    }
+    return methods[path]();
+  }
+
   const baseUrl = process.env.GITHUB_SERVICE_URL || 'http://github-service:3002';
   const internalSecret = process.env.GITHUB_SERVICE_INTERNAL_SECRET;
   if (!internalSecret) {
@@ -432,6 +470,21 @@ async function applySuppressions(findingRows, repositoryId) {
 }
 
 async function callAnalysisTier(tierPath, payload, timeout) {
+  if (useGrpcTransport()) {
+    const client = getAnalysisGrpcClient();
+    const methods = {
+      '/analyze/pr': () => client.analyzePullRequest(payload, timeout),
+      '/analyze/pr/tier1': () => client.analyzeTier1(payload, timeout),
+      '/analyze/pr/tier2': () => client.analyzeTier2(payload, timeout),
+      '/analyze/pr/tier3': () => client.triageFindings(payload, timeout),
+    };
+
+    if (!methods[tierPath]) {
+      throw new Error(`Unsupported analysis gRPC operation for ${tierPath}`);
+    }
+    return methods[tierPath]();
+  }
+
   const baseUrl = process.env.ANALYSIS_SERVICE_URL || 'http://analysis-service:8001';
   const response = await axios.post(`${baseUrl}${tierPath}`, payload, {
     timeout,
@@ -733,6 +786,7 @@ module.exports = {
     didTier3MeaningfullyChangeFindings,
     enrichFilesForTier2,
     fileExtension,
+    githubServiceRequest,
     hasTier3RenderableSuggestions,
     normalizeSuggestionPatch,
     prioritizeReviewComments,

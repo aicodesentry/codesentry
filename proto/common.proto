@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package mitig8it.common.v1;
+
+import "google/protobuf/struct.proto";
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string status = 1;
+  string service = 2;
+  string version = 3;
+}
+
+message ReviewableLineSpan {
+  int32 start = 1;
+  int32 end = 2;
+}
+
+message ChangedFile {
+  string path = 1;
+  string patch = 2;
+  string content = 3;
+  int32 additions = 4;
+  int32 deletions = 5;
+  string status = 6;
+  string raw_url = 7;
+  repeated ReviewableLineSpan reviewable_line_spans = 8;
+}
+
+message TaxonomyMappings {
+  repeated string cwe = 1;
+  repeated string owasp = 2;
+  repeated string attack = 3;
+  repeated string capec = 4;
+}
+
+message TaxonomyVersions {
+  string cwe = 1;
+  string attack = 2;
+  string capec = 3;
+  string owasp = 4;
+}
+
+message TraceStep {
+  string kind = 1;
+  string label = 2;
+  string expr = 3;
+  string file = 4;
+  int32 line = 5;
+  string status = 6;
+}
+
+message EvidenceDetails {
+  string analysis_scope = 1;
+  bool is_taint_based = 2;
+  string source_type = 3;
+  string source_expr = 4;
+  string sink_type = 5;
+  string sink_expr = 6;
+  repeated string sanitizer_exprs = 7;
+  string sanitizer_status = 8;
+  repeated TraceStep trace_steps = 9;
+  string trace_summary = 10;
+  string reviewability = 11;
+  string trace_quality = 12;
+  string evidence_strength = 13;
+  string confidence_basis = 14;
+  string fix_scope = 15;
+  int32 fix_target_line = 16;
+  string fix_target_expr = 17;
+  string missing_control_type = 18;
+  bool auto_fix_eligible = 19;
+  google.protobuf.Struct extra = 20;
+}
+
+message Finding {
+  string rule_id = 1;
+  string internal_type = 2;
+  string title = 3;
+  string description = 4;
+  string category = 5;
+  string cwe_id = 6;
+  string owasp_category = 7;
+  TaxonomyMappings taxonomy_mappings = 8;
+  TaxonomyVersions taxonomy_versions = 9;
+  string severity = 10;
+  double confidence = 11;
+  string exploitability = 12;
+  string file_path = 13;
+  int32 line_start = 14;
+  int32 line_end = 15;
+  string code_snippet = 16;
+  string analysis_scope = 17;
+  string source = 18;
+  string sink = 19;
+  repeated string sanitizers_seen = 20;
+  string trace_summary = 21;
+  EvidenceDetails evidence_details = 22;
+  string evidence = 23;
+  string exploit_scenario = 24;
+  string remediation = 25;
+  string remediation_patch = 26;
+  string fingerprint = 27;
+}
+
+message ReviewComment {
+  string path = 1;
+  int32 line = 2;
+  string body = 3;
+}
+
+message RepoProfile {
+  google.protobuf.Struct data = 1;
+}

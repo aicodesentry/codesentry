@@ -90,7 +90,7 @@ jobs:
 
       - name: Build API image
         run: |
-          docker build -t "$IMAGE" ./services/api-service
+          docker build -f ./services/api-service/Dockerfile.prod -t "$IMAGE" ./services/api-service
           docker push "$IMAGE"
 
       - name: Run API migrations from release image
@@ -115,6 +115,12 @@ jobs:
               FRONTEND_URL=${{ vars.CODESENTRY_FRONTEND_URL }},\
               GITHUB_SERVICE_URL=${{ vars.CODESENTRY_GH_SERVICE_URL }},\
               ANALYSIS_SERVICE_URL=${{ vars.CODESENTRY_ANALYSIS_URL }},\
+              INTERNAL_SERVICE_TRANSPORT=grpc,\
+              GRPC_TRANSPORT_TLS=true,\
+              GITHUB_GRPC_URL=${{ vars.CODESENTRY_GH_SERVICE_URL }},\
+              GITHUB_GRPC_AUDIENCE=${{ vars.CODESENTRY_GH_SERVICE_URL }},\
+              ANALYSIS_GRPC_URL=${{ vars.CODESENTRY_ANALYSIS_URL }},\
+              ANALYSIS_GRPC_AUDIENCE=${{ vars.CODESENTRY_ANALYSIS_URL }},\
               GITHUB_CALLBACK_URL=${{ vars.CODESENTRY_FRONTEND_URL }}/auth/github/callback,\
               GITHUB_APP_SLUG=mitig8it,\
               GITHUB_SERVICE_INTERNAL_SECRET=${{ secrets.CODESENTRY_INTERNAL_SECRET }}" \
