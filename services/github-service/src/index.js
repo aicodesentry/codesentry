@@ -5,11 +5,17 @@ const client = require('prom-client');
 const webhookRoutes = require('./routes/webhooks');
 const internalRoutes = require('./routes/internal');
 const githubAppAuth = require('./services/githubAppAuth');
+const { startServer: startGrpcServer } = require('./github_grpc_server');
 const path = require('path');
 require('dotenv').config();
 require('dotenv').config({ path: path.resolve(__dirname, '../../../.env'), override: false });
 // Alias: root .env uses GITHUB_WEBHOOK_SECRET; this service expects WEBHOOK_SECRET
 process.env.WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || process.env.GITHUB_WEBHOOK_SECRET;
+
+if (process.env.SERVICE_MODE === 'grpc') {
+  startGrpcServer();
+  return;
+}
 
 // Validate required environment variables
 const requiredEnvVars = [
@@ -112,3 +118,7 @@ app.get('/health/github-app', async (_req, res) => {
 app.listen(PORT, () => {
   console.log(`GitHub Service running on port ${PORT}`);
 });
+
+if (process.env.ENABLE_GRPC_SERVER === 'true') {
+  startGrpcServer();
+}

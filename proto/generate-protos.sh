@@ -1,53 +1,68 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Generate gRPC stubs for all services
-set -e
+set -euo pipefail
 
-echo "🔨 Generating gRPC Protocol Buffers..."
+cd "$(dirname "$0")"
 
-# Create output directories
-mkdir -p generated/js
-mkdir -p generated/python
+PROTO_FILES=(common.proto analysis.proto github.proto)
+BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/mitig8it-protos.XXXXXX")"
+JS_OUT="${BUILD_DIR}/js"
+PYTHON_OUT="${BUILD_DIR}/python"
 
-# Generate JavaScript stubs (for Node.js services)
-echo "📦 Generating JavaScript stubs..."
+cleanup() {
+  rm -rf "${BUILD_DIR}"
+}
+trap cleanup EXIT
+
+echo "Generating gRPC stubs..."
+
+mkdir -p "${JS_OUT}" "${PYTHON_OUT}"
+
+echo "Generating JavaScript stubs..."
 npx grpc_tools_node_protoc \
-  --js_out=import_style=commonjs,binary:./generated/js \
-  --grpc_out=grpc_js:./generated/js \
+  --js_out=import_style=commonjs,binary:"${JS_OUT}" \
+  --grpc_out=grpc_js:"${JS_OUT}" \
   --plugin=protoc-gen-grpc=./node_modules/.bin/grpc_tools_node_protoc_plugin \
   -I . \
-  analysis.proto github.proto
+  "${PROTO_FILES[@]}"
 
-# Generate Python stubs (for Python analysis service)
-echo "🐍 Generating Python stubs..."
+echo "Generating Python stubs..."
 python -m grpc_tools.protoc \
   -I. \
-  --python_out=./generated/python \
-  --grpc_python_out=./generated/python \
-  analysis.proto github.proto
+  --python_out="${PYTHON_OUT}" \
+  --grpc_python_out="${PYTHON_OUT}" \
+  "${PROTO_FILES[@]}"
 
-# Copy generated files to service directories
-echo "📋 Copying generated files to services..."
+echo "Copying generated files to services..."
 
-# Copy to api-service
-mkdir -p ../services/api-service/src/grpc
-cp generated/js/* ../services/api-service/src/grpc/
+rm -rf ../services/api-service/src/grpc/generated
+mkdir -p ../services/api-service/src/grpc/generated
+cp \
+  "${JS_OUT}/analysis_grpc_pb.js" \
+  "${JS_OUT}/analysis_pb.js" \
+  "${JS_OUT}/common_pb.js" \
+  "${JS_OUT}/github_grpc_pb.js" \
+  "${JS_OUT}/github_pb.js" \
+  ../services/api-service/src/grpc/generated/
 
-# Copy to github-service
-mkdir -p ../services/github-service/src/grpc
-cp generated/js/* ../services/github-service/src/grpc/
+rm -rf ../services/github-service/src/grpc/generated
+mkdir -p ../services/github-service/src/grpc/generated
+cp \
+  "${JS_OUT}/common_pb.js" \
+  "${JS_OUT}/github_grpc_pb.js" \
+  "${JS_OUT}/github_pb.js" \
+  ../services/github-service/src/grpc/generated/
 
-# Copy to analysis-service
-mkdir -p ../services/analysis-service/src/grpc_generated
-cp generated/python/* ../services/analysis-service/src/grpc_generated/
+rm -rf ../services/analysis-service/src/grpc/generated
+mkdir -p ../services/analysis-service/src/grpc/generated
+cp \
+  "${PYTHON_OUT}/analysis_pb2.py" \
+  "${PYTHON_OUT}/analysis_pb2_grpc.py" \
+  "${PYTHON_OUT}/common_pb2.py" \
+  ../services/analysis-service/src/grpc/generated/
 
-echo "✅ gRPC stubs generated successfully!"
-echo ""
-echo "Generated files:"
-echo "  - JavaScript: proto/generated/js/"
-echo "  - Python: proto/generated/python/"
-echo ""
-echo "Files copied to services:"
-echo "  - api-service/src/grpc/"
-echo "  - github-service/src/grpc/"
-echo "  - analysis-service/src/grpc_generated/"
+echo "Done."
+echo "Generated:"
+echo "  services/api-service/src/grpc/generated"
+echo "  services/github-service/src/grpc/generated"
+echo "  services/analysis-service/src/grpc/generated"
