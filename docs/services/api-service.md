@@ -61,6 +61,14 @@ npm run db:verify
 - `GITHUB_SERVICE_INTERNAL_SECRET`
 - `GITHUB_SERVICE_URL`
 - `ANALYSIS_SERVICE_URL`
+- `INTERNAL_SERVICE_TRANSPORT`
+- `GRPC_TRANSPORT_TLS`
+- `GITHUB_GRPC_URL`
+- `GITHUB_GRPC_AUDIENCE`
+- `ANALYSIS_GRPC_URL`
+- `ANALYSIS_GRPC_AUDIENCE`
 - `FRONTEND_URL`
+
+In Cloud Run production, `INTERNAL_SERVICE_TRANSPORT=grpc` routes service-to-service calls to the GitHub and analysis gRPC services. REST remains the public API, webhook, and health-check surface.
 
 For the full env contract, see [environment.md](../getting-started/environment.md).

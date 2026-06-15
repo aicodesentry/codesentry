@@ -19,20 +19,19 @@ Backend images are pushed to Google Artifact Registry. Runtime secrets are injec
 2. `CI` runs security scans, tests, audits, and Docker builds.
 3. Each deploy workflow starts only if `CI` succeeded.
 4. Each workflow path-filters changes and skips if its component did not change.
-5. Backend workflows authenticate to Google Cloud with Workload Identity Federation.
+5. Backend workflows authenticate to Google Cloud with Workload Identity Federation when configured, otherwise with the legacy `GCP_SA_KEY` secret.
 6. Backend workflows build and push service images to Artifact Registry.
 7. The API workflow runs database migrations from the release image.
 8. Cloud Run or Firebase Hosting is deployed.
-9. Each workflow runs a smoke check against `/health` or the public frontend URL.
+9. Each workflow runs a smoke check: API uses `/health`, GitHub and analysis use Cloud Run gRPC health probes, and frontend uses the public site URL.
 
-The three Cloud Run workflows share the `cloudrun-deploy` concurrency group with `cancel-in-progress: false`, so backend deploys are serialized.
+Each Cloud Run workflow has its own concurrency group with `cancel-in-progress: false`, so repeated deploys for the same service queue without canceling API, GitHub, or analysis deploys for the same release.
 
 ## Required GitHub Repository Variables
 
 Shared Google Cloud variables:
 
-- `GCP_WORKLOAD_IDENTITY_PROVIDER`
-- `GCP_SERVICE_ACCOUNT_EMAIL`
+- `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT_EMAIL` for Workload Identity Federation. If these are not set, backend deploys fall back to `GCP_SA_KEY`.
 - `GCP_PROJECT_ID`
 - `GCP_REGION`
 - `GAR_REPOSITORY`
@@ -50,6 +49,7 @@ Frontend variables:
 ## Required GitHub Repository Secrets
 
 - `FIREBASE_TOKEN`
+- `GCP_SA_KEY` until Workload Identity Federation is fully configured.
 - `CODESENTRY_INTERNAL_SECRET`
 - `CODESENTRY_WEBHOOK_SECRET`
 
@@ -91,6 +91,12 @@ API service deploys with:
 - `FRONTEND_URL=${CODESENTRY_FRONTEND_URL}`
 - `GITHUB_SERVICE_URL=${CODESENTRY_GH_SERVICE_URL}`
 - `ANALYSIS_SERVICE_URL=${CODESENTRY_ANALYSIS_URL}`
+- `INTERNAL_SERVICE_TRANSPORT=grpc`
+- `GRPC_TRANSPORT_TLS=true`
+- `GITHUB_GRPC_URL=${CODESENTRY_GH_SERVICE_URL}`
+- `GITHUB_GRPC_AUDIENCE=${CODESENTRY_GH_SERVICE_URL}`
+- `ANALYSIS_GRPC_URL=${CODESENTRY_ANALYSIS_URL}`
+- `ANALYSIS_GRPC_AUDIENCE=${CODESENTRY_ANALYSIS_URL}`
 - `GITHUB_CALLBACK_URL=${CODESENTRY_FRONTEND_URL}/auth/github/callback`
 - `GITHUB_APP_SLUG=mitig8it`
 - `GITHUB_SERVICE_INTERNAL_SECRET=${CODESENTRY_INTERNAL_SECRET}`
@@ -99,13 +105,17 @@ GitHub service deploys with:
 
 - `NODE_ENV=production`
 - `FRONTEND_URL=${CODESENTRY_FRONTEND_URL}`
+- `SERVICE_MODE=grpc`
 - `GITHUB_SERVICE_INTERNAL_SECRET=${CODESENTRY_INTERNAL_SECRET}`
 - `WEBHOOK_SECRET=${CODESENTRY_WEBHOOK_SECRET}`
 
 Analysis service deploys with:
 
 - `FRONTEND_URL=${CODESENTRY_FRONTEND_URL}`
+- `SERVICE_MODE=grpc`
 - `ANALYSIS_SERVICE_INTERNAL_SECRET=${CODESENTRY_INTERNAL_SECRET}`
+
+In production, API-to-GitHub-service and API-to-analysis-service traffic uses Cloud Run HTTP/2 gRPC. REST endpoints remain available for public API/webhook traffic and health checks.
 
 ## Database Migrations
 
@@ -135,8 +145,8 @@ Manual `workflow_dispatch` bypasses these filters and deploys the selected compo
 ## Smoke Checks
 
 - API: Cloud Run service URL + `/health`
-- GitHub service: Cloud Run service URL + `/health`
-- Analysis service: Cloud Run service URL + `/health`
+- GitHub service: Cloud Run gRPC health probe during deployment.
+- Analysis service: Cloud Run gRPC health probe during deployment.
 - Frontend: `CODESENTRY_FRONTEND_URL` when configured
 
 ## Operational Notes
@@ -144,6 +154,6 @@ Manual `workflow_dispatch` bypasses these filters and deploys the selected compo
 - Keep Cloud Run service URLs aligned with the GitHub App callback and webhook configuration.
 - Keep `CODESENTRY_INTERNAL_SECRET` consistent across API, GitHub service, and analysis service.
 - Metrics endpoints require `x-internal-secret` in production.
-- The API service is deployed with `--min-instances 1` to reduce cold-start impact.
-- The deploy workflows currently use `--allow-unauthenticated`; application-level secrets protect internal API paths.
+- The deployed API service may retain `minScale=1` and always-allocated CPU from Cloud Run service configuration even though the workflow does not set those flags. Check live Cloud Run config before making cost assumptions.
+- The API service remains public. GitHub and analysis services are deployed as private gRPC services with API invoker access granted during deployment.
 - Rotate GitHub App private keys, OAuth secrets, webhook secrets, JWT secret, encryption key, and internal service secret through GitHub/GCP secret stores, not code.

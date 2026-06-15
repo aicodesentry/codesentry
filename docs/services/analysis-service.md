@@ -1,6 +1,6 @@
 # Analysis Service
 
-FastAPI service that analyzes changed pull request files.
+FastAPI/gRPC service that analyzes changed pull request files.
 
 ## Responsibilities
 
@@ -49,6 +49,8 @@ pytest tests -q
 
 Analysis requests and metrics require `x-internal-secret`. The expected value is `ANALYSIS_SERVICE_INTERNAL_SECRET` when set, otherwise `GITHUB_SERVICE_INTERNAL_SECRET`.
 
+Cloud Run production runs `analysis_grpc_server.py` on port `8080` with gRPC health probes. REST endpoints are primarily for local development and compatibility.
+
 ## Key Environment
 
 - `GITHUB_SERVICE_INTERNAL_SECRET`
@@ -56,5 +58,6 @@ Analysis requests and metrics require `x-internal-secret`. The expected value is
 - `GEMINI_API_KEY`
 - `FRONTEND_URL`
 - `ANALYSIS_CACHE_TTL_DAYS`
+- `SERVICE_MODE`
 
 For the full env contract, see [environment.md](../getting-started/environment.md).

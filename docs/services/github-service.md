@@ -1,6 +1,6 @@
 # GitHub Service
 
-Express service that isolates GitHub App operations from the API service.
+Express/gRPC service that isolates GitHub App operations from the API service.
 
 ## Responsibilities
 
@@ -13,7 +13,7 @@ Express service that isolates GitHub App operations from the API service.
 - Expose GitHub App health diagnostics.
 - Emit Prometheus metrics.
 
-The API service calls this service through `/internal/*` endpoints protected by `GITHUB_SERVICE_INTERNAL_SECRET`.
+The API service calls this service through `/internal/*` endpoints protected by `GITHUB_SERVICE_INTERNAL_SECRET` in local REST mode. In Cloud Run production, the API calls the GitHub gRPC service with Cloud Run IAM invoker access.
 
 ## Local Development
 
@@ -48,6 +48,7 @@ npm test       # Jest
 | `GITHUB_APP_ID` | GitHub App ID. |
 | `GITHUB_APP_PRIVATE_KEY` | GitHub App private key. |
 | `DATABASE_URL` | PostgreSQL connection string. |
+| `SERVICE_MODE` | Set to `grpc` in Cloud Run production to run the gRPC server as the service entrypoint. |
 
 Optional email variables:
 
@@ -65,6 +66,8 @@ Optional email variables:
 - `/internal/*`
 
 In production, `/metrics` requires `x-internal-secret` matching `METRICS_AUTH_TOKEN` or `GITHUB_SERVICE_INTERNAL_SECRET`.
+
+Cloud Run production uses gRPC health probes on port `8080`; REST endpoints are primarily for local development and compatibility.
 
 ## Tests
 

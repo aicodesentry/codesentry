@@ -26,7 +26,7 @@ flowchart TD
   FE -->|filter, npm build, smoke| Firebase[Firebase Hosting]
 ```
 
-Each deploy workflow first runs a `filter` job that skips the deploy if its component did not change. The three Cloud Run workflows share the `cloudrun-deploy` concurrency group, so they deploy one at a time.
+Each deploy workflow first runs a `filter` job that skips the deploy if its component did not change. Each Cloud Run workflow has its own concurrency group, so repeated deploys for one service queue without canceling deploys for the other services.
 
 ## Stage 1: CI (the gate)
 
@@ -64,8 +64,8 @@ Every deploy workflow has two jobs:
 
 - **CI gates deploy.** Deploys only start after CI passes on `main` (`workflow_run`).
 - **Path filtering.** Only the component that changed redeploys, so unrelated commits do not trigger full redeploys.
-- **Serialized backend deploys.** The three Cloud Run workflows share the `cloudrun-deploy` concurrency group (`cancel-in-progress: false`), so they deploy one at a time.
+- **Per-service backend deploy queues.** Each Cloud Run workflow uses a per-workflow concurrency group (`cancel-in-progress: false`), so a new API deploy queues behind an API deploy without canceling GitHub or analysis deploys.
 - **Deploy the tested commit.** Deploys check out the exact commit CI ran on (`head_sha`), not the branch tip.
-- **No stored cloud keys.** Backends authenticate to Google Cloud with Workload Identity Federation; runtime secrets come from Secret Manager.
+- **Google Cloud auth fallback.** Backends prefer Workload Identity Federation when `GCP_WORKLOAD_IDENTITY_PROVIDER` is configured; otherwise they use the existing `GCP_SA_KEY` secret. Runtime secrets come from Secret Manager.
 - **SHA-pinned actions.** Every action is pinned to a commit SHA to guard against supply-chain tampering.
-- **Smoke checks.** Every deploy verifies `/health` (or the public site) before being considered done.
+- **Smoke checks.** API deploy verifies `/health`, GitHub and analysis deploys use gRPC health probes, and frontend deploy verifies the public site before being considered done.

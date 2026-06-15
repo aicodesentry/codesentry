@@ -59,6 +59,16 @@ You still need real GitHub OAuth/App credentials for the full webhook and dashbo
 | `WEBHOOK_URL` | GitHub service / local ops | Public URL for local webhook testing, usually an ngrok URL. |
 | `FIREBASE_HOSTING_URL` | API | Additional allowed frontend origin. |
 
+Production gRPC transport variables are set by Cloud Run deploy workflows rather than local `.env`:
+
+- `INTERNAL_SERVICE_TRANSPORT=grpc`
+- `GRPC_TRANSPORT_TLS=true`
+- `GITHUB_GRPC_URL`
+- `GITHUB_GRPC_AUDIENCE`
+- `ANALYSIS_GRPC_URL`
+- `ANALYSIS_GRPC_AUDIENCE`
+- `SERVICE_MODE=grpc` for the GitHub and analysis Cloud Run services.
+
 ## Compose Overrides
 
 The root `.env` should use localhost-friendly values for standalone development:
@@ -100,7 +110,7 @@ uvicorn src.main:app --reload --port 8001
 Production values are injected by GitHub Actions and Cloud Run:
 
 - GitHub Actions repository variables provide project IDs, region, frontend/API URLs, and service account metadata.
-- GitHub Actions secrets provide deploy-time tokens such as `FIREBASE_TOKEN`, `CODESENTRY_INTERNAL_SECRET`, and `CODESENTRY_WEBHOOK_SECRET`.
+- GitHub Actions secrets provide deploy-time tokens such as `FIREBASE_TOKEN`, `GCP_SA_KEY`, `CODESENTRY_INTERNAL_SECRET`, and `CODESENTRY_WEBHOOK_SECRET`.
 - GCP Secret Manager provides runtime secrets such as `codesentry-database-url`, `codesentry-jwt-secret`, GitHub App credentials, and `codesentry-gemini-api-key`.
 
 See [cloud-run-firebase.md](../deployment/cloud-run-firebase.md).

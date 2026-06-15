@@ -7,8 +7,8 @@ flowchart LR
   GitHub[GitHub App] --> API[API Service]
   UI[Frontend] --> API
   API --> DB[(PostgreSQL)]
-  API --> GH[GitHub Service]
-  API --> Analysis[Analysis Service]
+  API -->|gRPC in Cloud Run| GH[GitHub Service]
+  API -->|gRPC in Cloud Run| Analysis[Analysis Service]
   Prom[Prometheus] --> API
   Prom --> GH
   Prom --> Analysis
@@ -22,8 +22,8 @@ The repository still uses the `codesentry` namespace in database names, metrics,
 |---|---|---:|---|
 | Frontend | `frontend/` | `5173` | React dashboard, onboarding, repositories, PR reports, findings, suppressions, account/settings pages. |
 | API service | `services/api-service/` | `3000` | Auth/session, GitHub OAuth, webhook ingest, PostgreSQL persistence, analysis orchestration, dashboard REST APIs. |
-| GitHub service | `services/github-service/` | `3002` inside Compose | GitHub App auth, PR changed-file fetch, summary comments, inline comments, check runs, optional notifications. |
-| Analysis service | `services/analysis-service/` | `8001` inside Compose | Changed-file security analysis using regex rules, dependency checks, OpenGrep, remediation patches, optional LLM triage. |
+| GitHub service | `services/github-service/` | `3002` inside Compose; `8080` gRPC in Cloud Run | GitHub App auth, PR changed-file fetch, summary comments, inline comments, check runs, optional notifications. |
+| Analysis service | `services/analysis-service/` | `8001` inside Compose; `8080` gRPC in Cloud Run | Changed-file security analysis using regex rules, dependency checks, OpenGrep, remediation patches, optional LLM triage. |
 | Postgres | Compose service | `5432` | Canonical relational data store. |
 | Prometheus | Compose service | `9090` | Local scrape target for service metrics. |
 
@@ -45,7 +45,7 @@ The API runs schema bootstrap locally on startup and production migrations throu
 
 ## GitHub Integration Plane
 
-`services/github-service` is the GitHub API adapter. It exposes:
+`services/github-service` is the GitHub API adapter. Locally and in REST compatibility mode it exposes:
 
 - `GET /health`
 - `GET /health/github-app`
@@ -55,9 +55,11 @@ The API runs schema bootstrap locally on startup and production migrations throu
 
 Internal routes are protected with `GITHUB_SERVICE_INTERNAL_SECRET`. The service accepts `WEBHOOK_SECRET`; local Compose maps this from the root `GITHUB_WEBHOOK_SECRET`.
 
+In Cloud Run production, API-to-GitHub-service communication uses `mitig8it.github.v1.GitHubService` over gRPC with Cloud Run HTTP/2 and IAM invoker access. REST health and webhook surfaces remain available where explicitly deployed.
+
 ## Analysis Plane
 
-`services/analysis-service` exposes:
+`services/analysis-service` exposes REST endpoints locally and in REST compatibility mode:
 
 - `GET /health`
 - `GET /metrics`
@@ -77,6 +79,8 @@ The combined `/analyze/pr` route:
 5. Clusters findings and returns normalized finding objects.
 
 OpenGrep and LLM failures are non-blocking in the combined path.
+
+In Cloud Run production, API-to-analysis-service communication uses `mitig8it.analysis.v1.AnalysisService` over gRPC with Cloud Run HTTP/2 and IAM invoker access.
 
 ## Data Model
 
@@ -108,7 +112,7 @@ Key behaviors:
 - Dashboard auth uses an `HttpOnly` `__session` cookie signed with `JWT_SECRET`.
 - Mutating dashboard requests require `X-CSRF-Protection: 1`.
 - API CORS allows configured frontend origins, CodeSentry Firebase hosting URLs, and Mitig8it production domains.
-- API-to-GitHub-service and API-to-analysis-service calls use shared internal secrets.
+- Production API-to-GitHub-service and API-to-analysis-service calls use gRPC over Cloud Run with IAM invoker access and ID-token audience configuration. Local and REST compatibility routes use shared internal secrets.
 - Production metrics endpoints require `x-internal-secret`.
 - GitHub OAuth tokens are encrypted with `ENCRYPTION_KEY`.
 
