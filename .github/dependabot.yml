@@ -1,44 +1,309 @@
 # Keeps dependencies current and surfaces security updates as PRs.
-# Routine minor/patch bumps are grouped into one PR per ecosystem to cut noise;
-# major bumps still come as individual PRs so they get a human review.
+# Patch and minor version updates are grouped per manifest directory. Major
+# updates are intentionally ungrouped so breaking changes stay isolated.
 # https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
 version: 2
 updates:
   - package-ecosystem: npm
-    directories:
-      - /frontend
-      - /services/api-service
-      - /services/github-service
+    directory: /frontend
     schedule:
       interval: weekly
-    open-pull-requests-limit: 10
+      day: monday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 4
+    cooldown:
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 2
+    versioning-strategy: increase-if-necessary
+    commit-message:
+      prefix: "deps(frontend)"
     groups:
-      npm-minor-patch:
+      frontend-production-patches:
         patterns:
           - "*"
+        dependency-type: production
+        update-types:
+          - patch
+      frontend-development-patches:
+        patterns:
+          - "*"
+        dependency-type: development
+        update-types:
+          - patch
+      frontend-production-minors:
+        patterns:
+          - "*"
+        dependency-type: production
         update-types:
           - minor
+      frontend-development-minors:
+        patterns:
+          - "*"
+        dependency-type: development
+        update-types:
+          - minor
+
+  - package-ecosystem: npm
+    directory: /services/api-service
+    schedule:
+      interval: weekly
+      day: tuesday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 4
+    cooldown:
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 2
+    versioning-strategy: increase-if-necessary
+    commit-message:
+      prefix: "deps(api)"
+    groups:
+      api-grpc-runtime:
+        patterns:
+          - "@grpc/*"
+          - "google-protobuf"
+        update-types:
+          - major
+          - minor
           - patch
+      api-production-patches:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@grpc/*"
+          - "google-protobuf"
+        dependency-type: production
+        update-types:
+          - patch
+      api-development-patches:
+        patterns:
+          - "*"
+        dependency-type: development
+        update-types:
+          - patch
+      api-production-minors:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@grpc/*"
+          - "google-protobuf"
+        dependency-type: production
+        update-types:
+          - minor
+      api-development-minors:
+        patterns:
+          - "*"
+        dependency-type: development
+        update-types:
+          - minor
+
+  - package-ecosystem: npm
+    directory: /services/github-service
+    schedule:
+      interval: weekly
+      day: wednesday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 4
+    cooldown:
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 2
+    versioning-strategy: increase-if-necessary
+    commit-message:
+      prefix: "deps(github)"
+    groups:
+      github-grpc-runtime:
+        patterns:
+          - "@grpc/*"
+          - "google-protobuf"
+        update-types:
+          - major
+          - minor
+          - patch
+      github-production-patches:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@grpc/*"
+          - "google-protobuf"
+        dependency-type: production
+        update-types:
+          - patch
+      github-development-patches:
+        patterns:
+          - "*"
+        dependency-type: development
+        update-types:
+          - patch
+      github-production-minors:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@grpc/*"
+          - "google-protobuf"
+        dependency-type: production
+        update-types:
+          - minor
+      github-development-minors:
+        patterns:
+          - "*"
+        dependency-type: development
+        update-types:
+          - minor
+
+  - package-ecosystem: npm
+    directory: /proto
+    schedule:
+      interval: weekly
+      day: thursday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 3
+    cooldown:
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 2
+    versioning-strategy: increase-if-necessary
+    commit-message:
+      prefix: "deps(proto-js)"
+    groups:
+      proto-js-grpc-tools:
+        patterns:
+          - "@grpc/*"
+          - "grpc-tools"
+        update-types:
+          - major
+          - minor
+          - patch
+      proto-js-patches:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@grpc/*"
+          - "grpc-tools"
+        dependency-type: development
+        update-types:
+          - patch
+      proto-js-minors:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@grpc/*"
+          - "grpc-tools"
+        dependency-type: development
+        update-types:
+          - minor
 
   - package-ecosystem: pip
     directory: /services/analysis-service/src
     schedule:
       interval: weekly
-    open-pull-requests-limit: 10
+      day: thursday
+      time: "10:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 3
+    cooldown:
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 2
+    versioning-strategy: increase-if-necessary
+    commit-message:
+      prefix: "deps(analysis)"
     groups:
-      pip-minor-patch:
+      analysis-grpc-runtime:
         patterns:
-          - "*"
+          - "grpcio"
+          - "grpcio-health-checking"
+          - "protobuf"
         update-types:
+          - major
           - minor
           - patch
+      analysis-pip-patches:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "grpcio"
+          - "grpcio-health-checking"
+          - "protobuf"
+        update-types:
+          - patch
+      analysis-pip-minors:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "grpcio"
+          - "grpcio-health-checking"
+          - "protobuf"
+        update-types:
+          - minor
+
+  - package-ecosystem: pip
+    directory: /proto
+    schedule:
+      interval: weekly
+      day: thursday
+      time: "11:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 3
+    cooldown:
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 2
+    versioning-strategy: increase-if-necessary
+    commit-message:
+      prefix: "deps(proto-py)"
+    groups:
+      proto-py-grpc-tools:
+        patterns:
+          - "grpcio"
+          - "grpcio-tools"
+          - "protobuf"
+        update-types:
+          - major
+          - minor
+          - patch
+      proto-py-patches:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "grpcio"
+          - "grpcio-tools"
+          - "protobuf"
+        update-types:
+          - patch
+      proto-py-minors:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "grpcio"
+          - "grpcio-tools"
+          - "protobuf"
+        update-types:
+          - minor
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+      day: friday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps(actions)"
     groups:
-      github-actions:
+      github-actions-patches:
         patterns:
           - "*"
+        update-types:
+          - patch
+      github-actions-minors:
+        patterns:
+          - "*"
+        update-types:
+          - minor
