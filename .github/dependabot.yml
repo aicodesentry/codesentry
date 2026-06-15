@@ -1,34 +1,44 @@
 # Keeps dependencies current and surfaces security updates as PRs.
+# Routine minor/patch bumps are grouped into one PR per ecosystem to cut noise;
+# major bumps still come as individual PRs so they get a human review.
 # https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
-
 version: 2
 updates:
   - package-ecosystem: npm
-    directory: /frontend
+    directories:
+      - /frontend
+      - /services/api-service
+      - /services/github-service
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: npm
-    directory: /services/api-service
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: npm
-    directory: /services/github-service
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: pip
     directory: /services/analysis-service/src
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
+    groups:
+      pip-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
