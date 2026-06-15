@@ -14,7 +14,7 @@
   "type": "commonjs",
   "dependencies": {
     "@grpc/grpc-js": "^1.14.4",
-    "axios": "^1.17.0",
+    "axios": "^1.18.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
