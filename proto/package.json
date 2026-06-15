@@ -8,7 +8,7 @@
     "clean": "rm -rf ../services/api-service/src/grpc/generated ../services/github-service/src/grpc/generated ../services/analysis-service/src/grpc/generated"
   },
   "devDependencies": {
-    "@grpc/grpc-js": "^1.9.0",
+    "@grpc/grpc-js": "^1.14.4",
     "@grpc/proto-loader": "^0.7.10",
     "grpc-tools": "^1.13.1"
   }
