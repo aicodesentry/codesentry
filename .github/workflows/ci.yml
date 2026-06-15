@@ -32,10 +32,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Compares base vs head dependency changes on PRs. Private repos need
-  # GitHub Advanced Security; public repos work out of the box.
+  # GitHub Advanced Security; public repos work out of the box. Set the
+  # ENABLE_DEPENDENCY_REVIEW repository variable to "true" after enabling
+  # Advanced Security/dependency graph support for a private repository.
   dependency-review:
     name: Dependency review
-    if: github.event_name == 'pull_request'
+    if: ${{ github.event_name == 'pull_request' && (!github.event.repository.private || vars.ENABLE_DEPENDENCY_REVIEW == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
