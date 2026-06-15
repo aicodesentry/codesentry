@@ -13,7 +13,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@radix-ui/react-slot": "^1.0.2",
+    "@radix-ui/react-slot": "^1.2.5",
     "axios": "^1.16.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
