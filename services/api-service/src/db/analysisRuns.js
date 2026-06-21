@@ -294,6 +294,81 @@ async function countCompletedRuns(repositoryId, excludeRunId) {
   return Number(result.rows[0].count);
 }
 
+function positiveInteger(value, fallback) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return fallback;
+  }
+  return parsed;
+}
+
+async function claimNextQueuedRun(staleAfterMinutes = 20) {
+  const staleMinutes = positiveInteger(staleAfterMinutes, 20);
+  const result = await pool.query(
+    `UPDATE analysis_runs ar
+     SET status = 'running',
+         started_at = NOW(),
+         completed_at = NULL,
+         error_message = NULL
+     FROM repositories r
+     WHERE ar.id = (
+       SELECT candidate.id
+       FROM analysis_runs candidate
+       JOIN repositories candidate_repo ON candidate_repo.id = candidate.repository_id
+       WHERE candidate_repo.is_active = true
+         AND (
+           candidate.status = 'pending'
+           OR (
+             candidate.status = 'running'
+             AND candidate.started_at < NOW() - ($1::int * INTERVAL '1 minute')
+           )
+         )
+       ORDER BY
+         CASE WHEN candidate.status = 'running' THEN 0 ELSE 1 END,
+         COALESCE(candidate.started_at, candidate.created_at) ASC,
+         candidate.created_at ASC
+       LIMIT 1
+       FOR UPDATE OF candidate SKIP LOCKED
+     )
+       AND r.id = ar.repository_id
+     RETURNING
+       ar.id AS analysis_run_id,
+       ar.repository_id,
+       r.github_id AS repository_github_id,
+       r.full_name AS repository_full_name,
+       r.installation_id,
+       ar.pull_request_id,
+       ar.pr_number AS pull_request_number,
+       ar.commit_sha,
+       r.baseline_set`,
+    [staleMinutes]
+  );
+
+  return result.rows[0] || null;
+}
+
+async function getQueueStats() {
+  const result = await pool.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+       COUNT(*) FILTER (WHERE status = 'running')::int AS running,
+       COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+       COALESCE(
+         EXTRACT(EPOCH FROM (NOW() - MIN(created_at) FILTER (WHERE status = 'pending'))),
+         0
+       )::int AS oldest_pending_seconds
+     FROM analysis_runs`
+  );
+
+  const row = result.rows[0] || {};
+  return {
+    pending: Number(row.pending || 0),
+    running: Number(row.running || 0),
+    failed: Number(row.failed || 0),
+    oldest_pending_seconds: Number(row.oldest_pending_seconds || 0),
+  };
+}
+
 async function markCompleted(runId, { findingsCount, counts, filesAnalyzed, checkRunId, reviewId }) {
   await pool.query(
     `UPDATE analysis_runs
@@ -323,5 +398,5 @@ async function markBaselineSet(repositoryId) {
 
 module.exports = {
   querySummary, listAnalyses, getAnalysisById,
-  countCompletedRuns, markCompleted, markFailed, markBaselineSet,
+  countCompletedRuns, claimNextQueuedRun, getQueueStats, markCompleted, markFailed, markBaselineSet,
 };

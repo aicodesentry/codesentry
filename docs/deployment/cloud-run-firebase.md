@@ -139,11 +139,32 @@ Manual `workflow_dispatch` bypasses these filters and deploys the selected compo
 - Analysis service: Cloud Run service URL + `/health`
 - Frontend: `CODESENTRY_FRONTEND_URL` when configured
 
+## Analysis Queue Wakeup
+
+The API uses a DB-backed analysis queue. Because the API service can scale to zero, configure Cloud Scheduler to periodically wake the queue worker through the authenticated internal tick endpoint:
+
+```bash
+API_URL="$(gcloud run services describe codesentry-api \
+  --project "$GCP_PROJECT_ID" \
+  --region "$GCP_REGION" \
+  --format='value(status.url)')"
+
+gcloud scheduler jobs create http mitig8it-analysis-queue-tick \
+  --project "$GCP_PROJECT_ID" \
+  --location "$GCP_REGION" \
+  --schedule="* * * * *" \
+  --uri="${API_URL}/internal/analysis-queue/tick" \
+  --http-method=POST \
+  --headers="x-internal-secret=${CODESENTRY_INTERNAL_SECRET}"
+```
+
+The endpoint returns current queue stats and requires `x-internal-secret`. Keep the scheduler secret aligned with `GITHUB_SERVICE_INTERNAL_SECRET` on the API service.
+
 ## Operational Notes
 
 - Keep Cloud Run service URLs aligned with the GitHub App callback and webhook configuration.
 - Keep `CODESENTRY_INTERNAL_SECRET` consistent across API, GitHub service, and analysis service.
 - Metrics endpoints require `x-internal-secret` in production.
-- The API service is deployed with `--min-instances 1` to reduce cold-start impact.
+- The API service is deployed with `--min-instances 0` for cost control; Cloud Scheduler should wake the analysis queue.
 - The deploy workflows currently use `--allow-unauthenticated`; application-level secrets protect internal API paths.
 - Rotate GitHub App private keys, OAuth secrets, webhook secrets, JWT secret, encryption key, and internal service secret through GitHub/GCP secret stores, not code.

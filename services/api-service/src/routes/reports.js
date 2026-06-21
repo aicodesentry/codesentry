@@ -3,7 +3,7 @@ const { pool } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const analysisDb = require('../db/analysisRuns');
 const findingsDb = require('../db/findings');
-const { triggerAnalysisJob } = require('../services/prAnalysisOrchestrator');
+const { notifyAnalysisQueued } = require('../services/prAnalysisOrchestrator');
 
 const router = express.Router();
 
@@ -113,20 +113,16 @@ router.post('/pr-analyses/:analysisId/retry', authenticateToken, async (req, res
     }
 
     await pool.query(
-      `UPDATE analysis_runs SET status = 'pending', error_message = NULL, started_at = NOW() WHERE id = $1`,
+      `UPDATE analysis_runs
+       SET status = 'pending',
+           error_message = NULL,
+           started_at = NULL,
+           completed_at = NULL
+       WHERE id = $1`,
       [analysisId]
     );
 
-    triggerAnalysisJob({
-      analysis_run_id: run.id,
-      repository_id: run.repository_id,
-      repository_full_name: run.repository_full_name,
-      installation_id: run.installation_id,
-      pull_request_id: run.pull_request_id,
-      pull_request_number: run.pr_number,
-      commit_sha: run.commit_sha,
-      baseline_set: run.baseline_set,
-    });
+    notifyAnalysisQueued();
 
     res.json({ success: true, message: 'Analysis retry triggered' });
   } catch (error) {

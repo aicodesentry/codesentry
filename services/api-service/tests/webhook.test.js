@@ -11,7 +11,7 @@ jest.mock('../src/services/githubApp', () => ({
   verifyWebhookSignature: jest.fn(() => false),
 }));
 jest.mock('../src/services/prAnalysisOrchestrator', () => ({
-  triggerAnalysisJob: jest.fn(),
+  notifyAnalysisQueued: jest.fn(),
 }));
 jest.mock('../src/db/installations', () => ({
   upsertInstallation: jest.fn(),
@@ -19,7 +19,7 @@ jest.mock('../src/db/installations', () => ({
 
 const { pool, transaction } = require('../src/config/database');
 const { verifyWebhookSignature } = require('../src/services/githubApp');
-const { triggerAnalysisJob } = require('../src/services/prAnalysisOrchestrator');
+const { notifyAnalysisQueued } = require('../src/services/prAnalysisOrchestrator');
 const { createApp } = require('../src/app');
 
 describe('webhook route', () => {
@@ -97,6 +97,6 @@ describe('webhook route', () => {
       expect.stringContaining('INSERT INTO analysis_runs'),
       expect.anything()
     );
-    expect(triggerAnalysisJob).not.toHaveBeenCalled();
+    expect(notifyAnalysisQueued).not.toHaveBeenCalled();
   });
 });

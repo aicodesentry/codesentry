@@ -32,7 +32,9 @@ async function start() {
   // Start background profile worker (processes one repo per minute)
   if (process.env.NODE_ENV !== 'test') {
     const { startWorkerLoop } = require('./services/profileWorker');
+    const { startAnalysisQueueWorker } = require('./services/prAnalysisOrchestrator');
     startWorkerLoop(60000);
+    startAnalysisQueueWorker();
   }
 
   const shutdown = async () => {

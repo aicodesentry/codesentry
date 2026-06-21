@@ -765,6 +765,84 @@ async function runAnalysisJob(payload) {
   }
 }
 
+let analysisQueueTimer = null;
+let analysisQueueDrainScheduled = false;
+let activeAnalysisWorkers = 0;
+
+function analysisQueueConcurrency() {
+  const parsed = Number(process.env.ANALYSIS_QUEUE_CONCURRENCY || 1);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 1;
+}
+
+function analysisQueueStaleMinutes() {
+  const parsed = Number(process.env.ANALYSIS_QUEUE_STALE_MINUTES || 20);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 20;
+}
+
+async function processQueuedAnalysisRun() {
+  const payload = await analysisRunsDb.claimNextQueuedRun(analysisQueueStaleMinutes());
+  if (!payload) {
+    return { processed: false };
+  }
+
+  logger.info('Claimed queued analysis run', {
+    runId: payload.analysis_run_id,
+    repositoryId: payload.repository_id,
+    prNumber: payload.pull_request_number,
+  });
+
+  await runAnalysisJob(payload);
+  return { processed: true, runId: payload.analysis_run_id };
+}
+
+function drainAnalysisQueue() {
+  const concurrency = analysisQueueConcurrency();
+
+  while (activeAnalysisWorkers < concurrency) {
+    activeAnalysisWorkers += 1;
+    let shouldContinue = false;
+
+    processQueuedAnalysisRun()
+      .then((result) => {
+        shouldContinue = result.processed;
+      })
+      .catch((error) => {
+        logger.error('Analysis queue worker failed', { error: error.message });
+      })
+      .finally(() => {
+        activeAnalysisWorkers -= 1;
+        if (shouldContinue) {
+          notifyAnalysisQueued();
+        }
+      });
+  }
+}
+
+function notifyAnalysisQueued() {
+  if (analysisQueueDrainScheduled) return;
+
+  analysisQueueDrainScheduled = true;
+  setImmediate(() => {
+    analysisQueueDrainScheduled = false;
+    drainAnalysisQueue();
+  });
+}
+
+function startAnalysisQueueWorker(intervalMs = Number(process.env.ANALYSIS_QUEUE_POLL_INTERVAL_MS || 5000)) {
+  if (analysisQueueTimer) return analysisQueueTimer;
+
+  const safeIntervalMs = Number.isFinite(intervalMs) && intervalMs > 0 ? intervalMs : 5000;
+  logger.info('Analysis queue worker started', {
+    intervalMs: safeIntervalMs,
+    concurrency: analysisQueueConcurrency(),
+    staleAfterMinutes: analysisQueueStaleMinutes(),
+  });
+
+  notifyAnalysisQueued();
+  analysisQueueTimer = setInterval(notifyAnalysisQueued, safeIntervalMs);
+  return analysisQueueTimer;
+}
+
 function triggerAnalysisJob(payload) {
   setImmediate(() => {
     runAnalysisJob(payload).catch((error) => {
@@ -778,6 +856,9 @@ function triggerAnalysisJob(payload) {
 
 module.exports = {
   triggerAnalysisJob,
+  notifyAnalysisQueued,
+  processQueuedAnalysisRun,
+  startAnalysisQueueWorker,
   __private: {
     buildReviewBody,
     buildReviewComment,
