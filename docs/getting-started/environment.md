@@ -49,7 +49,11 @@ You still need real GitHub OAuth/App credentials for the full webhook and dashbo
 | `ANALYSIS_SERVICE_INTERNAL_SECRET` | Analysis service | Dedicated analysis auth token; falls back to `GITHUB_SERVICE_INTERNAL_SECRET`. |
 | `ANALYSIS_SERVICE_URL` | API | Analysis service base URL. Compose overrides this to `http://analysis-service:8001`. |
 | `GITHUB_SERVICE_URL` | API | GitHub service base URL. Compose overrides this to `http://github-service:3002`. |
-| `GEMINI_API_KEY` | Analysis service | Enables LLM triage. If missing or triage fails, analysis continues without blocking. |
+| `LLM_PROVIDER` | Analysis service | Optional Tier 3 provider selector. Supported values: `openai`, `gemini`, `openai_compatible`. |
+| `LLM_MODEL` / `LLM_TRIAGE_MODEL` | Analysis service | Optional Tier 3 model name. Defaults depend on provider. |
+| `LLM_API_KEY` | Analysis service | Generic Tier 3 LLM API key. Preferred for production Secret Manager wiring. |
+| `LLM_BASE_URL` | Analysis service | Required only for `openai_compatible` providers. |
+| `GEMINI_API_KEY` / `OPENAI_API_KEY` | Analysis service | Provider-specific fallback keys for local development. |
 | `ANALYSIS_CACHE_TTL_DAYS` | Analysis service | Cache retention setting used by analysis cache helpers. |
 | `REDIS_URL` | Analysis service | Reserved for cache-backed analysis behavior; the current local Compose stack does not start Redis. |
 | `EMAIL_USER` | GitHub service | Optional SMTP user for email notifications. |
