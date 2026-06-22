@@ -1,9 +1,7 @@
 name: Dependabot auto-merge
 
-# Auto-merges low-risk Dependabot PRs (minor/patch) once required CI checks pass.
+# Auto-merges low-risk Dependabot PRs (minor/patch) once Required CI passes.
 # Major version bumps are skipped so they get a human review.
-# Requires: repo setting "Allow auto-merge" ON, plus branch protection on main
-# with required status checks (auto-merge only merges after those pass).
 
 on: pull_request
 
@@ -20,9 +18,42 @@ jobs:
         id: meta
         uses: dependabot/fetch-metadata@v3
 
-      - name: Enable auto-merge for minor/patch updates
+      - name: Merge minor/patch updates after Required CI
         if: steps.meta.outputs.update-type != 'version-update:semver-major'
-        run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # Prefer a PAT so Dependabot merges can trigger normal push/workflow_run
+          # pipelines. Falls back to GITHUB_TOKEN when the secret is not configured.
+          GH_TOKEN: ${{ secrets.GH_AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 60); do
+            required_ci="$(gh pr view "$PR_URL" \
+              --json statusCheckRollup \
+              --jq '.statusCheckRollup[]? | select(.name == "Required CI") | "\(.status) \(.conclusion)"' \
+              | tail -n 1)"
+
+            case "$required_ci" in
+              "COMPLETED SUCCESS")
+                echo "Required CI passed."
+                break
+                ;;
+              "COMPLETED FAILURE"|"COMPLETED CANCELLED"|"COMPLETED TIMED_OUT"|"COMPLETED ACTION_REQUIRED"|"COMPLETED SKIPPED")
+                echo "Required CI did not pass: $required_ci"
+                exit 1
+                ;;
+              *)
+                echo "Waiting for Required CI (${attempt}/60): ${required_ci:-not reported yet}"
+                sleep 10
+                ;;
+            esac
+
+            if [ "$attempt" -eq 60 ]; then
+              echo "Timed out waiting for Required CI."
+              exit 1
+            fi
+          done
+
+          gh pr merge --squash --delete-branch --match-head-commit "$HEAD_SHA" "$PR_URL"
