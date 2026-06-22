@@ -29,7 +29,7 @@ Primary local wiring lives in [docker-compose.yml](docker-compose.yml). Producti
 
 - Tier 1: deterministic regex and dependency-risk checks in `services/analysis-service/src/security_rules.py`.
 - Tier 2: OpenGrep AST rules in `services/analysis-service/src/opengrep_rules/`.
-- Tier 3: optional LLM triage through `GEMINI_API_KEY`; failures are non-blocking.
+- Tier 3: optional provider-agnostic LLM triage through `LLM_PROVIDER` + `LLM_API_KEY`; failures are non-blocking.
 
 The combined production path is `POST /analyze/pr`. Tier-specific endpoints also exist for focused testing: `/analyze/pr/tier1`, `/analyze/pr/tier2`, and `/analyze/pr/tier3`.
 

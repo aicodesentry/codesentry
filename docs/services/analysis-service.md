@@ -53,7 +53,10 @@ Analysis requests and metrics require `x-internal-secret`. The expected value is
 
 - `GITHUB_SERVICE_INTERNAL_SECRET`
 - `ANALYSIS_SERVICE_INTERNAL_SECRET`
-- `GEMINI_API_KEY`
+- `LLM_PROVIDER`
+- `LLM_MODEL` / `LLM_TRIAGE_MODEL`
+- `LLM_API_KEY`
+- `GEMINI_API_KEY` / `OPENAI_API_KEY` provider-specific local fallbacks
 - `FRONTEND_URL`
 - `ANALYSIS_CACHE_TTL_DAYS`
 
