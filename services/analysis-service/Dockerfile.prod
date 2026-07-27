@@ -1,6 +1,10 @@
 FROM python:3.11-slim
 
 WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
 COPY src/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -9,4 +13,4 @@ COPY src ./src
 
 EXPOSE 8080
 
-CMD ["python", "src/main.py"]
+CMD ["python", "src/analysis_grpc_server.py"]

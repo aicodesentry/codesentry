@@ -7,7 +7,7 @@ function normalizePrivateKey(rawKey) {
   if (!key.includes('BEGIN')) {
     try {
       key = Buffer.from(rawKey, 'base64').toString('utf8');
-    } catch (decodeErr) {
+    } catch (_decodeErr) {
       // base64 decode failed, use raw value
       key = rawKey;
     }

@@ -1,0 +1,59 @@
+name: Dependabot auto-merge
+
+# Auto-merges low-risk Dependabot PRs (minor/patch) once Required CI passes.
+# Major version bumps are skipped so they get a human review.
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v3
+
+      - name: Merge minor/patch updates after Required CI
+        if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # Prefer a PAT so Dependabot merges can trigger normal push/workflow_run
+          # pipelines. Falls back to GITHUB_TOKEN when the secret is not configured.
+          GH_TOKEN: ${{ secrets.GH_AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 60); do
+            required_ci="$(gh pr view "$PR_URL" \
+              --json statusCheckRollup \
+              --jq '.statusCheckRollup[]? | select(.name == "Required CI") | "\(.status) \(.conclusion)"' \
+              | tail -n 1)"
+
+            case "$required_ci" in
+              "COMPLETED SUCCESS")
+                echo "Required CI passed."
+                break
+                ;;
+              "COMPLETED FAILURE"|"COMPLETED CANCELLED"|"COMPLETED TIMED_OUT"|"COMPLETED ACTION_REQUIRED"|"COMPLETED SKIPPED")
+                echo "Required CI did not pass: $required_ci"
+                exit 1
+                ;;
+              *)
+                echo "Waiting for Required CI (${attempt}/60): ${required_ci:-not reported yet}"
+                sleep 10
+                ;;
+            esac
+
+            if [ "$attempt" -eq 60 ]; then
+              echo "Timed out waiting for Required CI."
+              exit 1
+            fi
+          done
+
+          gh pr merge --squash --delete-branch --match-head-commit "$HEAD_SHA" "$PR_URL"

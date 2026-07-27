@@ -9,8 +9,9 @@ import json
 import os
 import re
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
+from llm_client import call_llm, is_llm_configured
 from prometheus_client import Counter, Histogram
 from remediation_patches import build_remediation_patch
 
@@ -39,7 +40,6 @@ LLM_TRIAGE_TOKENS = Counter(
 
 # ── Configuration ───────────────────────────────────────────────────────
 
-LLM_TRIAGE_MODEL = os.getenv("LLM_TRIAGE_MODEL", "gpt-4o-mini")
 LLM_TRIAGE_TIMEOUT = int(os.getenv("LLM_TRIAGE_TIMEOUT_SECONDS", "45"))
 LLM_TRIAGE_MAX_FINDINGS = int(os.getenv("LLM_TRIAGE_MAX_FINDINGS", "100"))
 
@@ -99,7 +99,7 @@ Do not include any text outside the JSON array."""
 
 
 def is_llm_triage_enabled() -> bool:
-    return bool(os.getenv("OPENAI_API_KEY"))
+    return is_llm_configured()
 
 
 def _select_findings_for_triage(
@@ -562,25 +562,16 @@ def _build_triage_prompt(
     return "\n".join(parts)
 
 
-def _call_openai(user_prompt: str) -> Tuple[str, int, int]:
-    """Call OpenAI API. Returns (response_text, input_tokens, output_tokens)."""
-    from openai import OpenAI
-
-    client = OpenAI(timeout=LLM_TRIAGE_TIMEOUT)
-    response = client.chat.completions.create(
-        model=LLM_TRIAGE_MODEL,
+def _call_triage_llm(user_prompt: str) -> tuple[str, int, int]:
+    """Call the configured LLM provider. Returns (response_text, input_tokens, output_tokens)."""
+    response = call_llm(
+        system_prompt=SYSTEM_PROMPT,
+        user_prompt=user_prompt,
+        timeout_seconds=LLM_TRIAGE_TIMEOUT,
         temperature=0,
-        max_tokens=4096,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
+        max_output_tokens=4096,
     )
-
-    text = response.choices[0].message.content or ""
-    input_tokens = response.usage.prompt_tokens if response.usage else 0
-    output_tokens = response.usage.completion_tokens if response.usage else 0
-    return text, input_tokens, output_tokens
+    return response.text, response.input_tokens, response.output_tokens
 
 
 def _parse_triage_response(
@@ -769,7 +760,7 @@ def triage_findings(
         start = time.perf_counter()
 
         user_prompt = _build_triage_prompt(to_triage, file_patches, repo_profile)
-        raw_response, input_tokens, output_tokens = _call_openai(user_prompt)
+        raw_response, input_tokens, output_tokens = _call_triage_llm(user_prompt)
 
         LLM_TRIAGE_TOKENS.labels(direction="input").inc(input_tokens)
         LLM_TRIAGE_TOKENS.labels(direction="output").inc(output_tokens)

@@ -272,34 +272,11 @@ def dependency_findings(path: str, patch: str) -> List[Dict[str, Any]]:
     return findings
 
 
-@app.middleware("http")
-async def track_latency(request: Request, call_next):
-    REQUEST_COUNT.inc()
-    start = time.perf_counter()
-    response = await call_next(request)
-    ANALYSIS_DURATION.observe(time.perf_counter() - start)
-    return response
-
-
-@app.get("/health")
-async def health():
-    return {"status": "ok", "service": "analysis-service"}
-
-
-@app.get("/metrics")
-async def metrics(request: Request):
-    require_internal_auth(request)
-    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
-
-@app.post("/analyze/pr")
-async def analyze_pr(payload: AnalyzePRRequest, request: Request):
-    require_internal_auth(request)
+def analyze_pull_request_payload(payload: AnalyzePRRequest) -> Dict[str, Any]:
     if len(payload.files) > 300:
-        raise HTTPException(status_code=413, detail="Too many files in PR payload")
+        raise ValueError("Too many files in PR payload")
 
     findings: List[Dict[str, Any]] = []
-
     scannable_files = [f for f in payload.files if is_runtime_scannable_path(f.path)]
     repo_has_llm_flow = any(likely_llm_repo(f.path, f.patch) for f in scannable_files)
 
@@ -318,7 +295,6 @@ async def analyze_pr(payload: AnalyzePRRequest, request: Request):
 
         findings.extend(dependency_findings(path, patch))
 
-    # Tier 2: OpenGrep AST analysis
     try:
         opengrep_files = [{"path": f.path, "patch": f.patch} for f in scannable_files]
         opengrep_findings = run_opengrep(opengrep_files)
@@ -326,7 +302,6 @@ async def analyze_pr(payload: AnalyzePRRequest, request: Request):
     except Exception as e:
         print(f"OpenGrep analysis failed (non-blocking): {e}")
 
-    # Tier 3: LLM triage (non-blocking)
     try:
         file_patches = {f.path: f.patch for f in scannable_files}
         findings = triage_findings(findings, file_patches, None)
@@ -346,12 +321,9 @@ async def analyze_pr(payload: AnalyzePRRequest, request: Request):
     }
 
 
-@app.post("/analyze/pr/tier1")
-async def analyze_pr_tier1(payload: AnalyzePRRequest, request: Request):
-    """Tier 1: Regex pattern matching + dependency checks. Fast (<100ms)."""
-    require_internal_auth(request)
+def analyze_tier1_payload(payload: AnalyzePRRequest) -> Dict[str, Any]:
     if len(payload.files) > 300:
-        raise HTTPException(status_code=413, detail="Too many files in PR payload")
+        raise ValueError("Too many files in PR payload")
 
     findings: List[Dict[str, Any]] = []
     scannable_files = [f for f in payload.files if is_runtime_scannable_path(f.path)]
@@ -380,16 +352,22 @@ async def analyze_pr_tier1(payload: AnalyzePRRequest, request: Request):
     }
 
 
-@app.post("/analyze/pr/tier2")
-async def analyze_pr_tier2(payload: AnalyzePRRequest, request: Request):
-    """Tier 2: OpenGrep AST analysis with taint tracking (2-5s)."""
-    require_internal_auth(request)
+def analyze_tier2_payload(payload: AnalyzePRRequest) -> Dict[str, Any]:
     if len(payload.files) > 300:
-        raise HTTPException(status_code=413, detail="Too many files in PR payload")
+        raise ValueError("Too many files in PR payload")
 
     findings: List[Dict[str, Any]] = []
+    scannable_files = [f for f in payload.files if is_runtime_scannable_path(f.path)]
     try:
-        opengrep_files = [{"path": f.path, "patch": f.patch} for f in scannable_files]
+        opengrep_files = [
+            {
+                "path": f.path,
+                "patch": f.patch,
+                "content": f.content,
+                "reviewable_line_spans": f.reviewable_line_spans,
+            }
+            for f in scannable_files
+        ]
         findings = run_opengrep(opengrep_files)
     except Exception as e:
         print(f"OpenGrep analysis failed (non-blocking): {e}")
@@ -405,11 +383,7 @@ async def analyze_pr_tier2(payload: AnalyzePRRequest, request: Request):
     }
 
 
-@app.post("/analyze/pr/tier3")
-async def analyze_pr_tier3(payload: TriageRequest, request: Request):
-    """Tier 3: LLM triage of existing findings. Filters false positives."""
-    require_internal_auth(request)
-
+def triage_findings_payload(payload: TriageRequest) -> Dict[str, Any]:
     findings = payload.findings
     if not findings:
         return {
@@ -435,6 +409,62 @@ async def analyze_pr_tier3(payload: TriageRequest, request: Request):
         "findings": findings,
         "filtered_count": original_count - len(findings),
     }
+
+
+@app.middleware("http")
+async def track_latency(request: Request, call_next):
+    REQUEST_COUNT.inc()
+    start = time.perf_counter()
+    response = await call_next(request)
+    ANALYSIS_DURATION.observe(time.perf_counter() - start)
+    return response
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "analysis-service"}
+
+
+@app.get("/metrics")
+async def metrics(request: Request):
+    require_internal_auth(request)
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.post("/analyze/pr")
+async def analyze_pr(payload: AnalyzePRRequest, request: Request):
+    require_internal_auth(request)
+    try:
+        return analyze_pull_request_payload(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=413, detail=str(e))
+
+
+@app.post("/analyze/pr/tier1")
+async def analyze_pr_tier1(payload: AnalyzePRRequest, request: Request):
+    """Tier 1: Regex pattern matching + dependency checks. Fast (<100ms)."""
+    require_internal_auth(request)
+    try:
+        return analyze_tier1_payload(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=413, detail=str(e))
+
+
+@app.post("/analyze/pr/tier2")
+async def analyze_pr_tier2(payload: AnalyzePRRequest, request: Request):
+    """Tier 2: OpenGrep AST analysis with taint tracking (2-5s)."""
+    require_internal_auth(request)
+    try:
+        return analyze_tier2_payload(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=413, detail=str(e))
+
+
+@app.post("/analyze/pr/tier3")
+async def analyze_pr_tier3(payload: TriageRequest, request: Request):
+    """Tier 3: LLM triage of existing findings. Filters false positives."""
+    require_internal_auth(request)
+    return triage_findings_payload(payload)
 
 
 @app.get("/")

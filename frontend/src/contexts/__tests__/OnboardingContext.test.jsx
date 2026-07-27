@@ -86,10 +86,13 @@ describe('OnboardingProvider', () => {
       </OnboardingProvider>
     )
 
+    // Gate on installs:1 (only true after the fetch resolves). needsOnboarding
+    // is true in the initial empty state too, so it cannot tell us the fetch landed.
     await waitFor(() => {
-      expect(screen.getByText('needsOnboarding:true')).toBeInTheDocument()
+      expect(screen.getByText('installs:1')).toBeInTheDocument()
     })
 
+    expect(screen.getByText('needsOnboarding:true')).toBeInTheDocument()
     expect(screen.getByText('nextStep:connect-repo')).toBeInTheDocument()
   })
 

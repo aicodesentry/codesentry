@@ -72,6 +72,10 @@ class TestIsEnabled:
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}):
             assert is_llm_triage_enabled()
 
+    def test_enabled_when_generic_gemini_key_set(self):
+        with patch.dict(os.environ, {"LLM_PROVIDER": "gemini", "LLM_API_KEY": "test-key"}, clear=True):
+            assert is_llm_triage_enabled()
+
 
 class TestSelectFindings:
     def test_limits_to_max(self):
@@ -794,7 +798,7 @@ class TestTriageFindings:
             result = triage_findings([], {})
         assert result == []
 
-    @patch("llm_triage._call_openai")
+    @patch("llm_triage._call_triage_llm")
     def test_returns_original_on_api_error(self, mock_call):
         mock_call.side_effect = Exception("API down")
         findings = [_make_finding()]
@@ -802,7 +806,7 @@ class TestTriageFindings:
             result = triage_findings(findings, {})
         assert result == findings
 
-    @patch("llm_triage._call_openai")
+    @patch("llm_triage._call_triage_llm")
     def test_returns_original_on_bad_json(self, mock_call):
         mock_call.return_value = ("not valid json", 100, 50)
         findings = [_make_finding()]
@@ -810,7 +814,7 @@ class TestTriageFindings:
             result = triage_findings(findings, {})
         assert result == findings
 
-    @patch("llm_triage._call_openai")
+    @patch("llm_triage._call_triage_llm")
     def test_filters_false_positives_end_to_end(self, mock_call):
         mock_call.return_value = (
             json.dumps([{
@@ -828,7 +832,7 @@ class TestTriageFindings:
             result = triage_findings(findings, {"app.py": "+code here"})
         assert len(result) == 0
 
-    @patch("llm_triage._call_openai")
+    @patch("llm_triage._call_triage_llm")
     def test_keeps_true_positives_with_boost(self, mock_call):
         mock_call.return_value = (
             json.dumps([{
@@ -854,7 +858,7 @@ class TestTriageFindings:
         assert result[0]["severity"] == "critical"
         assert result[0]["llm_triage"]["verdict"] == "true_positive"
 
-    @patch("llm_triage._call_openai")
+    @patch("llm_triage._call_triage_llm")
     def test_keeps_llm_generated_fix_patch_end_to_end(self, mock_call):
         mock_call.return_value = (
             json.dumps([{
@@ -879,7 +883,7 @@ class TestTriageFindings:
         assert len(result) == 1
         assert result[0]["remediation_patch"] == 'cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))'
 
-    @patch("llm_triage._call_openai")
+    @patch("llm_triage._call_triage_llm")
     def test_generates_fallback_sql_fix_when_model_omits_fixed_code(self, mock_call):
         mock_call.return_value = (
             json.dumps([{
@@ -908,7 +912,7 @@ class TestTriageFindings:
         assert len(result) == 1
         assert result[0]["remediation_patch"] == 'db.query("SELECT * FROM users WHERE id = ?", [userId]);'
 
-    @patch("llm_triage._call_openai")
+    @patch("llm_triage._call_triage_llm")
     def test_generates_fallback_secret_fix_when_model_omits_fixed_code(self, mock_call):
         mock_call.return_value = (
             json.dumps([{
@@ -940,7 +944,7 @@ class TestTriageFindings:
         assert len(result) == 1
         assert result[0]["remediation_patch"] == "const apiKey = process.env.API_KEY;"
 
-    @patch("llm_triage._call_openai")
+    @patch("llm_triage._call_triage_llm")
     def test_generates_fallback_eval_fix_when_model_omits_fixed_code(self, mock_call):
         mock_call.return_value = (
             json.dumps([{
@@ -972,7 +976,7 @@ class TestTriageFindings:
         assert len(result) == 1
         assert result[0]["remediation_patch"] == "JSON.parse(req.body.code);"
 
-    @patch("llm_triage._call_openai")
+    @patch("llm_triage._call_triage_llm")
     def test_generates_fallback_exec_fix_when_model_omits_fixed_code(self, mock_call):
         mock_call.return_value = (
             json.dumps([{
@@ -1004,7 +1008,7 @@ class TestTriageFindings:
         assert len(result) == 1
         assert result[0]["remediation_patch"] == 'return res.status(400).json({ error: "Refusing to execute user-controlled commands" });'
 
-    @patch("llm_triage._call_openai")
+    @patch("llm_triage._call_triage_llm")
     def test_generates_fallback_xss_fix_when_model_omits_fixed_code(self, mock_call):
         mock_call.return_value = (
             json.dumps([{

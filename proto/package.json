@@ -1,17 +1,15 @@
 {
-  "name": "aicode-review-protos",
+  "name": "mitig8it-protos",
   "version": "1.0.0",
-  "description": "gRPC Protocol Buffers for AI Code Review Assistant",
+  "description": "gRPC Protocol Buffers for Mitig8it internal services",
   "main": "index.js",
   "scripts": {
-    "build": "npm run build:js && npm run build:python",
-    "build:js": "grpc_tools_node_protoc --js_out=import_style=commonjs,binary:./generated/js --grpc_out=grpc_js:./generated/js --plugin=protoc-gen-grpc=`which grpc_tools_node_protoc_plugin` -I . analysis.proto github.proto",
-    "build:python": "python -m grpc_tools.protoc -I. --python_out=./generated/python --grpc_python_out=./generated/python analysis.proto github.proto",
-    "clean": "rm -rf generated"
+    "build": "./generate-protos.sh",
+    "clean": "rm -rf ../services/api-service/src/grpc/generated ../services/github-service/src/grpc/generated ../services/analysis-service/src/grpc/generated"
   },
   "devDependencies": {
-    "@grpc/grpc-js": "^1.9.0",
-    "@grpc/proto-loader": "^0.7.10",
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1",
     "grpc-tools": "^1.13.1"
   }
 }

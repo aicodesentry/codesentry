@@ -1,108 +1,47 @@
 syntax = "proto3";
 
-package analysis;
+package mitig8it.analysis.v1;
 
-// Analysis Service - Handles code analysis requests
+import "common.proto";
+
 service AnalysisService {
-  // Analyze code from a pull request
-  rpc AnalyzeCode(AnalyzeRequest) returns (AnalysisResponse);
-
-  // Get analysis result by ID
-  rpc GetAnalysis(GetAnalysisRequest) returns (AnalysisResponse);
-
-  // Batch analyze multiple files
-  rpc BatchAnalyze(BatchAnalyzeRequest) returns (BatchAnalysisResponse);
-
-  // Health check
-  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  rpc AnalyzePullRequest(AnalyzePullRequestRequest) returns (AnalyzePullRequestResponse);
+  rpc AnalyzeTier1(AnalyzePullRequestRequest) returns (AnalyzePullRequestResponse);
+  rpc AnalyzeTier2(AnalyzePullRequestRequest) returns (AnalyzePullRequestResponse);
+  rpc TriageFindings(TriageFindingsRequest) returns (TriageFindingsResponse);
+  rpc HealthCheck(mitig8it.common.v1.HealthCheckRequest) returns (mitig8it.common.v1.HealthCheckResponse);
 }
 
-message AnalyzeRequest {
-  string pull_request_id = 1;
-  string repository_id = 2;
-  repeated CodeFile files = 3;
-  AnalysisConfig config = 4;
+message AnalyzePullRequestRequest {
+  string repository_full_name = 1;
+  int32 pull_request_number = 2;
+  string commit_sha = 3;
+  repeated mitig8it.common.v1.ChangedFile files = 4;
 }
 
-message CodeFile {
-  string filename = 1;
-  string content = 2;
-  string language = 3;
-  int32 lines_of_code = 4;
-  string file_path = 5;
-  string change_type = 6; // added, modified, deleted
+message AnalyzePullRequestResponse {
+  string repository_full_name = 1;
+  int32 pull_request_number = 2;
+  string commit_sha = 3;
+  int32 files_analyzed = 4;
+  int32 tier = 5;
+  repeated mitig8it.common.v1.Finding findings = 6;
 }
 
-message AnalysisConfig {
-  bool enable_security_scan = 1;
-  bool enable_performance_scan = 2;
-  bool enable_style_check = 3;
-  bool enable_best_practices = 4;
-  string severity_threshold = 5; // low, medium, high, critical
+message TriageFindingsRequest {
+  string repository_full_name = 1;
+  int32 pull_request_number = 2;
+  string commit_sha = 3;
+  repeated mitig8it.common.v1.Finding findings = 4;
+  map<string, string> file_patches = 5;
+  mitig8it.common.v1.RepoProfile repo_profile = 6;
 }
 
-message AnalysisResponse {
-  string analysis_id = 1;
-  string status = 2; // pending, processing, completed, failed
-  AnalysisResult result = 3;
-  string error_message = 4;
-  int64 created_at = 5;
-  int64 completed_at = 6;
-}
-
-message AnalysisResult {
-  repeated Issue issues = 1;
-  Summary summary = 2;
-  Metrics metrics = 3;
-}
-
-message Issue {
-  string id = 1;
-  string type = 2; // security, performance, style, best_practice, bug
-  string severity = 3; // low, medium, high, critical
-  string title = 4;
-  string description = 5;
-  string file = 6;
-  int32 line_start = 7;
-  int32 line_end = 8;
-  string code_snippet = 9;
-  string suggestion = 10;
-  repeated string references = 11;
-}
-
-message Summary {
-  int32 total_issues = 1;
-  int32 critical_issues = 2;
-  int32 high_issues = 3;
-  int32 medium_issues = 4;
-  int32 low_issues = 5;
-  int32 files_analyzed = 6;
-  string overall_quality = 7; // excellent, good, fair, poor
-}
-
-message Metrics {
-  int32 lines_analyzed = 1;
-  int32 complexity_score = 2;
-  int32 maintainability_index = 3;
-  double processing_time_ms = 4;
-}
-
-message GetAnalysisRequest {
-  string analysis_id = 1;
-}
-
-message BatchAnalyzeRequest {
-  repeated AnalyzeRequest requests = 1;
-}
-
-message BatchAnalysisResponse {
-  repeated AnalysisResponse responses = 1;
-}
-
-message HealthCheckRequest {}
-
-message HealthCheckResponse {
-  string status = 1;
-  string version = 2;
-  int64 uptime_seconds = 3;
+message TriageFindingsResponse {
+  string repository_full_name = 1;
+  int32 pull_request_number = 2;
+  string commit_sha = 3;
+  int32 tier = 4;
+  repeated mitig8it.common.v1.Finding findings = 5;
+  int32 filtered_count = 6;
 }

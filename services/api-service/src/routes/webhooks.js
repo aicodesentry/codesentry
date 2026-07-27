@@ -1,7 +1,7 @@
 const express = require('express');
 const { pool, transaction } = require('../config/database');
 const { verifyWebhookSignature } = require('../services/githubApp');
-const { triggerAnalysisJob } = require('../services/prAnalysisOrchestrator');
+const { notifyAnalysisQueued } = require('../services/prAnalysisOrchestrator');
 const logger = require('../utils/logger');
 const installationsDb = require('../db/installations');
 const repositoriesDb = require('../db/repositories');
@@ -216,8 +216,8 @@ router.post('/github', async (req, res) => {
         if (repoResult.rows[0].is_active) {
           const run = await client.query(
             `INSERT INTO analysis_runs
-              (repository_id, pull_request_id, pr_number, commit_sha, status, triggered_by, started_at)
-             VALUES ($1, $2, $3, $4, 'pending', 'webhook', NOW())
+              (repository_id, pull_request_id, pr_number, commit_sha, status, triggered_by)
+             VALUES ($1, $2, $3, $4, 'pending', 'webhook')
              RETURNING id`,
             [repoId, prResult.rows[0].id, pr.number, pr.head.sha]
           );
@@ -248,7 +248,7 @@ router.post('/github', async (req, res) => {
     );
 
     if (analysisPayload) {
-      triggerAnalysisJob(analysisPayload);
+      notifyAnalysisQueued();
     }
 
     res.status(200).json({ success: true, analysis_queued: Boolean(analysisPayload) });

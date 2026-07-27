@@ -1,0 +1,50 @@
+name: Auto-update PR branches
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-update-pr-branches
+  cancel-in-progress: false
+
+jobs:
+  update-pr-branches:
+    name: Update open PR branches
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update same-repository PR branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          prs="$(gh pr list \
+            --repo "$REPO" \
+            --base main \
+            --state open \
+            --json number,isCrossRepository \
+            --jq '.[] | select(.isCrossRepository == false) | .number')"
+
+          if [ -z "$prs" ]; then
+            echo "No same-repository pull requests need updating."
+            exit 0
+          fi
+
+          for pr in $prs; do
+            echo "Updating PR #$pr with the latest main branch."
+            if ! gh pr update-branch "$pr" --repo "$REPO"; then
+              echo "::warning::Could not update PR #$pr. It may already be current, have conflicts, or be temporarily locked by another workflow."
+            fi
+          done

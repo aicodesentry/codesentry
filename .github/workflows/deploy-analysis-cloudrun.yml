@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: cloudrun-deploy
+  group: cloudrun-deploy-${{ github.workflow }}
   cancel-in-progress: false
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
     outputs:
       deploy: ${{ steps.decide.outputs.deploy }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
@@ -53,16 +53,24 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
-      - uses: google-github-actions/auth@v3
+      - name: Authenticate to Google Cloud (Workload Identity)
+        if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           workload_identity_provider: '${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
           service_account: '${{ vars.GCP_SERVICE_ACCOUNT_EMAIL }}'
 
-      - uses: google-github-actions/setup-gcloud@v3
+      - name: Authenticate to Google Cloud (service account key)
+        if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER == ''
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
         with:
           project_id: '${{ vars.GCP_PROJECT_ID }}'
 
@@ -88,7 +96,7 @@ jobs:
 
       - name: Build Analysis image
         run: |
-          docker build -t "$IMAGE" ./services/analysis-service
+          docker build -f ./services/analysis-service/Dockerfile.prod -t "$IMAGE" ./services/analysis-service
           docker push "$IMAGE"
 
       - name: Deploy Analysis
@@ -98,20 +106,40 @@ jobs:
             --region '${{ vars.GCP_REGION }}' \
             --project '${{ vars.GCP_PROJECT_ID }}' \
             --platform managed \
+            --use-http2 \
+            --port 8080 \
+            --startup-probe=grpc.port=8080,initialDelaySeconds=5,timeoutSeconds=5,periodSeconds=10,failureThreshold=6 \
+            --liveness-probe=grpc.port=8080,initialDelaySeconds=10,timeoutSeconds=5,periodSeconds=30,failureThreshold=3 \
             --update-env-vars "\
+              SERVICE_MODE=grpc,\
               FRONTEND_URL=${{ vars.CODESENTRY_FRONTEND_URL }},\
               ANALYSIS_SERVICE_INTERNAL_SECRET=${{ secrets.CODESENTRY_INTERNAL_SECRET }}" \
             --set-secrets "\
               GEMINI_API_KEY=codesentry-gemini-api-key:latest" \
             --ingress all \
-            --allow-unauthenticated
+            --no-allow-unauthenticated
 
-      - name: Smoke (Cloud Run URL → /health)
+      - name: Grant API access to Analysis gRPC service
         shell: bash
         run: |
           set -euo pipefail
-          URL=$(gcloud run services describe codesentry-analysis \
+          API_INVOKER="${{ vars.CODESENTRY_API_RUNTIME_SERVICE_ACCOUNT }}"
+          if [ -z "$API_INVOKER" ]; then
+            PROJECT_NUMBER=$(gcloud projects describe '${{ vars.GCP_PROJECT_ID }}' --format='value(projectNumber)')
+            API_INVOKER="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+          fi
+          gcloud run services add-iam-policy-binding codesentry-analysis \
             --region '${{ vars.GCP_REGION }}' \
             --project '${{ vars.GCP_PROJECT_ID }}' \
-            --format='value(status.url)')
-          curl -sfS --connect-timeout 15 --max-time 45 "${URL}/health"
+            --member="serviceAccount:${API_INVOKER}" \
+            --role="roles/run.invoker" \
+            --quiet
+
+      - name: Verify Analysis service URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud run services describe codesentry-analysis \
+            --region '${{ vars.GCP_REGION }}' \
+            --project '${{ vars.GCP_PROJECT_ID }}' \
+            --format='value(status.url)'

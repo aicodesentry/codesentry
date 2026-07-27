@@ -30,16 +30,9 @@ export default [
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
     },
-    settings: {
-      react: {
-        version: 'detect',
-      },
-    },
     rules: {
-      ...react.configs.recommended.rules,
+      'react/jsx-uses-vars': 'error',
       ...reactHooks.configs.recommended.rules,
-      'react/react-in-jsx-scope': 'off',
-      'react/prop-types': 'off',
       'react-refresh/only-export-components': 'off',
       'no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
       // React Compiler rules are included in eslint-plugin-react-hooks v7's

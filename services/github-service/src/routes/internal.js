@@ -1,7 +1,12 @@
 const express = require('express');
 const crypto = require('crypto');
-const axios = require('axios');
-const githubAppAuth = require('../services/githubAppAuth');
+const {
+  createCheckRun,
+  fetchFileContents,
+  fetchPullRequestFiles,
+  postInlineComment,
+  submitPullRequestReview,
+} = require('../services/githubInternalOperations');
 
 const router = express.Router();
 
@@ -19,246 +24,49 @@ function ensureInternalAuth(req, res, next) {
   next();
 }
 
-router.use(ensureInternalAuth);
-
-async function githubRequest(method, url, token, data) {
-  const maxAttempts = 4;
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      return await axios({
-        method,
-        url,
-        data,
-        timeout: 25000,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      });
-    } catch (error) {
-      const status = error.response?.status;
-      const retryable = [429, 500, 502, 503, 504].includes(status);
-      if (!retryable || attempt === maxAttempts) throw error;
-      const delayMs = 1000 * Math.pow(2, attempt - 1);
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-  }
+function sendOperationError(res, fallbackMessage, error) {
+  const status = error.statusCode || 502;
+  return res.status(status).json({
+    error: error.message || fallbackMessage,
+    ...(error.detail ? { detail: error.detail } : {}),
+  });
 }
 
-router.post('/github/pulls/files', async (req, res) => {
-  const { repository_full_name, pull_request_number, installation_id } = req.body || {};
-  if (!repository_full_name || !pull_request_number || !installation_id) {
-    return res.status(400).json({ error: 'repository_full_name, pull_request_number and installation_id are required' });
-  }
-  if (!repository_full_name.includes('/') || repository_full_name.split('/').length !== 2) {
-    return res.status(400).json({ error: 'Invalid repository_full_name format' });
-  }
-
-  try {
-    const token = await githubAppAuth.getInstallationToken(installation_id);
-    const [owner, repo] = repository_full_name.split('/');
-    const files = [];
-    let page = 1;
-
-    for (;;) {
-      const response = await githubRequest(
-        'get',
-        `https://api.github.com/repos/${owner}/${repo}/pulls/${pull_request_number}/files?per_page=100&page=${page}`,
-        token
-      );
-      files.push(...response.data);
-      if (response.data.length < 100) break;
-      page += 1;
+function routeOperation(operation, fallbackMessage) {
+  return async (req, res) => {
+    try {
+      return res.json(await operation(req.body || {}));
+    } catch (error) {
+      return sendOperationError(res, fallbackMessage, error);
     }
+  };
+}
 
-    return res.json({
-      files: files
-        .filter((f) => ['added', 'modified', 'renamed'].includes(f.status))
-        .filter((f) => !f.filename.startsWith('dist/') && !f.filename.includes('node_modules'))
-        .slice(0, 200)
-        .map((f) => ({
-          path: f.filename,
-          patch: f.patch || '',
-          additions: f.additions,
-          deletions: f.deletions,
-          status: f.status,
-          raw_url: f.raw_url,
-        })),
-    });
-  } catch (error) {
-    return res.status(502).json({
-      error: 'Failed to fetch pull request files from GitHub',
-      detail: error.response?.data || error.message,
-    });
-  }
-});
+router.use(ensureInternalAuth);
 
-router.post('/github/files/content', async (req, res) => {
-  const { repository_full_name, installation_id, ref, paths } = req.body || {};
-  if (!repository_full_name || !installation_id || !ref || !Array.isArray(paths)) {
-    return res.status(400).json({ error: 'repository_full_name, installation_id, ref and paths are required' });
-  }
-  if (!repository_full_name.includes('/') || repository_full_name.split('/').length !== 2) {
-    return res.status(400).json({ error: 'Invalid repository_full_name format' });
-  }
+router.post('/github/pulls/files', routeOperation(
+  fetchPullRequestFiles,
+  'Failed to fetch pull request files from GitHub'
+));
 
-  try {
-    const token = await githubAppAuth.getInstallationToken(installation_id);
-    const [owner, repo] = repository_full_name.split('/');
-    const files = [];
+router.post('/github/files/content', routeOperation(
+  fetchFileContents,
+  'Failed to fetch file contents from GitHub'
+));
 
-    for (const path of paths.slice(0, 200)) {
-      if (!path || typeof path !== 'string') continue;
-      const encodedPath = path.split('/').map(encodeURIComponent).join('/');
-      const response = await githubRequest(
-        'get',
-        `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`,
-        token
-      );
-      const content = typeof response.data === 'string'
-        ? response.data
-        : Buffer.from(response.data.content || '', 'base64').toString('utf8');
+router.post('/github/reviews/submit', routeOperation(
+  submitPullRequestReview,
+  'Failed to submit review'
+));
 
-      if (Buffer.byteLength(content || '', 'utf8') > 500000) continue;
-      files.push({ path, content });
-    }
+router.post('/github/comments/inline', routeOperation(
+  postInlineComment,
+  'Failed to post inline comment'
+));
 
-    return res.json({ files });
-  } catch (error) {
-    return res.status(502).json({
-      error: 'Failed to fetch file contents from GitHub',
-      detail: error.response?.data || error.message,
-    });
-  }
-});
-
-router.post('/github/reviews/submit', async (req, res) => {
-  const { owner, repo, pr_number, installation_id, commit_sha, body, event, comments } = req.body || {};
-  if (!owner || !repo || !pr_number || !installation_id || !commit_sha || !body || !event) {
-    return res.status(400).json({ error: 'owner, repo, pr_number, installation_id, commit_sha, body, event are required' });
-  }
-  if (!/^[a-zA-Z0-9_.-]+$/.test(owner) || !/^[a-zA-Z0-9_.-]+$/.test(repo)) {
-    return res.status(400).json({ error: 'Invalid owner or repo format' });
-  }
-
-  try {
-    const token = await githubAppAuth.getInstallationToken(installation_id);
-
-    // Dismiss previous Mitig8it reviews so only the latest is visible
-    const existingReviews = await githubRequest(
-      'get',
-      `https://api.github.com/repos/${owner}/${repo}/pulls/${pr_number}/reviews?per_page=100`,
-      token
-    );
-    for (const review of existingReviews.data) {
-      if (review.body?.includes('<!-- mitig8it-review -->') && review.state === 'CHANGES_REQUESTED') {
-        try {
-          await githubRequest(
-            'put',
-            `https://api.github.com/repos/${owner}/${repo}/pulls/${pr_number}/reviews/${review.id}/dismissals`,
-            token,
-            { message: 'Superseded by new analysis run.' }
-          );
-        } catch (_) { /* best effort */ }
-      }
-    }
-
-    const reviewPayload = {
-      commit_id: commit_sha,
-      body,
-      event,
-      comments: (comments || []).map((c) => ({
-        path: c.path,
-        line: c.line || 1,
-        side: 'RIGHT',
-        body: c.body,
-      })),
-    };
-
-    const response = await githubRequest(
-      'post',
-      `https://api.github.com/repos/${owner}/${repo}/pulls/${pr_number}/reviews`,
-      token,
-      reviewPayload
-    );
-
-    return res.json({
-      review_id: response.data.id,
-      comments_posted: (comments || []).length,
-    });
-  } catch (error) {
-    return res.status(502).json({
-      error: 'Failed to submit review',
-      detail: error.response?.data || error.message,
-    });
-  }
-});
-
-router.post('/github/comments/inline', async (req, res) => {
-  const { owner, repo, pr_number, installation_id, commit_sha, path, line, body } = req.body || {};
-  if (!owner || !repo || !pr_number || !installation_id || !commit_sha || !path || !line || !body) {
-    return res.status(400).json({ error: 'owner, repo, pr_number, installation_id, commit_sha, path, line and body are required' });
-  }
-  if (!/^[a-zA-Z0-9_.-]+$/.test(owner) || !/^[a-zA-Z0-9_.-]+$/.test(repo)) {
-    return res.status(400).json({ error: 'Invalid owner or repo format' });
-  }
-
-  try {
-    const token = await githubAppAuth.getInstallationToken(installation_id);
-    const response = await githubRequest(
-      'post',
-      `https://api.github.com/repos/${owner}/${repo}/pulls/${pr_number}/comments`,
-      token,
-      {
-        body,
-        commit_id: commit_sha,
-        path,
-        line,
-        side: 'RIGHT',
-      }
-    );
-
-    return res.json({
-      comment_id: response.data.id,
-      url: response.data.html_url,
-      success: true,
-    });
-  } catch (error) {
-    return res.status(502).json({
-      error: 'Failed to post inline comment',
-      detail: error.response?.data || error.message,
-    });
-  }
-});
-
-router.post('/github/check-runs', async (req, res) => {
-  const { owner, repo, installation_id, head_sha, conclusion, title, summary } = req.body || {};
-  if (!owner || !repo || !installation_id || !head_sha || !conclusion || !title || !summary) {
-    return res.status(400).json({ error: 'owner, repo, installation_id, head_sha, conclusion, title and summary are required' });
-  }
-
-  try {
-    const token = await githubAppAuth.getInstallationToken(installation_id);
-    const response = await githubRequest(
-      'post',
-      `https://api.github.com/repos/${owner}/${repo}/check-runs`,
-      token,
-      {
-        name: 'Mitig8it Security Review',
-        head_sha,
-        status: 'completed',
-        conclusion,
-        output: { title, summary },
-      }
-    );
-    return res.json({ check_run_id: response.data.id });
-  } catch (error) {
-    return res.status(502).json({
-      error: 'Failed to create check run',
-      detail: error.response?.data || error.message,
-    });
-  }
-});
+router.post('/github/check-runs', routeOperation(
+  createCheckRun,
+  'Failed to create check run'
+));
 
 module.exports = router;
