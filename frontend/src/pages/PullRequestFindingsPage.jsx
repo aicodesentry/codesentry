@@ -53,11 +53,6 @@ export default function PullRequestFindingsPage() {
               <p className="text-sm text-neutral-500">
                 {finding.category} • {finding.severity} • confidence {Math.round(Number(finding.confidence) * 100)}%
               </p>
-              {finding.remediation_patch && (
-                <p className="mt-2 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                  Suggested fix available
-                </p>
-              )}
             </div>
             <div className="flex items-center gap-2">
               <Link
@@ -76,9 +71,6 @@ export default function PullRequestFindingsPage() {
           </div>
           <pre className="mt-4 overflow-x-auto rounded-lg bg-neutral-900 p-3 text-xs text-neutral-100">{finding.code_snippet || 'No snippet'}</pre>
           <p className="mt-3 text-sm text-neutral-700">{finding.evidence}</p>
-          {finding.remediation && (
-            <p className="mt-3 text-sm text-neutral-700">{finding.remediation}</p>
-          )}
         </div>
       ))}
     </div>

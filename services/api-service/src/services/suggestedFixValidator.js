@@ -104,13 +104,6 @@ function extractAddedBlock(patch, lineStart, lineEnd) {
   return collected.join('\n').trim();
 }
 
-function snippetsOverlap(snippet, addedBlock) {
-  const left = normalizePatch(snippet);
-  const right = normalizePatch(addedBlock);
-  if (!left || !right) return false;
-  return left === right || left.includes(right) || right.includes(left);
-}
-
 function countMeaningfulLines(text) {
   return String(text || '')
     .split('\n')
@@ -357,7 +350,7 @@ function validateSuggestedFix({ finding, filePatch, tierLabel, repoProfile }) {
     return { ok: false, reason: 'fix target expression does not match the reviewable code block' };
   }
 
-  if (snippet && addedBlock && !snippetsOverlap(snippet, addedBlock) && !fixTargetExpr) {
+  if (snippet && addedBlock && normalizePatch(addedBlock) !== snippet) {
     return { ok: false, reason: 'flagged snippet does not match the added lines in the PR diff' };
   }
 
@@ -393,6 +386,5 @@ module.exports = {
     lineRange,
     looksLikeUnifiedDiff,
     normalizePatch,
-    snippetsOverlap,
   },
 };

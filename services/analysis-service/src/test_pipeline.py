@@ -35,9 +35,6 @@ class AnalysisPipelineTest(unittest.TestCase):
         body = response.json()
         self.assertGreaterEqual(len(body["findings"]), 1)
         self.assertEqual(body["findings"][0]["category"], "hardcoded secrets")
-        self.assertTrue(body["findings"][0]["remediation_patch"])
-        self.assertTrue(body["findings"][0]["evidence_details"]["auto_fix_eligible"])
-        self.assertEqual(body["findings"][0]["evidence_details"]["fix_scope"], "line")
 
 
 if __name__ == "__main__":

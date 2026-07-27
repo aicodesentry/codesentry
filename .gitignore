@@ -91,7 +91,6 @@ benchmarks/results/*.json
 tmp/
 .env.jira
 .vercel
-.local-fix-log.md
 
 # Development-only documentation and scripts (not needed in production)
 CODE_OPTIMIZATION_REPORT.md
