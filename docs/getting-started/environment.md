@@ -103,7 +103,7 @@ Production values are injected by GitHub Actions and Cloud Run:
 - GitHub Actions secrets provide deploy-time tokens such as `FIREBASE_TOKEN`, `CODESENTRY_INTERNAL_SECRET`, and `CODESENTRY_WEBHOOK_SECRET`.
 - GCP Secret Manager provides runtime secrets such as `codesentry-database-url`, `codesentry-jwt-secret`, GitHub App credentials, and `codesentry-gemini-api-key`.
 
-See [cloud-run-firebase.md](/Users/nehachaudhari/Developer/codesentry/docs/deployment/cloud-run-firebase.md:1).
+See [cloud-run-firebase.md](../deployment/cloud-run-firebase.md).
 
 ## Troubleshooting
 

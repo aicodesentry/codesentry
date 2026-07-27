@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>User Authentication (GitHub OAuth) &middot; Mitig8it</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #5a5a5a;
+    --line: #d7d7d7;
+    --code-bg: #f4f4f4;
+    --th-bg: #f0f0f0;
+    --link: #1a4d80;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c;
+      --fg: #e4e4e4;
+      --muted: #9a9a9a;
+      --line: #33363c;
+      --code-bg: #22252b;
+      --th-bg: #22252b;
+      --link: #6ea8dc;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    font-size: 15px;
+  }
+  main { width: 100%; margin: 0; padding: 40px 40px 80px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 19px; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 15px; margin: 24px 0 8px; }
+  p { margin: 10px 0; }
+  .meta { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+  code, .mono {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .callout {
+    border: 1px solid var(--line);
+    background: var(--code-bg);
+    border-radius: 5px;
+    padding: 12px 16px;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .callout strong { display: inline; }
+  .table-scroll { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--th-bg); font-weight: 600; }
+  td.num { text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td .mono { background: none; padding: 0; word-break: break-word; }
+  ul { margin: 10px 0; padding-left: 22px; }
+  li { margin: 5px 0; }
+  a { color: var(--link); }
+  .footnote { color: var(--muted); font-size: 13px; margin-top: 40px; border-top: 1px solid var(--line); padding-top: 14px; }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>User Authentication (GitHub OAuth)</h1>
+  <p class="meta">Service: <code>api-service</code> &middot; Files: <code>routes/auth.js</code>, <code>middleware/auth.js</code>, <code>services/githubUserAuth.js</code>, <code>utils/encryption.js</code></p>
+
+  <p>
+    Mitig8it authenticates dashboard users with the GitHub OAuth authorization-code flow.
+    GitHub performs the actual user authentication (credentials and 2FA); <code>api-service</code>
+    exchanges the resulting authorization code for a GitHub access token, reads the user's
+    identity, stores the tokens encrypted, and issues its own session JWT.
+  </p>
+
+  <div class="callout">
+    <strong>Ownership.</strong> This flow is handled entirely by <code>api-service</code>, the control plane.
+    <code>github-service</code> handles a separate concern: GitHub <em>App</em> authentication
+    (installation tokens for acting on repositories). <code>analysis-service</code> has no authentication role.
+    In short: <code>api-service</code> authenticates <em>users</em>; <code>github-service</code> authenticates the <em>app</em>.
+  </div>
+
+  <div class="callout">
+    <strong>Channel model.</strong> The <em>front channel</em> travels through the browser and carries only
+    public values (<code>client_id</code>, <code>scope</code>, <code>redirect_uri</code>, <code>state</code>).
+    The <em>back channel</em> is a direct <code>api-service</code> &rarr; GitHub call and is the only place the
+    <code>client_secret</code> is used. Redirects move the browser; the server makes direct API calls.
+  </div>
+
+  <h2>Request flow</h2>
+  <p class="meta">B = browser &middot; API = api-service &middot; GH = GitHub</p>
+
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Hop</th>
+        <th>HTTP verb &amp; URL</th>
+        <th>Service &middot; file</th>
+        <th>Description</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="num">1</td>
+        <td>B &rarr; API</td>
+        <td><span class="mono">GET /auth/github</span></td>
+        <td><span class="mono">api-service &middot; routes/auth.js</span></td>
+        <td>User clicks "Login with GitHub". The server builds a signed <code>state</code> value and returns a 302 redirect.</td>
+        <td>Top-level browser navigation, not an AJAX request; the browser must follow the redirect.</td>
+      </tr>
+      <tr>
+        <td class="num">2</td>
+        <td>API &rarr; B</td>
+        <td><span class="mono">302 Location: github.com/login/oauth/authorize?client_id&amp;scope=read:user,user:email&amp;redirect_uri&amp;state</span></td>
+        <td><span class="mono">api-service &middot; routes/auth.js &rarr; createOAuthState()</span></td>
+        <td>The redirect hands the browser GitHub's authorize URL. Response body is empty.</td>
+        <td>Carries <code>client_id</code> (public) only, never the secret. <code>state</code> is an HMAC-SHA256 value signed with <code>JWT_SECRET</code>, used for CSRF protection. It is unrelated to the webhook signature.</td>
+      </tr>
+      <tr>
+        <td class="num">3</td>
+        <td>B &rarr; GH</td>
+        <td><span class="mono">GET github.com/login/oauth/authorize?...</span></td>
+        <td>GitHub (external)</td>
+        <td>GitHub validates <code>client_id</code> and <code>redirect_uri</code>, authenticates the user (login + 2FA), and shows the consent screen.</td>
+        <td>User authentication happens here, on GitHub. <code>api-service</code> never receives credentials. <code>state</code> is opaque to GitHub and is echoed back unchanged.</td>
+      </tr>
+      <tr>
+        <td class="num">4</td>
+        <td>GH &rarr; B</td>
+        <td><span class="mono">302 Location: /auth/github/callback?code&amp;state</span></td>
+        <td>GitHub (external)</td>
+        <td>After the user authorizes, GitHub issues a single-use authorization <code>code</code> and redirects the browser back to the callback.</td>
+        <td>The browser makes the next request, not GitHub. The redirect carries a <code>code</code>, but no user identity yet.</td>
+      </tr>
+      <tr>
+        <td class="num">5</td>
+        <td>B &rarr; API</td>
+        <td><span class="mono">GET /auth/github/callback?code&amp;state</span></td>
+        <td><span class="mono">api-service &middot; routes/auth.js</span></td>
+        <td>The callback receives the <code>code</code> and <code>state</code>.</td>
+        <td>The <code>code</code> grants nothing on its own; it must be redeemed with the client secret.</td>
+      </tr>
+      <tr>
+        <td class="num">6</td>
+        <td>API (internal)</td>
+        <td>n/a</td>
+        <td><span class="mono">api-service &middot; routes/auth.js &rarr; isValidOAuthState()</span></td>
+        <td>Verify <code>state</code> before doing anything else: recompute the HMAC, compare with <code>timingSafeEqual</code>, and check the 10-minute TTL.</td>
+        <td>Runs before the code is redeemed. <code>timingSafeEqual</code> is a constant-time comparison, which prevents timing attacks against the signature.</td>
+      </tr>
+      <tr>
+        <td class="num">7</td>
+        <td>API &rarr; GH</td>
+        <td><span class="mono">POST github.com/login/oauth/access_token</span> &middot; body <span class="mono">{client_id, client_secret, code}</span></td>
+        <td><span class="mono">api-service &middot; routes/auth.js</span></td>
+        <td>Back-channel exchange: redeem the <code>code</code> for an <code>access_token</code> (and <code>refresh_token</code> / <code>expires_in</code> when present).</td>
+        <td>The <code>client_secret</code> is used only here, server-to-server. The browser never sees it.</td>
+      </tr>
+      <tr>
+        <td class="num">8</td>
+        <td>API &rarr; GH</td>
+        <td><span class="mono">GET api.github.com/user</span> &middot; <span class="mono">Authorization: Bearer &lt;token&gt;</span></td>
+        <td><span class="mono">api-service &middot; routes/auth.js</span></td>
+        <td>Fetch the user's identity: <code>{ id, login, email, avatar_url, name }</code>.</td>
+        <td>Username (<code>login</code>) and email are obtained here, via a separate API call, not from the redirect.</td>
+      </tr>
+      <tr>
+        <td class="num">9</td>
+        <td>API &rarr; GH</td>
+        <td><span class="mono">GET api.github.com/user/emails</span></td>
+        <td><span class="mono">api-service &middot; routes/auth.js</span></td>
+        <td>Only if <code>/user</code> returns a null email (private): select the primary verified address. If that also fails, synthesize <code>id+login@users.noreply.github.com</code>.</td>
+        <td>Ensures the flow does not break when a user hides their email.</td>
+      </tr>
+      <tr>
+        <td class="num">10</td>
+        <td>API &rarr; Postgres</td>
+        <td><span class="mono">INSERT INTO users ... ON CONFLICT (github_id) DO UPDATE</span></td>
+        <td><span class="mono">api-service &middot; routes/auth.js + utils/encryption.js</span></td>
+        <td>Encrypt the access and refresh tokens (AES-256-GCM), upsert the user, and return the internal <code>id</code>.</td>
+        <td>Tokens are stored encrypted at rest, never in plaintext.</td>
+      </tr>
+      <tr>
+        <td class="num">11</td>
+        <td>API &rarr; B</td>
+        <td><span class="mono">Set-Cookie: __session=&lt;JWT&gt;</span> &middot; <span class="mono">302 &rarr; /dashboard</span></td>
+        <td><span class="mono">api-service &middot; routes/auth.js</span></td>
+        <td>Sign a session JWT <code>{user_id, github_id, github_username}</code> (<code>JWT_SECRET</code>, 7-day expiry) and set it as the <code>__session</code> cookie.</td>
+        <td>The session is the service's own JWT, not the GitHub token. The cookie is <code>httpOnly</code> and <code>secure</code>, so client-side JavaScript cannot read it and the GitHub token never reaches the browser.</td>
+      </tr>
+      <tr>
+        <td class="num">12</td>
+        <td>B &rarr; API</td>
+        <td>Any protected route &middot; <span class="mono">Cookie: __session</span></td>
+        <td><span class="mono">api-service &middot; middleware/auth.js &rarr; authenticateToken</span></td>
+        <td>Each subsequent request is authenticated by verifying the JWT (<code>jwt.verify</code>) and attaching <code>req.user</code>.</td>
+        <td>Missing or invalid token returns <code>401</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Design and security notes</h2>
+  <ul>
+    <li><strong>Session token.</strong> <code>api-service</code> issues its own JWT rather than reusing the GitHub access token as the session. This decouples session lifetime, payload, and revocation from GitHub, and keeps the GitHub token off the browser.</li>
+    <li><strong>CSRF <code>state</code>.</strong> The <code>state</code> value is <code>{nonce, ts}</code> (base64url) with an appended HMAC signature. It is signed and time-limited (10 minutes) rather than stored server-side, so it remains valid even when the callback is handled by a different Cloud Run instance than the one that started the flow.</li>
+    <li><strong>State vs. webhook signature.</strong> Both use HMAC-SHA256, but they are separate mechanisms. The OAuth <code>state</code> is signed by <code>api-service</code> with <code>JWT_SECRET</code> for CSRF protection. The webhook signature is produced by GitHub with <code>GITHUB_WEBHOOK_SECRET</code> to prove payload integrity, and is verified in a different request.</li>
+    <li><strong>Constant-time comparison.</strong> The <code>state</code> signature is compared with <code>crypto.timingSafeEqual</code> so the response time does not reveal how much of a guessed signature was correct.</li>
+    <li><strong>Encryption at rest.</strong> Access and refresh tokens are encrypted with AES-256-GCM (random IV, authentication tag) using <code>ENCRYPTION_KEY</code> before being written to the database.</li>
+    <li><strong>Token refresh.</strong> <code>services/githubUserAuth.js</code> stores the refresh token (also encrypted) and exchanges it for a fresh access token via <code>refreshGithubAccessToken</code>, using a 60-second expiry leeway, so users are not forced to re-authenticate when a token expires.</li>
+  </ul>
+
+  <h2>Resources</h2>
+  <h3>Database: <code>users</code> table</h3>
+  <p><code>github_id</code>, <code>github_username</code>, <code>github_email</code>, <code>avatar_url</code>, <code>name</code>, encrypted <code>github_token</code> and <code>github_refresh_token</code>, and the token expiry columns.</p>
+  <h3>Environment / secrets</h3>
+  <ul>
+    <li><code>GITHUB_CLIENT_ID</code>, <code>GITHUB_CLIENT_SECRET</code>: OAuth application credentials.</li>
+    <li><code>JWT_SECRET</code>: signs the session JWT and the OAuth <code>state</code>.</li>
+    <li><code>ENCRYPTION_KEY</code>: 32-byte key for AES-256-GCM token encryption.</li>
+  </ul>
+  <h3>Cookie</h3>
+  <p><code>__session</code>: the httpOnly, secure session JWT (7-day expiry).</p>
+
+  <h2>Endpoints</h2>
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr><th>Method &amp; path</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="mono">GET /auth/github</span></td><td>Start login; build signed <code>state</code> and redirect to GitHub.</td></tr>
+      <tr><td><span class="mono">GET /auth/github/callback</span></td><td>Verify <code>state</code>, exchange <code>code</code>, fetch identity, persist user, issue session.</td></tr>
+      <tr><td><span class="mono">GET /auth/me</span></td><td>Return the authenticated user (requires valid session JWT).</td></tr>
+      <tr><td><span class="mono">POST /auth/logout</span></td><td>Clear the <code>__session</code> cookie.</td></tr>
+      <tr><td><span class="mono">POST /auth/exchange</span></td><td>Legacy endpoint; returns <code>410 Gone</code>.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p class="footnote">
+    Related flows (documented separately): GitHub &rarr; app webhook signature verification;
+    app &rarr; repository GitHub App installation-token authentication.
+  </p>
+
+</main>
+</body>
+</html>

@@ -114,7 +114,7 @@ Key behaviors:
 
 ## Local Infrastructure
 
-Primary local infrastructure is [docker-compose.yml](/Users/nehachaudhari/Developer/codesentry/docker-compose.yml:1):
+Primary local infrastructure is [docker-compose.yml](../../docker-compose.yml):
 
 - `postgres:15-alpine`
 - Backend service containers built from local Dockerfiles
@@ -135,4 +135,4 @@ Production is deployed by GitHub Actions:
 - Runtime secrets -> GCP Secret Manager
 - Database -> managed PostgreSQL connection exposed through `codesentry-database-url`
 
-See [cloud-run-firebase.md](/Users/nehachaudhari/Developer/codesentry/docs/deployment/cloud-run-firebase.md:1).
+See [cloud-run-firebase.md](../deployment/cloud-run-firebase.md).

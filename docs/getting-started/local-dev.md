@@ -135,7 +135,7 @@ pytest tests -q
 
 ## Observability
 
-Prometheus config lives in [infrastructure/prometheus/prometheus.yml](/Users/nehachaudhari/Developer/codesentry/infrastructure/prometheus/prometheus.yml:1).
+Prometheus config lives in [infrastructure/prometheus/prometheus.yml](../../infrastructure/prometheus/prometheus.yml).
 
 Local Prometheus scrapes:
 

@@ -57,4 +57,4 @@ Analysis requests and metrics require `x-internal-secret`. The expected value is
 - `FRONTEND_URL`
 - `ANALYSIS_CACHE_TTL_DAYS`
 
-For the full env contract, see [environment.md](/Users/nehachaudhari/Developer/codesentry/docs/getting-started/environment.md:1).
+For the full env contract, see [environment.md](../getting-started/environment.md).
