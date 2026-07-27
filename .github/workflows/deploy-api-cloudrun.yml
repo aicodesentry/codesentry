@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: cloudrun-deploy
+  group: cloudrun-deploy-${{ github.workflow }}
   cancel-in-progress: false
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
     outputs:
       deploy: ${{ steps.decide.outputs.deploy }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
@@ -53,16 +53,24 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
-      - uses: google-github-actions/auth@v3
+      - name: Authenticate to Google Cloud (Workload Identity)
+        if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           workload_identity_provider: '${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
           service_account: '${{ vars.GCP_SERVICE_ACCOUNT_EMAIL }}'
 
-      - uses: google-github-actions/setup-gcloud@v3
+      - name: Authenticate to Google Cloud (service account key)
+        if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER == ''
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
         with:
           project_id: '${{ vars.GCP_PROJECT_ID }}'
 
@@ -90,7 +98,7 @@ jobs:
 
       - name: Build API image
         run: |
-          docker build -f Dockerfile.prod -t "$IMAGE" ./services/api-service
+          docker build -f ./services/api-service/Dockerfile.prod -t "$IMAGE" ./services/api-service
           docker push "$IMAGE"
 
       - name: Run API migrations from release image
@@ -110,12 +118,17 @@ jobs:
             --region '${{ vars.GCP_REGION }}' \
             --project '${{ vars.GCP_PROJECT_ID }}' \
             --platform managed \
-            --min-instances 1 \
             --update-env-vars "\
               NODE_ENV=production,\
               FRONTEND_URL=${{ vars.CODESENTRY_FRONTEND_URL }},\
               GITHUB_SERVICE_URL=${{ vars.CODESENTRY_GH_SERVICE_URL }},\
               ANALYSIS_SERVICE_URL=${{ vars.CODESENTRY_ANALYSIS_URL }},\
+              INTERNAL_SERVICE_TRANSPORT=grpc,\
+              GRPC_TRANSPORT_TLS=true,\
+              GITHUB_GRPC_URL=${{ vars.CODESENTRY_GH_SERVICE_URL }},\
+              GITHUB_GRPC_AUDIENCE=${{ vars.CODESENTRY_GH_SERVICE_URL }},\
+              ANALYSIS_GRPC_URL=${{ vars.CODESENTRY_ANALYSIS_URL }},\
+              ANALYSIS_GRPC_AUDIENCE=${{ vars.CODESENTRY_ANALYSIS_URL }},\
               GITHUB_CALLBACK_URL=${{ vars.CODESENTRY_FRONTEND_URL }}/auth/github/callback,\
               GITHUB_APP_SLUG=mitig8it,\
               GITHUB_SERVICE_INTERNAL_SECRET=${{ secrets.CODESENTRY_INTERNAL_SECRET }}" \
