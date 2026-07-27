@@ -104,6 +104,65 @@ def make_fingerprint(rule_id: str, path: str, line_start: int, snippet: str) -> 
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def _meaningful_line_count(text: str) -> int:
+    return len([line for line in str(text or "").split("\n") if line.strip()])
+
+
+def _deterministic_missing_control_type(rule, finding: Dict[str, Any]) -> str | None:
+    category = str(getattr(rule, "category", "") or "").lower()
+    title = str(getattr(rule, "title", "") or "").lower()
+    cwe_id = str(finding.get("cwe_id", "") or "").upper()
+
+    if "sql" in category or cwe_id == "CWE-89":
+        return "parameterized_query"
+    if "xss" in category or "cross-site scripting" in title or cwe_id == "CWE-79":
+        return "html_sanitization_or_safe_text_rendering"
+    if "command injection" in category or cwe_id == "CWE-78":
+        return "command_execution_guard"
+    if "code injection" in category or cwe_id in {"CWE-94", "CWE-95"}:
+        return "safe_parsing_or_no_dynamic_execution"
+    if "secret" in category or cwe_id == "CWE-798":
+        return "secret_manager_or_environment_variable"
+    if cwe_id == "CWE-327":
+        return "stronger_cryptography"
+    if cwe_id == "CWE-295":
+        return "tls_certificate_verification"
+    if cwe_id == "CWE-502":
+        return "safe_deserialization"
+    return None
+
+
+def _deterministic_fix_metadata(rule, finding: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    remediation_patch = str(finding.get("remediation_patch", "") or "").strip()
+    if not remediation_patch:
+        return {}
+
+    patch_lines = _meaningful_line_count(remediation_patch)
+    if patch_lines == 0 or patch_lines > 8:
+        return {}
+
+    snippet = context.get("matched_text") or context.get("code_snippet") or ""
+    snippet_lines = _meaningful_line_count(snippet)
+    line_start = int(finding.get("line_start") or 1)
+    line_end = int(finding.get("line_end") or line_start)
+
+    if patch_lines == 1 and line_start == line_end:
+        fix_scope = "line"
+    elif patch_lines <= max(2, snippet_lines + 1):
+        fix_scope = "block"
+    else:
+        return {}
+
+    return {
+        "reviewability": "changed-lines-only",
+        "fix_scope": fix_scope,
+        "fix_target_line": line_start,
+        "fix_target_expr": context.get("matched_text") or "",
+        "missing_control_type": _deterministic_missing_control_type(rule, finding),
+        "auto_fix_eligible": True,
+    }
+
+
 def generate_finding(rule, file_path: str, patch: str) -> Dict[str, Any]:
     context = extract_match_context(patch, rule.pattern)
     taxonomy = build_taxonomy_metadata(
@@ -150,6 +209,9 @@ def generate_finding(rule, file_path: str, patch: str) -> Dict[str, Any]:
         ),
     }
     finding["remediation_patch"] = build_remediation_patch(finding) or ""
+    evidence_details = _deterministic_fix_metadata(rule, finding, context)
+    if evidence_details:
+        finding["evidence_details"] = evidence_details
     return finding
 
 

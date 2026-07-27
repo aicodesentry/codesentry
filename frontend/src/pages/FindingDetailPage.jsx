@@ -46,6 +46,17 @@ export default function FindingDetailPage() {
         <h2 className="text-lg font-semibold text-neutral-900">Exploitability and Remediation</h2>
         <p className="mt-2 text-sm text-neutral-700">{finding.exploit_scenario}</p>
         <p className="mt-3 text-sm text-neutral-700">{finding.remediation}</p>
+        {finding.remediation_patch && (
+          <>
+            <div className="mt-4 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+              Suggested fix available
+            </div>
+            <p className="mt-3 text-sm text-neutral-600">
+              If this finding was posted back to GitHub on the pull request, the reviewer may be able to apply the suggested change directly from the review thread.
+            </p>
+            <pre className="mt-3 overflow-x-auto rounded-lg bg-neutral-900 p-3 text-xs text-neutral-100">{finding.remediation_patch}</pre>
+          </>
+        )}
       </div>
 
       <div className="flex gap-2">

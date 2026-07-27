@@ -244,6 +244,53 @@ def _is_auto_fix_eligible(finding: Dict[str, Any]) -> bool:
     return bool(evidence_details.get("auto_fix_eligible"))
 
 
+def _count_meaningful_lines(text: Any) -> int:
+    return len([line for line in str(text or "").split("\n") if line.strip()])
+
+
+def _is_safe_deterministic_autofix_candidate(finding: Dict[str, Any]) -> bool:
+    if not _is_auto_fix_eligible(finding):
+        return False
+    if not _is_inline_reviewable(finding):
+        return False
+
+    analysis_scope = str(
+        finding.get("analysis_scope")
+        or (finding.get("evidence_details") or {}).get("analysis_scope")
+        or "pattern"
+    ).strip().lower()
+    if analysis_scope.startswith("taint") or analysis_scope in {"ast-pattern", "ast-match"}:
+        return False
+
+    fix_scope = _fix_scope(finding)
+    if fix_scope not in {"line", "block"}:
+        return False
+
+    patch = _normalize_fixed_code(
+        finding.get("remediation_patch") or _build_fallback_fixed_code(finding),
+        finding.get("code_snippet", ""),
+    )
+    if not patch or _count_meaningful_lines(patch) > 8:
+        return False
+
+    category = str(finding.get("category", "")).lower()
+    title = str(finding.get("title", "")).lower()
+    cwe_id = str(finding.get("cwe_id", "")).upper()
+    allowed_cwes = {"CWE-78", "CWE-79", "CWE-89", "CWE-94", "CWE-95", "CWE-295", "CWE-327", "CWE-502", "CWE-798"}
+
+    return (
+        cwe_id in allowed_cwes
+        or "sql" in category
+        or "secret" in category
+        or "code injection" in category
+        or "command injection" in category
+        or "xss" in category
+        or "hardcoded secret" in title
+        or "weak hash" in title
+        or "unsafe yaml" in title
+    )
+
+
 def _sanitizer_status(finding: Dict[str, Any]) -> str:
     evidence_details = finding.get("evidence_details") or {}
     status = str(evidence_details.get("sanitizer_status") or "").strip().lower()
@@ -377,6 +424,22 @@ def _build_fallback_fixed_code(
     finding: Dict[str, Any],
 ) -> Optional[str]:
     return build_remediation_patch(finding)
+
+
+def _should_attach_auto_fix(
+    finding: Dict[str, Any],
+    trace_features: Dict[str, Any],
+    sanitizer_status: str,
+) -> bool:
+    if not _is_auto_fix_eligible(finding):
+        return False
+    if not _is_inline_reviewable(finding):
+        return False
+    if sanitizer_status == "validated":
+        return False
+    if trace_features["trace_quality"] in {"strong", "moderate"}:
+        return True
+    return _is_safe_deterministic_autofix_candidate(finding)
 
 
 def _is_likely_patchable(finding: Dict[str, Any]) -> bool:
@@ -652,14 +715,11 @@ def _apply_verdicts(
 
         fixed_code = _normalize_fixed_code(verdict.get("fixed_code"), finding.get("code_snippet", ""))
         sanitizer_status = _sanitizer_status(enriched)
-        auto_fix_eligible = _is_auto_fix_eligible(enriched)
         if (
             not fixed_code
             and verdict["verdict"] == "true_positive"
-            and auto_fix_eligible
-            and _is_inline_reviewable(enriched)
             and sanitizer_status in {"none", "present-but-insufficient"}
-            and trace_features["trace_quality"] in {"strong", "moderate"}
+            and _should_attach_auto_fix(enriched, trace_features, sanitizer_status)
         ):
             fixed_code = _normalize_fixed_code(
                 _build_fallback_fixed_code(finding),
@@ -668,10 +728,7 @@ def _apply_verdicts(
         if (
             fixed_code
             and verdict["verdict"] == "true_positive"
-            and auto_fix_eligible
-            and _is_inline_reviewable(enriched)
-            and sanitizer_status != "validated"
-            and trace_features["trace_quality"] in {"strong", "moderate"}
+            and _should_attach_auto_fix(enriched, trace_features, sanitizer_status)
         ):
             enriched["remediation_patch"] = fixed_code
         else:
