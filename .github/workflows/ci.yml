@@ -117,8 +117,14 @@ jobs:
             services/analysis-service/src/requirements-test.txt
       - run: pip install -r requirements-test.txt
       - run: pip install pip-audit bandit
+      # Semgrep 1.172.0 pins mcp 1.23.3. Keep these ignored until Semgrep
+      # ships a compatible release with mcp >=1.28.1.
       - name: pip-audit (runtime requirements)
-        run: pip-audit -r requirements.txt
+        run: >
+          pip-audit -r requirements.txt
+          --ignore-vuln PYSEC-2026-3481
+          --ignore-vuln PYSEC-2026-3482
+          --ignore-vuln PYSEC-2026-3483
       # B608 skipped: Bandit flags LLM prompt strings as "SQL injection".
       - name: bandit
         run: >
