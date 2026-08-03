@@ -1041,7 +1041,7 @@ class TestTriageFindings:
         assert len(result) == 1
         assert result[0]["remediation_patch"] == "element.textContent = req.query.name;"
 
-    @patch("llm_triage._call_openai")
+    @patch("llm_triage._call_triage_llm")
     def test_keeps_safe_deterministic_secret_fix_patch_without_trace_metadata(self, mock_call):
         mock_call.return_value = (
             json.dumps([{
