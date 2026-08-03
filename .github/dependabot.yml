@@ -19,6 +19,11 @@ updates:
     versioning-strategy: increase-if-necessary
     commit-message:
       prefix: "deps(frontend)"
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-patch
+          - version-update:semver-minor
     groups:
       frontend-production-patches:
         patterns:
@@ -60,13 +65,17 @@ updates:
     versioning-strategy: increase-if-necessary
     commit-message:
       prefix: "deps(api)"
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-patch
+          - version-update:semver-minor
     groups:
       api-grpc-runtime:
         patterns:
           - "@grpc/*"
           - "google-protobuf"
         update-types:
-          - major
           - minor
           - patch
       api-production-patches:
@@ -115,13 +124,17 @@ updates:
     versioning-strategy: increase-if-necessary
     commit-message:
       prefix: "deps(github)"
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-patch
+          - version-update:semver-minor
     groups:
       github-grpc-runtime:
         patterns:
           - "@grpc/*"
           - "google-protobuf"
         update-types:
-          - major
           - minor
           - patch
       github-production-patches:
@@ -170,13 +183,17 @@ updates:
     versioning-strategy: increase-if-necessary
     commit-message:
       prefix: "deps(proto-js)"
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-patch
+          - version-update:semver-minor
     groups:
       proto-js-grpc-tools:
         patterns:
           - "@grpc/*"
           - "grpc-tools"
         update-types:
-          - major
           - minor
           - patch
       proto-js-patches:
@@ -213,6 +230,11 @@ updates:
     versioning-strategy: increase-if-necessary
     commit-message:
       prefix: "deps(analysis)"
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-patch
+          - version-update:semver-minor
     groups:
       analysis-grpc-runtime:
         patterns:
@@ -220,7 +242,6 @@ updates:
           - "grpcio-health-checking"
           - "protobuf"
         update-types:
-          - major
           - minor
           - patch
       analysis-pip-patches:
@@ -257,6 +278,11 @@ updates:
     versioning-strategy: increase-if-necessary
     commit-message:
       prefix: "deps(proto-py)"
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-patch
+          - version-update:semver-minor
     groups:
       proto-py-grpc-tools:
         patterns:
@@ -264,7 +290,6 @@ updates:
           - "grpcio-tools"
           - "protobuf"
         update-types:
-          - major
           - minor
           - patch
       proto-py-patches:
@@ -296,6 +321,11 @@ updates:
     open-pull-requests-limit: 3
     commit-message:
       prefix: "deps(actions)"
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-patch
+          - version-update:semver-minor
     groups:
       github-actions-patches:
         patterns:
