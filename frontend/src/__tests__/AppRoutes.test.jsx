@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { AppRoutes } from '../App'
 
@@ -26,7 +26,7 @@ vi.mock('../components/HomePage', () => ({
 }))
 
 vi.mock('../components/DashboardLayout', async () => {
-  const { Outlet } = await import('react-router-dom')
+  const { Outlet } = await import('react-router')
   return {
     default: () => (
       <div>

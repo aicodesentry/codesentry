@@ -16,10 +16,12 @@ pool.on('error', (err) => {
   console.error(JSON.stringify({ level: 'error', msg: 'DB pool error', error: err.message }));
 });
 
-// Test connection on startup
-pool.connect()
-  .then(client => { client.release(); console.log(JSON.stringify({ level: 'info', msg: 'Database connected' })); })
-  .catch(err => console.error(JSON.stringify({ level: 'error', msg: 'DB connect failed', error: err.message })));
+// Test connection on startup, but avoid import-time network work in unit tests.
+if (process.env.NODE_ENV !== 'test') {
+  pool.connect()
+    .then(client => { client.release(); console.log(JSON.stringify({ level: 'info', msg: 'Database connected' })); })
+    .catch(err => console.error(JSON.stringify({ level: 'error', msg: 'DB connect failed', error: err.message })));
+}
 
 /**
  * Execute a parameterized query.
