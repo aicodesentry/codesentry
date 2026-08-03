@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { GitPullRequest, ShieldCheck, Workflow } from 'lucide-react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'

@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Link, Outlet, useLocation } from 'react-router'
 import { Code2, CreditCard, FileText, FolderGit2, LayoutDashboard, LifeBuoy, Moon, Sparkles, Sun, UserCircle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { OnboardingProvider, useOnboarding } from '../contexts/OnboardingContext'
