@@ -1,6 +1,6 @@
 import { useAuth } from '../contexts/AuthContext'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { useOnboarding } from '../contexts/OnboardingContext'
 import { repositoryAPI } from '../services/api'
 import { PageHeader, PageStats } from '../components/PageSection'

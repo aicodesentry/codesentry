@@ -293,6 +293,164 @@ function hasTier3RenderableSuggestions(findings, files, repoProfile) {
   });
 }
 
+function evidenceDetailsForFinding(finding) {
+  const details = finding?.evidence_details;
+  return details && typeof details === 'object' ? details : {};
+}
+
+function normalizedAnalysisScope(finding) {
+  const details = evidenceDetailsForFinding(finding);
+  return String(finding?.analysis_scope || details.analysis_scope || 'pattern').trim().toLowerCase();
+}
+
+function hasTaintTraceEvidence(finding) {
+  const details = evidenceDetailsForFinding(finding);
+  const traceSteps = Array.isArray(details.trace_steps) ? details.trace_steps : [];
+  return Boolean(
+    traceSteps.length > 0
+    || details.trace_summary
+    || finding?.trace_summary
+    || (finding?.source && finding?.sink)
+    || (details.source_type && details.sink_type)
+  );
+}
+
+function explainInlineCommentDecision(finding) {
+  const status = String(finding?.status || 'open').trim().toLowerCase();
+  if (status !== 'open') {
+    return { eligible: false, reason: `status_${status || 'unknown'}` };
+  }
+
+  if (finding?.is_baseline) {
+    return { eligible: false, reason: 'baseline_finding' };
+  }
+
+  const confidence = Number(finding?.confidence || 0);
+  if (confidence < 0.7) {
+    return { eligible: false, reason: 'confidence_below_inline_threshold' };
+  }
+
+  const details = evidenceDetailsForFinding(finding);
+  const sanitizerStatus = String(details.sanitizer_status || '').trim().toLowerCase();
+  if (['allowlisted', 'sanitized', 'validated'].includes(sanitizerStatus)) {
+    return { eligible: false, reason: 'validated_sanitizer_present' };
+  }
+
+  const analysisScope = normalizedAnalysisScope(finding);
+  const evidenceStrength = String(details.evidence_strength || '').trim().toLowerCase();
+  const traceQuality = String(details.trace_quality || '').trim().toLowerCase();
+  const confidenceBasis = String(details.confidence_basis || '').trim().toLowerCase();
+
+  if (analysisScope.startsWith('taint')) {
+    if (confidence < 0.8) {
+      return { eligible: false, reason: 'taint_confidence_below_inline_threshold' };
+    }
+    if (
+      traceQuality === 'weak'
+      || evidenceStrength === 'weak'
+      || confidenceBasis.includes('weak_trace')
+      || !hasTaintTraceEvidence(finding)
+    ) {
+      return { eligible: false, reason: 'weak_taint_trace' };
+    }
+    return { eligible: true, reason: 'strong_taint_evidence' };
+  }
+
+  if (analysisScope === 'ast-pattern' || analysisScope === 'ast') {
+    if (confidence < 0.85) {
+      return { eligible: false, reason: 'ast_pattern_confidence_below_inline_threshold' };
+    }
+    if (evidenceStrength && ['low', 'weak'].includes(evidenceStrength)) {
+      return { eligible: false, reason: 'ast_pattern_evidence_too_weak' };
+    }
+    return { eligible: true, reason: 'ast_pattern_inline_basis' };
+  }
+
+  if (analysisScope === 'pattern') {
+    if (confidence < 0.9) {
+      return { eligible: false, reason: 'pattern_confidence_below_inline_threshold' };
+    }
+    return { eligible: true, reason: 'high_confidence_pattern' };
+  }
+
+  return { eligible: false, reason: 'unsupported_analysis_scope' };
+}
+
+function shouldPostInlineComment(finding) {
+  return explainInlineCommentDecision(finding).eligible;
+}
+
+function buildSurfaceDecisions({ files, findings }) {
+  const reviewableLinesByFile = new Map((files || []).map((file) => [
+    file.path,
+    extractReviewableLines(file.patch),
+  ]));
+
+  return (findings || []).map((finding) => {
+    const findingId = finding?.id || finding?.finding_id || finding?.fingerprint || null;
+    const status = String(finding?.status || 'open').trim().toLowerCase();
+
+    if (status !== 'open') {
+      return {
+        findingId,
+        surfaceDecision: 'suppressed',
+        surfaceReason: `status_${status || 'unknown'}`,
+      };
+    }
+
+    if (finding?.is_baseline) {
+      return {
+        findingId,
+        surfaceDecision: 'suppressed',
+        surfaceReason: 'baseline_finding',
+      };
+    }
+
+    const reviewableLines = reviewableLinesByFile.get(finding?.file_path);
+    if (!reviewableLines) {
+      return {
+        findingId,
+        surfaceDecision: 'summary_only',
+        surfaceReason: 'file_not_reviewable',
+      };
+    }
+
+    if (!reviewableLines.has(finding?.line_start || 1)) {
+      return {
+        findingId,
+        surfaceDecision: 'summary_only',
+        surfaceReason: 'line_not_reviewable',
+      };
+    }
+
+    const inlineDecision = explainInlineCommentDecision(finding);
+    return {
+      findingId,
+      surfaceDecision: inlineDecision.eligible ? 'inline' : 'summary_only',
+      surfaceReason: inlineDecision.reason,
+    };
+  });
+}
+
+async function persistSurfaceDecisions(surfaceDecisions) {
+  for (const decision of surfaceDecisions || []) {
+    if (!decision.findingId) continue;
+    await findingsDb.mergeEvidenceDetails(decision.findingId, {
+      surface_decision: decision.surfaceDecision,
+      surface_reason: decision.surfaceReason,
+    });
+  }
+}
+
+function isTransientServiceError(error) {
+  const code = String(error?.code || '').toUpperCase();
+  if (['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'ENOTFOUND'].includes(code)) {
+    return true;
+  }
+  const status = Number(error?.response?.status || 0);
+  return status >= 500 || /ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|502|503|504/.test(error?.message || '');
+}
+
 async function githubServiceRequest(path, payload) {
   if (useGrpcTransport()) {
     const client = getGitHubGrpcClient();
@@ -315,11 +473,26 @@ async function githubServiceRequest(path, payload) {
   if (!internalSecret) {
     throw new Error('Missing GITHUB_SERVICE_INTERNAL_SECRET');
   }
-  const response = await axios.post(`${baseUrl}${path}`, payload, {
+
+  const requestConfig = {
     timeout: 45000,
     headers: { 'x-internal-secret': internalSecret },
-  });
-  return response.data;
+  };
+  let lastError = null;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await axios.post(`${baseUrl}${path}`, payload, requestConfig);
+      return response.data;
+    } catch (error) {
+      lastError = error;
+      if (!isTransientServiceError(error) || attempt === 3) break;
+    }
+  }
+
+  if (isTransientServiceError(lastError)) {
+    throw new Error(`GitHub service unreachable after 3 attempts: ${lastError.message}`);
+  }
+  throw lastError;
 }
 
 async function submitReviewWithFallback({
@@ -493,7 +666,7 @@ async function callAnalysisTier(tierPath, payload, timeout) {
   return response.data;
 }
 
-async function persistAndFilter({ findings, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha, baselineSet }) {
+async function persistAndFilter({ findings, files, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha, baselineSet }) {
   const completedCount = await analysisRunsDb.countCompletedRuns(repositoryId, runId);
   const shouldMarkBaselineSet = !baselineSet && completedCount === 0;
 
@@ -510,6 +683,7 @@ async function persistAndFilter({ findings, runId, pullRequestId, repositoryId, 
   await findingsDb.markFixed({ repositoryId, pullRequestId, activeFingerprints });
 
   const postSuppression = await applySuppressions(persisted, repositoryId);
+  await persistSurfaceDecisions(buildSurfaceDecisions({ files, findings: postSuppression }));
   const actionable = postSuppression.filter((f) => f.status === 'open' && !f.is_baseline);
 
   return { actionable, shouldMarkBaselineSet };
@@ -522,13 +696,16 @@ async function postReviewToGitHub({ actionable, files, owner, repo, prNumber, in
   let reviewResp = {};
   try {
     const reviewBody = buildReviewBody(actionable, runId);
-    const reviewableLinesByFile = new Map(files.map((f) => [f.path, extractReviewableLines(f.patch)]));
     const filePatchByPath = new Map(files.map((f) => [f.path, f.patch || '']));
     const suggestionStats = { rendered: 0, noPatch: 0, gateRejected: 0, validatorRejected: 0 };
     const rejectionReasons = {};
+    const inlineFindingIds = new Set(
+      buildSurfaceDecisions({ files, findings: actionable })
+        .filter((decision) => decision.surfaceDecision === 'inline')
+        .map((decision) => decision.findingId)
+    );
     const reviewComments = actionable
-      .filter((f) => Number(f.confidence) >= 0.7 && reviewableLinesByFile.has(f.file_path))
-      .filter((f) => reviewableLinesByFile.get(f.file_path)?.has(f.line_start || 1))
+      .filter((f) => inlineFindingIds.has(f.id || f.finding_id || f.fingerprint))
       .map((f) => {
         const filePatch = filePatchByPath.get(f.file_path) || '';
         const suggestionPatch = normalizeSuggestionPatch(f.remediation_patch);
@@ -643,7 +820,7 @@ async function runAnalysisJob(payload) {
 
       if (allFindings.length > 0) {
         const { actionable, shouldMarkBaselineSet: sbs } = await persistAndFilter({
-          findings: allFindings, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha, baselineSet,
+          findings: allFindings, files, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha, baselineSet,
         });
         shouldMarkBaselineSet = sbs;
 
@@ -667,7 +844,7 @@ async function runAnalysisJob(payload) {
         allFindings = allFindings.concat(tier2Findings);
 
         const { actionable, shouldMarkBaselineSet: sbs } = await persistAndFilter({
-          findings: allFindings, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha, baselineSet,
+          findings: allFindings, files, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha, baselineSet,
         });
         shouldMarkBaselineSet = shouldMarkBaselineSet || sbs;
 
@@ -719,7 +896,7 @@ async function runAnalysisJob(payload) {
         allFindings = triaged;
 
         const { actionable, shouldMarkBaselineSet: sbs } = await persistAndFilter({
-          findings: allFindings, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha, baselineSet,
+          findings: allFindings, files, runId, pullRequestId, repositoryId, installationId, prNumber, commitSha, baselineSet,
         });
         shouldMarkBaselineSet = shouldMarkBaselineSet || sbs;
 
@@ -869,9 +1046,12 @@ module.exports = {
     fileExtension,
     githubServiceRequest,
     hasTier3RenderableSuggestions,
+    buildSurfaceDecisions,
+    explainInlineCommentDecision,
     normalizeSuggestionPatch,
     prioritizeReviewComments,
     shouldFetchFullFileContent,
+    shouldPostInlineComment,
     shouldRenderSuggestion,
     validateSuggestedFix,
   },

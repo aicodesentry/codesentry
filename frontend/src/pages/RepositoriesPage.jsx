@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { ArrowUpRight, Compass, GitFork, ShieldAlert, Sparkles } from 'lucide-react'
 import { repositoryAPI } from '../services/api'
 import { useOnboarding } from '../contexts/OnboardingContext'
