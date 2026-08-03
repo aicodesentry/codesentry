@@ -206,6 +206,16 @@ async function markFixed({ repositoryId, pullRequestId, activeFingerprints }) {
   );
 }
 
+async function mergeEvidenceDetails(findingId, metadata) {
+  await pool.query(
+    `UPDATE findings
+     SET evidence_details = COALESCE(evidence_details, '{}'::jsonb) || $1::jsonb,
+         updated_at = NOW()
+     WHERE id = $2`,
+    [JSON.stringify(metadata || {}), findingId]
+  );
+}
+
 async function getActiveSuppressions(repositoryId) {
   const result = await pool.query(
     `SELECT fingerprint, reason FROM suppressions
@@ -217,5 +227,5 @@ async function getActiveSuppressions(repositoryId) {
 
 module.exports = {
   listByPullRequest, listAll, getById, updateStatus, listByAnalysisRun,
-  findByFingerprint, upsert, dismiss, markFixed, getActiveSuppressions,
+  findByFingerprint, upsert, dismiss, markFixed, mergeEvidenceDetails, getActiveSuppressions,
 };
