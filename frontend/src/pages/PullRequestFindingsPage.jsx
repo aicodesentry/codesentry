@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router'
 import { findingAPI, suppressionAPI } from '../services/api'
 
 const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
