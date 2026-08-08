@@ -4,19 +4,32 @@ const crypto = require('crypto');
 const { pool } = require('../config/database');
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../migrations');
+const MIGRATION_LOCK_KEY = 727274;
 
 function listMigrationFiles(migrationsDir = MIGRATIONS_DIR) {
   if (!fs.existsSync(migrationsDir)) {
-    return [];
+    throw new Error(
+      `Migrations directory not found: ${migrationsDir}. `
+      + 'The deployment artifact is missing the migrations/ folder; refusing to treat this as "no pending migrations".'
+    );
   }
 
-  return fs.readdirSync(migrationsDir)
+  const files = fs.readdirSync(migrationsDir)
     .filter((file) => file.endsWith('.sql'))
     .sort()
     .map((file) => ({
       name: file,
       fullPath: path.join(migrationsDir, file),
     }));
+
+  if (files.length === 0) {
+    throw new Error(
+      `No SQL migration files found in migrations directory: ${migrationsDir}. `
+      + 'The deployment artifact is missing the migrations/ folder; refusing to treat this as "no pending migrations".'
+    );
+  }
+
+  return files;
 }
 
 function readMigration(file) {
@@ -77,8 +90,11 @@ async function getPendingMigrations(migrationsDir = MIGRATIONS_DIR) {
 async function applyMigrations(migrationsDir = MIGRATIONS_DIR) {
   const client = await pool.connect();
   const applied = [];
+  let lockAcquired = false;
 
   try {
+    await client.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_KEY]);
+    lockAcquired = true;
     const pending = await planMigrations(client, migrationsDir);
 
     for (const migration of pending) {
@@ -99,6 +115,9 @@ async function applyMigrations(migrationsDir = MIGRATIONS_DIR) {
 
     return applied;
   } finally {
+    if (lockAcquired) {
+      await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]);
+    }
     client.release();
   }
 }

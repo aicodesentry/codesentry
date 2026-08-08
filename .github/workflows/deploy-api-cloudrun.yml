@@ -99,6 +99,13 @@ jobs:
       - name: Build API image
         run: |
           docker build -f ./services/api-service/Dockerfile.prod -t "$IMAGE" ./services/api-service
+
+      - name: Assert migrations are in the release image
+        run: |
+          docker run --rm "$IMAGE" sh -c 'ls migrations/*.sql'
+
+      - name: Push API image
+        run: |
           docker push "$IMAGE"
 
       - name: Run API migrations from release image
