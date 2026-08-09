@@ -19,25 +19,19 @@ Optional:
 
 - `METRICS_AUTH_TOKEN`
 
-## 3. Apply schema migration
-
-```bash
-psql "$DATABASE_URL" -f scripts/p0-live-migration.sql
-```
-
-## 4. Backfill repository access
+## 3. Backfill repository access
 
 ```bash
 DATABASE_URL="$DATABASE_URL" node scripts/backfill-repository-access.js
 ```
 
-## 5. Encrypt existing GitHub tokens
+## 4. Encrypt existing GitHub tokens
 
 ```bash
 ENCRYPTION_KEY="$ENCRYPTION_KEY" DATABASE_URL="$DATABASE_URL" node scripts/migrate-encrypt-tokens.js
 ```
 
-## 6. Verify the database state
+## 5. Verify the database state
 
 ```bash
 psql "$DATABASE_URL" -f scripts/p0-verification.sql
@@ -52,11 +46,11 @@ Expected results:
 
 `shared_installations` and `cross_repo_duplicate_fingerprints` are informational checks. Non-zero values are expected in a shared-install environment.
 
-## 7. Restart services
+## 6. Restart services
 
 Restart `api-service`, `github-service`, and `analysis-service` with the updated environment.
 
-## 8. Smoke test
+## 7. Smoke test
 
 ```bash
 ./scripts/e2e-happy-path.sh
