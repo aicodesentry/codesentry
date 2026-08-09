@@ -16,14 +16,12 @@ For production, the GitHub Actions API deploy workflow now runs this automatical
 
 ```bash
 npm run db:verify
-psql "$DATABASE_URL" -f ../../scripts/p1-verification.sql
 ```
 
 Expected results:
 
 - `db:verify` exits successfully with no pending migrations
-- all orphan-count queries return `0`
-- the listed foreign-key constraints exist
+- all API service migrations are recorded in `schema_migrations`
 
 `convalidated = false` is acceptable initially because the `P1` foreign keys are added as `NOT VALID` to avoid breaking production during rollout. After data cleanup, validate them explicitly.
 
