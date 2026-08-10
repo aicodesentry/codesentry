@@ -1,8 +1,6 @@
 name: Security audit
 
 on:
-  push:
-    branches: [main]
   schedule:
     - cron: "23 12 * * *"
   workflow_dispatch:
@@ -15,6 +13,8 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # Deploy gating audits live in ci.yml. This workflow is retained for
+  # scheduled and manual dependency drift checks.
   npm-audit:
     name: npm audit (${{ matrix.name }})
     runs-on: ubuntu-latest

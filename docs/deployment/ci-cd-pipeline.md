@@ -11,7 +11,7 @@ The pipeline has two stages:
 
 ```mermaid
 flowchart TD
-  Trigger[PR or push to main] --> CI[ci.yml: security scans, tests, docker build]
+  Trigger[PR or push to main] --> CI[ci.yml: security scans, dependency audits, tests, docker build]
   CI -->|all jobs pass on main| Deploy{workflow_run: CI completed}
   CI -->|any job fails| Stop[Stop, nothing deploys]
 
@@ -26,7 +26,7 @@ flowchart TD
   FE -->|filter, npm build, smoke| Firebase[Firebase Hosting]
 ```
 
-Each deploy workflow first runs a `filter` job that skips the deploy if its component did not change. The three Cloud Run workflows share the `cloudrun-deploy` concurrency group, so they deploy one at a time.
+Each deploy workflow first runs a `filter` job that skips the deploy if its component did not change. Cloud Run deploys use per-workflow concurrency, so repeat deploys for the same component are serialized.
 
 ## Stage 1: CI (the gate)
 
@@ -36,10 +36,12 @@ Each deploy workflow first runs a `filter` job that skips the deploy if its comp
 |---|---|
 | `security-gitleaks` | Scans git history for leaked secrets. |
 | `dependency-review` | PR-only. Flags newly added libraries with known high-severity vulnerabilities. |
-| `frontend-checks` | Frontend: install, audit, lint, test, build. |
-| `api-tests` | API service: install, audit, lint, test. |
-| `github-service-tests` | GitHub service: install, audit, lint, test. |
-| `analysis-tests` | Analysis service (Python): install, pip-audit, bandit, pytest. |
+| `npm-audit` | Runs `npm audit --audit-level=high` for frontend, API service, GitHub service, and JS proto packages. |
+| `pip-audit` | Runs `pip-audit` for analysis service and Python proto packages. |
+| `frontend-checks` | Frontend: install, lint, test, build. |
+| `api-tests` | API service: install, lint, test, migration verification. |
+| `github-service-tests` | GitHub service: install, lint, test. |
+| `analysis-tests` | Analysis service (Python): install, bandit, pytest. |
 | `docker-build` | Builds each backend image to confirm it is buildable. Does not push or deploy. |
 
 CI does not push images or deploy anything. It only proves the code is safe and the images build.
@@ -64,8 +66,8 @@ Every deploy workflow has two jobs:
 
 - **CI gates deploy.** Deploys only start after CI passes on `main` (`workflow_run`).
 - **Path filtering.** Only the component that changed redeploys, so unrelated commits do not trigger full redeploys.
-- **Serialized backend deploys.** The three Cloud Run workflows share the `cloudrun-deploy` concurrency group (`cancel-in-progress: false`), so they deploy one at a time.
+- **Per-component deploy serialization.** Each Cloud Run workflow has its own concurrency group (`cancel-in-progress: false`), so repeat deploys for the same component do not overlap.
 - **Deploy the tested commit.** Deploys check out the exact commit CI ran on (`head_sha`), not the branch tip.
 - **No stored cloud keys.** Backends authenticate to Google Cloud with Workload Identity Federation; runtime secrets come from Secret Manager.
 - **SHA-pinned actions.** Every action is pinned to a commit SHA to guard against supply-chain tampering.
-- **Smoke checks.** Every deploy verifies `/health` (or the public site) before being considered done.
+- **Smoke checks.** The API verifies `/health`; the frontend verifies the public site; gRPC services use Cloud Run startup/liveness probes plus service URL verification.
