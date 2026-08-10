@@ -23,9 +23,9 @@ Backend images are pushed to Google Artifact Registry. Runtime secrets are injec
 6. Backend workflows build and push service images to Artifact Registry.
 7. The API workflow runs database migrations from the release image.
 8. Cloud Run or Firebase Hosting is deployed.
-9. Each workflow runs a smoke check against `/health` or the public frontend URL.
+9. Each workflow verifies the deployed service or public frontend URL.
 
-The three Cloud Run workflows share the `cloudrun-deploy` concurrency group with `cancel-in-progress: false`, so backend deploys are serialized.
+Each Cloud Run workflow has its own `cloudrun-deploy-${{ github.workflow }}` concurrency group with `cancel-in-progress: false`, so repeat deploys for the same component are serialized.
 
 ## Required GitHub Repository Variables
 
@@ -135,8 +135,8 @@ Manual `workflow_dispatch` bypasses these filters and deploys the selected compo
 ## Smoke Checks
 
 - API: Cloud Run service URL + `/health`
-- GitHub service: Cloud Run service URL + `/health`
-- Analysis service: Cloud Run service URL + `/health`
+- GitHub service: Cloud Run gRPC startup/liveness probes plus service URL verification
+- Analysis service: Cloud Run gRPC startup/liveness probes plus service URL verification
 - Frontend: `CODESENTRY_FRONTEND_URL` when configured
 
 ## Analysis Queue Wakeup
@@ -166,5 +166,5 @@ The endpoint returns current queue stats and requires `x-internal-secret`. Keep 
 - Keep `CODESENTRY_INTERNAL_SECRET` consistent across API, GitHub service, and analysis service.
 - Metrics endpoints require `x-internal-secret` in production.
 - The API service is deployed with `--min-instances 0` for cost control; Cloud Scheduler should wake the analysis queue.
-- The deploy workflows currently use `--allow-unauthenticated`; application-level secrets protect internal API paths.
+- The API and frontend are public; GitHub and analysis Cloud Run services use `--no-allow-unauthenticated` and grant the API runtime service account `roles/run.invoker`.
 - Rotate GitHub App private keys, OAuth secrets, webhook secrets, JWT secret, encryption key, and internal service secret through GitHub/GCP secret stores, not code.
