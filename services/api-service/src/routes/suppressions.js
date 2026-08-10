@@ -19,7 +19,7 @@ router.get('/suppressions', authenticateToken, async (req, res) => {
      FROM suppressions s
      JOIN repositories r ON r.id = s.repository_id
      JOIN repository_access ra ON ra.repository_id = r.id
-     LEFT JOIN findings f ON f.id = s.finding_id
+     LEFT JOIN findings f ON f.id = s.finding_id AND f.repository_id = s.repository_id
      WHERE ${clauses.join(' AND ')}
      ORDER BY s.created_at DESC`,
     params
@@ -50,7 +50,13 @@ router.post('/suppressions', authenticateToken, async (req, res) => {
   let resolvedFingerprint = fingerprint || null;
 
   if (!resolvedFingerprint && resolvedFindingId) {
-    const finding = await pool.query('SELECT fingerprint FROM findings WHERE id = $1', [resolvedFindingId]);
+    const finding = await pool.query(
+      'SELECT fingerprint FROM findings WHERE id = $1 AND repository_id = $2',
+      [resolvedFindingId, repository_id]
+    );
+    if (finding.rowCount === 0) {
+      return res.status(404).json({ error: 'Finding not found' });
+    }
     resolvedFingerprint = finding.rows[0]?.fingerprint;
   }
 
