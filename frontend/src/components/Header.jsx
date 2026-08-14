@@ -8,11 +8,15 @@ const Header = () => {
   return (
     <nav className="sticky top-0 z-50 border-b border-neutral-800/60 bg-neutral-950/80 backdrop-blur-md" role="navigation" aria-label="Main navigation">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
+        {/*
+          One DOM node per link. The nav links wrap onto their own full-width
+          row on small screens instead of disappearing behind a `hidden md:flex`.
+        */}
+        <div className="flex flex-wrap items-center justify-between gap-y-3 py-3 md:h-16 md:flex-nowrap md:py-0">
           <a href="/" aria-label="Mitig8it home">
             <Logo variant="dark" />
           </a>
-          <div className="hidden items-center gap-6 text-sm font-medium text-neutral-400 md:flex">
+          <div className="order-last flex w-full items-center gap-6 border-t border-neutral-800/60 pt-3 text-sm font-medium text-neutral-400 md:order-none md:w-auto md:border-0 md:pt-0">
             <a href="/examples" className="transition-colors hover:text-white">Examples</a>
             <a href="/security" className="transition-colors hover:text-white">Security</a>
             <a href="/about" className="transition-colors hover:text-white">About</a>
@@ -20,14 +24,14 @@ const Header = () => {
           {user ? (
             <Link
               to="/dashboard"
-              className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-neutral-950 shadow-sm transition hover:bg-neutral-200"
+              className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-200"
             >
               Open Workspace
             </Link>
           ) : (
             <button
               onClick={loginWithGitHub}
-              className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-neutral-950 shadow-sm transition hover:bg-neutral-200"
+              className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-200"
               aria-label="Sign in with GitHub"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
